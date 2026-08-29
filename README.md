@@ -30,10 +30,13 @@ Migration dans `supabase/migrations/`. Déjà appliquée sur le projet Supabase
 
 ## Compte utilisateur
 
-App mono-utilisateur, pas d'écran d'inscription. Créer le compte dans
-Supabase Studio → Authentication → Users → Add user, puis désactiver les
-inscriptions publiques (Authentication → Sign In / Providers → "Allow new users
-to sign up" = off).
+App mono-utilisateur, pas d'écran d'inscription. Le compte d'Alexandra
+(`alexandra.mnier@gmail.com`) est déjà créé avec un mot de passe temporaire —
+à changer via l'écran **Compte** dans l'app après la première connexion.
+
+À faire côté Supabase Studio : désactiver les inscriptions publiques
+(Authentication → Sign In / Providers → "Allow new users to sign up" = off).
+Ajouter un autre utilisateur : Authentication → Users → Add user.
 
 ## Déploiement
 
