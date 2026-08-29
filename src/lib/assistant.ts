@@ -16,13 +16,15 @@ async function errMessage(error: unknown): Promise<string> {
   return (error as Error).message
 }
 
-export async function askAssistant(messages: ChatMsg[]): Promise<string> {
+export async function askAssistant(
+  messages: ChatMsg[],
+): Promise<{ reply: string; added: number }> {
   const { data, error } = await supabase.functions.invoke('assistant', {
     body: { mode: 'chat', messages },
   })
   if (error) throw new Error(await errMessage(error))
   if (data?.error) throw new Error(data.error)
-  return data.reply as string
+  return { reply: data.reply as string, added: (data.added as number) ?? 0 }
 }
 
 export function useSuggestions() {

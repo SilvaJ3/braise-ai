@@ -1,18 +1,24 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState, type FormEvent } from 'react'
 import { askAssistant, type ChatMsg } from '../lib/assistant'
 
 // ponytail: historique en mémoire seulement (perdu au reload). Les idées gardées
 // deviennent des content_entries, qui eux persistent.
 export default function Assistant() {
+  const qc = useQueryClient()
   const [msgs, setMsgs] = useState<ChatMsg[]>([])
   const [input, setInput] = useState('')
+  const [added, setAdded] = useState(0)
   const endRef = useRef<HTMLDivElement>(null)
 
   const send = useMutation({
     mutationFn: (next: ChatMsg[]) => askAssistant(next),
-    onSuccess: (reply) => {
+    onSuccess: ({ reply, added }) => {
       setMsgs((m) => [...m, { role: 'assistant', content: reply }])
+      if (added > 0) {
+        setAdded((n) => n + added)
+        qc.invalidateQueries({ queryKey: ['content_entries'] })
+      }
       requestAnimationFrame(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }))
     },
   })
@@ -57,6 +63,9 @@ export default function Assistant() {
         </div>
       ))}
 
+      {added > 0 && (
+        <p className="muted">✨ {added} idée(s) ajoutée(s) au planning.</p>
+      )}
       {send.isPending && <p className="muted">L'assistant réfléchit…</p>}
       {send.error && (
         <p className="muted" style={{ color: 'var(--accent)' }}>
