@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import EntryForm from '../components/EntryForm'
 import MonthCalendar from '../components/MonthCalendar'
+import Today from '../components/Today'
 import { useCreateEntry, useDeleteEntry, useEntries, useUpdateEntry } from '../lib/entries'
 import { PLATFORM_LABEL, STATUS_LABEL, TYPE_LABEL, nextStatus } from '../lib/labels'
 import type { ContentEntry, ContentStatus } from '../lib/supabase'
@@ -26,7 +27,7 @@ export default function Planning() {
   const update = useUpdateEntry()
   const del = useDeleteEntry()
 
-  const [view, setView] = useState<'calendrier' | 'liste'>('calendrier')
+  const [view, setView] = useState<'aujourdhui' | 'calendrier' | 'liste'>('aujourdhui')
   const [filter, setFilter] = useState<Filter>('tous')
   const [day, setDay] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
@@ -57,6 +58,16 @@ export default function Planning() {
       </div>
 
       <div className="nav">
+        <a
+          className={view === 'aujourdhui' ? 'active' : ''}
+          onClick={() => {
+            setView('aujourdhui')
+            setDay(null)
+          }}
+          style={{ cursor: 'pointer' }}
+        >
+          Aujourd'hui
+        </a>
         <a
           className={view === 'calendrier' ? 'active' : ''}
           onClick={() => setView('calendrier')}
@@ -95,6 +106,8 @@ export default function Planning() {
         />
       )}
 
+      {view === 'aujourdhui' && <Today />}
+
       {view === 'calendrier' && (
         <MonthCalendar entries={entries} selected={day} onSelect={setDay} />
       )}
@@ -114,7 +127,7 @@ export default function Planning() {
         </div>
       )}
 
-      {day && (
+      {view !== 'aujourdhui' && day && (
         <div className="row" style={{ margin: '8px 0' }}>
           <strong>{fmtDate(day)}</strong>
           <button className="link" onClick={() => setDay(null)}>
@@ -123,9 +136,10 @@ export default function Planning() {
         </div>
       )}
 
-      {shown.length === 0 && <p className="muted">Rien ici.</p>}
+      {view !== 'aujourdhui' && shown.length === 0 && <p className="muted">Rien ici.</p>}
 
-      {shown.map((e) => (
+      {view !== 'aujourdhui' &&
+        shown.map((e) => (
         <div className="card" key={e.id}>
           <div className="row">
             <strong>{e.title}</strong>

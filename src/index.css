@@ -82,6 +82,29 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin: 10px 0 
   margin-bottom: 16px;
 }
 
+.topnav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 16px;
+}
+.topnav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  color: var(--muted);
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 0.95rem;
+}
+.topnav a.active {
+  background: var(--accent);
+  color: #fff;
+}
+.topnav a svg { flex-shrink: 0; }
+.topnav .link { color: var(--muted); display: inline-flex; }
+
 .nav { display: flex; gap: 8px; margin: 8px 0 16px; }
 .nav a {
   text-decoration: none;

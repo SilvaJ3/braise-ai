@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useEntries } from '../lib/entries'
 import { PLATFORM_LABEL, STATUS_LABEL } from '../lib/labels'
 
 // ponytail: "vu" est local (pas de colonne reminder_dismissed_at en V1).
 // Ajouter la persistance quand ça devient gênant.
-export default function Home() {
+export default function Today() {
   const { data: entries = [], isLoading } = useEntries()
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
 
@@ -33,8 +32,6 @@ export default function Home() {
 
   return (
     <>
-      <h1>Aujourd'hui</h1>
-
       {due.length > 0 && (
         <div className="banner">
           <strong>Rappels</strong>
@@ -43,10 +40,7 @@ export default function Home() {
               <span>{e.title}</span>
               <span className="muted">· {STATUS_LABEL[e.status]}</span>
               <div className="spacer" />
-              <button
-                className="link"
-                onClick={() => setDismissed((s) => new Set(s).add(e.id))}
-              >
+              <button className="link" onClick={() => setDismissed((s) => new Set(s).add(e.id))}>
                 Vu
               </button>
             </div>
@@ -66,10 +60,6 @@ export default function Home() {
           {e.platform && <span className="muted">{PLATFORM_LABEL[e.platform]}</span>}
         </div>
       ))}
-
-      <p style={{ marginTop: 24 }}>
-        <Link to="/planning">Voir tout le planning →</Link>
-      </p>
     </>
   )
 }
