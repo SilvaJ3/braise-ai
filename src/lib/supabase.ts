@@ -24,7 +24,21 @@ export type ContentEntry = {
   notes: string | null
   status: ContentStatus
   reminder_at: string | null
+  source: 'manuel' | 'assistant'
   created_at: string
 }
 
-export type ContentEntryDraft = Omit<ContentEntry, 'id' | 'user_id' | 'created_at'>
+export type AssistantSuggestion = {
+  id: string
+  user_id: string
+  type: 'idee_contenu' | 'observation'
+  message: string
+  source_id: string | null
+  statut: 'nouveau' | 'vu' | 'traite'
+  created_at: string
+}
+
+export type ContentEntryDraft = Omit<
+  ContentEntry,
+  'id' | 'user_id' | 'created_at' | 'source'
+>

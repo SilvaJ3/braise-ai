@@ -64,6 +64,15 @@ export function ListIcon({ size = 18 }: Props) {
   )
 }
 
+export function SparkleIcon({ size = 18 }: Props) {
+  return (
+    <svg {...base(size)}>
+      <path d="M12 3l1.9 4.8L18.7 9l-4.8 1.9L12 15.7l-1.9-4.8L5.3 9l4.8-1.2z" />
+      <path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" />
+    </svg>
+  )
+}
+
 export function PlusIcon({ size = 20 }: Props) {
   return (
     <svg {...base(size)}>

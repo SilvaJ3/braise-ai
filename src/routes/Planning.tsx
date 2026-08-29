@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import EntryForm from '../components/EntryForm'
 import MonthCalendar from '../components/MonthCalendar'
 import Today from '../components/Today'
-import { GridIcon, ListIcon, PlusIcon, SunIcon } from '../components/icons'
+import { GridIcon, ListIcon, PlusIcon, SparkleIcon, SunIcon } from '../components/icons'
+import Assistant from './Assistant'
 import { useCreateEntry, useDeleteEntry, useEntries, useUpdateEntry } from '../lib/entries'
 import { PLATFORM_LABEL, STATUS_LABEL, TYPE_LABEL, nextStatus } from '../lib/labels'
 import type { ContentEntry, ContentStatus } from '../lib/supabase'
@@ -28,11 +29,15 @@ export default function Planning() {
   const update = useUpdateEntry()
   const del = useDeleteEntry()
 
-  const [view, setView] = useState<'aujourdhui' | 'calendrier' | 'liste'>('aujourdhui')
+  const [view, setView] = useState<'aujourdhui' | 'calendrier' | 'liste' | 'assistant'>(
+    'aujourdhui',
+  )
   const [filter, setFilter] = useState<Filter>('tous')
   const [day, setDay] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<ContentEntry | null>(null)
+
+  const showList = view === 'calendrier' || view === 'liste'
 
   const shown = useMemo(() => {
     return entries.filter((e) => {
@@ -51,7 +56,7 @@ export default function Planning() {
       <div className="row">
         <h1>Planning</h1>
         <div className="spacer" />
-        {!creating && !editing && (
+        {!creating && !editing && view !== 'assistant' && (
           <button
             className="primary icon-btn"
             onClick={() => setCreating(true)}
@@ -93,6 +98,17 @@ export default function Planning() {
           <ListIcon />
           Liste
         </a>
+        <a
+          className={view === 'assistant' ? 'active' : ''}
+          onClick={() => {
+            setView('assistant')
+            setDay(null)
+          }}
+          style={{ cursor: 'pointer' }}
+        >
+          <SparkleIcon />
+          Assistant
+        </a>
       </div>
 
       {creating && (
@@ -116,6 +132,8 @@ export default function Planning() {
 
       {view === 'aujourdhui' && <Today />}
 
+      {view === 'assistant' && <Assistant />}
+
       {view === 'calendrier' && (
         <MonthCalendar entries={entries} selected={day} onSelect={setDay} />
       )}
@@ -135,7 +153,7 @@ export default function Planning() {
         </div>
       )}
 
-      {view !== 'aujourdhui' && day && (
+      {showList && day && (
         <div className="row" style={{ margin: '8px 0' }}>
           <strong>{fmtDate(day)}</strong>
           <button className="link" onClick={() => setDay(null)}>
@@ -144,14 +162,19 @@ export default function Planning() {
         </div>
       )}
 
-      {view !== 'aujourdhui' && shown.length === 0 && <p className="muted">Rien ici.</p>}
+      {showList && shown.length === 0 && <p className="muted">Rien ici.</p>}
 
-      {view !== 'aujourdhui' &&
+      {showList &&
         shown.map((e) => (
         <div className="card" key={e.id}>
           <div className="row">
             <strong>{e.title}</strong>
             <div className="spacer" />
+            {e.source === 'assistant' && (
+              <span className="badge" title="Suggestion de l'assistant">
+                ✨
+              </span>
+            )}
             <span className="badge">{STATUS_LABEL[e.status]}</span>
           </div>
           <div className="row" style={{ marginTop: 6 }}>
