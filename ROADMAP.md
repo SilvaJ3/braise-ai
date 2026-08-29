@@ -10,7 +10,7 @@ Référence produit : `specs/spec-app-au-coin-du-feu.md` et `specs/vision-assist
 |---|---|
 | V1 — Planning réseaux sociaux + rappels au login | Fait, déployé (https://braise-ai.vercel.app) |
 | V1.5 — Notifications push PWA | Fait (+ date/heure/rappel par entrée, auto-planification, fix mise à jour du service worker) |
-| V7 — Couche IA assistant | Démarrée en avance : chat d'idées, bilan hebdo (cron lundi), voix de marque éditable, catalogue produits, retour « ça a marché ? », recherche web dans le chat. Reste à brancher sur V2/V3. |
+| V7 — Couche IA assistant | Démarrée en avance : chat d'idées (historique persistant, réponse en arrière-plan + notification push), bilan hebdo (cron lundi, tous les comptes), voix de marque éditable, catalogue produits, retour « ça a marché ? », recherche web dans le chat. Reste à brancher sur V2/V3. |
 | V2, V3, V4, V5, V6, V8 | Pas commencés |
 
 ## Écart assumé vs spec
@@ -42,9 +42,8 @@ d'emblée, coûteux à rétrofiter.
 
 **Raccourcis mono-utilisateur assumés (à lever quand un 2ᵉ compte réel arrive) :**
 
-- `assistant/index.ts` → `isAuthorizedForWeekly` prend `users.users[0]` : le cron hebdo ne
-  sert que le premier utilisateur. Multi-user = boucler sur tous les comptes (ou fan-out).
-  ~5 lignes. Piège si on ajoute un compte de test : il masque Alexandra.
+- Cron hebdo : ✅ corrigé — `handleWeekly` boucle sur tous les comptes (`listUsers`, cap 50).
+  Au-delà de ~50 comptes, passer en fan-out (1 invocation edge / user).
 - `DEFAULT_PROFIL` code en dur « Alexandra » et « bougies » — OK comme fallback, mais un vrai
   produit a besoin d'un onboarding qui remplit `assistant_profil` à l'inscription.
 - Pas de flux d'inscription (désactivé volontairement). À rouvrir + écran onboarding le jour

@@ -115,6 +115,25 @@ async function handleReminders(): Promise<Response> {
   return json({ due: due?.length ?? 0, sent })
 }
 
+// Notification ciblée déclenchée par une autre edge function (ex: assistant quand une
+// réponse de chat est prête). Authentifié par la clé service role (échange interne).
+async function handleNotify(req: Request, body: Record<string, unknown>): Promise<Response> {
+  const auth = (req.headers.get('Authorization') ?? '').replace('Bearer ', '')
+  if (!auth || auth !== Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')) {
+    return json({ error: 'non autorisé' }, 401)
+  }
+  const userId = typeof body.user_id === 'string' ? body.user_id : ''
+  const title = typeof body.title === 'string' ? body.title : ''
+  if (!userId || !title) return json({ error: 'user_id et title requis' }, 400)
+  const subs = await subsForUser(userId)
+  const sent = await sendToSubs(subs, {
+    title,
+    body: typeof body.body === 'string' ? body.body : '',
+    url: typeof body.url === 'string' ? body.url : undefined,
+  })
+  return json({ sent })
+}
+
 async function handleWeeklyDigest(): Promise<Response> {
   const { data: users } = await admin.from('push_subscriptions').select('user_id')
   const ids = [...new Set((users ?? []).map((u) => u.user_id as string))]
@@ -139,6 +158,7 @@ Deno.serve(async (req) => {
     const mode = body.mode ?? 'test'
 
     if (mode === 'test') return await handleTest(req)
+    if (mode === 'notify') return await handleNotify(req, body)
 
     if (mode === 'reminders' || mode === 'weekly-digest') {
       if (!(await cronAllowed(req))) return json({ error: 'non autorisé' }, 401)

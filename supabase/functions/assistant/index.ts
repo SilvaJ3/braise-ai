@@ -1,12 +1,16 @@
-// Assistant IA "Au Coin du Feu" — chat d'idées (+ ajout au planning) + génération hebdo.
+// Assistant IA "Au Coin du Feu" — chat d'idées (réponse en arrière-plan + push) + bilan hebdo.
 // Clé Anthropic uniquement côté serveur (secret Supabase ANTHROPIC_API_KEY).
 import { createClient } from 'jsr:@supabase/supabase-js@2'
+
+declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void }
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
+
+const APP_URL = 'https://braise-ai.vercel.app'
 
 // Sonnet partout : bon rapport qualité/coût, ~5-10x moins cher qu'Opus pour le chat.
 const MODEL = 'claude-sonnet-5'
@@ -142,6 +146,26 @@ async function anthropic(body: Record<string, unknown>): Promise<AnthropicResp> 
 const textOf = (content: AnthropicBlock[]): string =>
   content.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('')
 
+// Envoie une notification push à un utilisateur via la fonction `push` (mode notify,
+// authentifié par la clé service role — échange interne entre edge functions).
+async function sendPush(userId: string, title: string, body: string): Promise<void> {
+  try {
+    await fetch(`${SUPABASE_URL}/functions/v1/push`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${SERVICE_KEY}` },
+      body: JSON.stringify({
+        mode: 'notify',
+        user_id: userId,
+        title,
+        body,
+        url: `${APP_URL}/assistant`,
+      }),
+    })
+  } catch (e) {
+    console.error('sendPush failed', e)
+  }
+}
+
 type Entry = {
   title: string
   platform: string | null
@@ -233,6 +257,73 @@ async function buildContext(userId: string, planningLimit: number): Promise<stri
   return `${profil}${produits}${perf}\n\nPlanning actuel d'Alexandra :\n${planningContext(planning)}`
 }
 
+// --- Chat : réponse générée en arrière-plan, notifiée par push ------------------
+
+type ChatTurnMsg = { role: string; content: unknown }
+
+async function runChatTurn(
+  userId: string,
+  assistantId: string,
+  system: string,
+  messages: ChatTurnMsg[],
+): Promise<void> {
+  try {
+    let added = 0
+    let reply = ''
+    for (let step = 0; step < 6; step++) {
+      const resp = await anthropic({
+        max_tokens: 2000,
+        system,
+        messages,
+        tools: [ADD_TOOL, WEB_SEARCH_TOOL],
+      })
+      if (resp.stop_reason === 'pause_turn') {
+        messages.push({ role: 'assistant', content: resp.content })
+        continue
+      }
+      if (resp.stop_reason !== 'tool_use') {
+        reply = textOf(resp.content)
+        break
+      }
+      messages.push({ role: 'assistant', content: resp.content })
+      const results: Array<{ type: string; tool_use_id?: string; content: string }> = []
+      for (const block of resp.content) {
+        if (block.type !== 'tool_use') continue
+        const idees = (block.input as { idees?: IdeaInput[] })?.idees ?? []
+        let n = 0
+        for (const idea of idees.slice(0, 10)) {
+          if (await insertEntry(userId, idea)) n++
+        }
+        added += n
+        results.push({
+          type: 'tool_result',
+          tool_use_id: block.id,
+          content: `${n} idée(s) ajoutée(s) au planning.`,
+        })
+      }
+      messages.push({ role: 'user', content: results })
+    }
+    if (!reply) {
+      reply = added > 0 ? 'Idées ajoutées à ton planning.' : "Je n'ai pas su répondre, reformule ?"
+    }
+    await admin
+      .from('chat_messages')
+      .update({ content: reply, status: 'done', meta: { added } })
+      .eq('id', assistantId)
+    await sendPush(userId, "Réponse de l'assistant", reply.slice(0, 140))
+  } catch (e) {
+    console.error('runChatTurn', e)
+    await admin
+      .from('chat_messages')
+      .update({
+        content: 'Désolé, une erreur est survenue. Réessaie dans un moment.',
+        status: 'error',
+      })
+      .eq('id', assistantId)
+    await sendPush(userId, 'Assistant', "La réponse n'a pas pu être générée. Réessaie.")
+  }
+}
+
 async function handleChat(req: Request): Promise<Response> {
   const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '')
   const { data: userData, error } = await admin.auth.getUser(token)
@@ -240,8 +331,40 @@ async function handleChat(req: Request): Promise<Response> {
   const userId = userData.user.id
 
   const body = await req.json()
-  const messages = (body.messages ?? []).slice(-20)
-  if (!messages.length) return json({ error: 'messages vides' }, 400)
+  const message = typeof body.message === 'string' ? body.message.trim() : ''
+  if (!message) return json({ error: 'message vide' }, 400)
+
+  // Une seule réponse en cours à la fois : ne pas réempiler si l'assistant travaille déjà.
+  const { data: busy } = await admin
+    .from('chat_messages')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('role', 'assistant')
+    .eq('status', 'pending')
+    .maybeSingle()
+  if (busy) return json({ pending_id: busy.id, already: true })
+
+  await admin.from('chat_messages').insert({ user_id: userId, role: 'user', content: message })
+  const { data: assistantRow, error: insErr } = await admin
+    .from('chat_messages')
+    .insert({ user_id: userId, role: 'assistant', content: '', status: 'pending' })
+    .select('id')
+    .single()
+  if (insErr || !assistantRow) return json({ error: 'création de la réponse impossible' }, 500)
+  const assistantId = assistantRow.id as string
+
+  // Historique (hors réponse en cours), 20 derniers messages, ordre chronologique.
+  const { data: hist } = await admin
+    .from('chat_messages')
+    .select('role, content')
+    .eq('user_id', userId)
+    .neq('status', 'pending')
+    .order('created_at', { ascending: false })
+    .limit(20)
+  const messages: ChatTurnMsg[] = (hist ?? [])
+    .reverse()
+    .map((m) => ({ role: m.role as string, content: m.content as string }))
+  while (messages.length && messages[0].role !== 'user') messages.shift()
 
   const context = await buildContext(userId, 60)
   const system = `${context}
@@ -254,64 +377,18 @@ qui marchent en ce moment, ou des infos d'actualité.
 Écris en texte simple pour un écran de téléphone : pas de markdown (pas de **, #, >, -),
 des paragraphes courts, va à l'essentiel.`
 
-  let added = 0
-  for (let step = 0; step < 6; step++) {
-    const resp = await anthropic({
-      max_tokens: 2000,
-      system,
-      messages,
-      tools: [ADD_TOOL, WEB_SEARCH_TOOL],
-    })
-    if (resp.stop_reason === 'pause_turn') {
-      messages.push({ role: 'assistant', content: resp.content })
-      continue
-    }
-    if (resp.stop_reason !== 'tool_use') {
-      return json({ reply: textOf(resp.content), added })
-    }
-    messages.push({ role: 'assistant', content: resp.content })
-    const results: Array<{ type: string; tool_use_id?: string; content: string }> = []
-    for (const block of resp.content) {
-      if (block.type !== 'tool_use') continue
-      const idees = (block.input as { idees?: IdeaInput[] })?.idees ?? []
-      let n = 0
-      for (const idea of idees.slice(0, 10)) {
-        if (await insertEntry(userId, idea)) n++
-      }
-      added += n
-      results.push({
-        type: 'tool_result',
-        tool_use_id: block.id,
-        content: `${n} idée(s) ajoutée(s) au planning.`,
-      })
-    }
-    messages.push({ role: 'user', content: results })
-  }
-  return json({ reply: 'Idées ajoutées.', added })
+  EdgeRuntime.waitUntil(runChatTurn(userId, assistantId, system, messages))
+  return json({ pending_id: assistantId })
 }
 
-async function isAuthorizedForWeekly(req: Request): Promise<string | null> {
-  const cronSecret = req.headers.get('x-cron-secret')
-  if (cronSecret) {
-    const { data: ok } = await admin.rpc('verify_cron_secret', { candidate: cronSecret })
-    if (!ok) return null
-    const { data: users } = await admin.auth.admin.listUsers()
-    return users.users[0]?.id ?? null
-  }
-  const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '')
-  const { data: userData } = await admin.auth.getUser(token)
-  return userData.user?.id ?? null
-}
+// --- Bilan hebdo : tous les utilisateurs (cron) ou l'appelant (déclenchement manuel) ---
 
-async function handleWeekly(req: Request): Promise<Response> {
-  const userId = await isAuthorizedForWeekly(req)
-  if (!userId) return json({ error: 'non autorisé' }, 401)
-
+async function runWeeklyForUser(
+  userId: string,
+): Promise<{ ideas_inserted: number; observations: number }> {
   const today = new Date().toISOString().slice(0, 10)
   const context = await buildContext(userId, 80)
 
-  // Bilan structuré (outil forcé → sortie fiable, rapide). La recherche de
-  // tendances web se fait dans le chat (interactif), pas dans le cron.
   const system = `${context}
 
 Nous sommes le ${today}.
@@ -355,7 +432,32 @@ Rends ton travail via l'outil rendre_bilan. N'écris pas de texte en dehors de l
     await admin.from('assistant_suggestions').insert({ user_id: userId, type: 'observation', message })
   }
 
-  return json({ ideas_inserted: inserted, observations: observations.length })
+  return { ideas_inserted: inserted, observations: observations.length }
+}
+
+async function handleWeekly(req: Request): Promise<Response> {
+  const cronSecret = req.headers.get('x-cron-secret')
+  if (cronSecret) {
+    const { data: ok } = await admin.rpc('verify_cron_secret', { candidate: cronSecret })
+    if (!ok) return json({ error: 'non autorisé' }, 401)
+    // ponytail: boucle en série, OK jusqu'à ~50 comptes ; au-delà, fan-out (1 invocation/user).
+    const { data: list } = await admin.auth.admin.listUsers()
+    const users = (list?.users ?? []).slice(0, 50)
+    const results: Record<string, unknown> = {}
+    for (const u of users) {
+      try {
+        results[u.id] = await runWeeklyForUser(u.id)
+      } catch (e) {
+        results[u.id] = { error: String(e) }
+      }
+    }
+    return json({ users: users.length, results })
+  }
+
+  const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '')
+  const { data: userData } = await admin.auth.getUser(token)
+  if (!userData.user) return json({ error: 'non autorisé' }, 401)
+  return json(await runWeeklyForUser(userData.user.id))
 }
 
 function json(body: unknown, status = 200): Response {

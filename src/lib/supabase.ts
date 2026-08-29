@@ -62,3 +62,13 @@ export type ContentEntryDraft = Omit<
   ContentEntry,
   'id' | 'user_id' | 'created_at' | 'source' | 'reminder_sent_at' | 'perf'
 >
+
+export type ChatMessage = {
+  id: string
+  user_id: string
+  role: 'user' | 'assistant'
+  content: string
+  status: 'pending' | 'done' | 'error'
+  meta: { added?: number }
+  created_at: string
+}

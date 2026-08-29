@@ -1,7 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { supabase, type AssistantSuggestion } from './supabase'
-
-export type ChatMsg = { role: 'user' | 'assistant'; content: string }
+import { supabase, type AssistantSuggestion, type ChatMessage } from './supabase'
 
 async function errMessage(error: unknown): Promise<string> {
   const ctx = (error as { context?: Response })?.context
@@ -16,15 +14,43 @@ async function errMessage(error: unknown): Promise<string> {
   return (error as Error).message
 }
 
-export async function askAssistant(
-  messages: ChatMsg[],
-): Promise<{ reply: string; added: number }> {
+// Envoie une question. La réponse est générée en arrière-plan côté serveur (edge function
+// + EdgeRuntime.waitUntil) : on récupère juste l'id de la réponse en attente, puis on
+// suit son statut via useChatMessages. Push envoyé à l'utilisateur quand c'est prêt.
+export async function sendChatMessage(message: string): Promise<{ pending_id: string }> {
   const { data, error } = await supabase.functions.invoke('assistant', {
-    body: { mode: 'chat', messages },
+    body: { mode: 'chat', message },
   })
   if (error) throw new Error(await errMessage(error))
   if (data?.error) throw new Error(data.error)
-  return { reply: data.reply as string, added: (data.added as number) ?? 0 }
+  return data as { pending_id: string }
+}
+
+export function useChatMessages() {
+  return useQuery({
+    queryKey: ['chat_messages'],
+    queryFn: async (): Promise<ChatMessage[]> => {
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .order('created_at', { ascending: true })
+      if (error) throw error
+      return data as ChatMessage[]
+    },
+    // Tant qu'une réponse est en cours, on rafraîchit toutes les 2,5 s.
+    refetchInterval: (query) =>
+      (query.state.data as ChatMessage[] | undefined)?.some((m) => m.status === 'pending')
+        ? 2500
+        : false,
+  })
+}
+
+export function useSendMessage() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (message: string) => sendChatMessage(message),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['chat_messages'] }),
+  })
 }
 
 export function useSuggestions() {
