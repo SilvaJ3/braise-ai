@@ -31,6 +31,48 @@ export function UserIcon({ size = 20 }: Props) {
   )
 }
 
+export function SunIcon({ size = 18 }: Props) {
+  return (
+    <svg {...base(size)}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+    </svg>
+  )
+}
+
+export function GridIcon({ size = 18 }: Props) {
+  return (
+    <svg {...base(size)}>
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+    </svg>
+  )
+}
+
+export function ListIcon({ size = 18 }: Props) {
+  return (
+    <svg {...base(size)}>
+      <line x1="8" y1="6" x2="21" y2="6" />
+      <line x1="8" y1="12" x2="21" y2="12" />
+      <line x1="8" y1="18" x2="21" y2="18" />
+      <line x1="3" y1="6" x2="3.01" y2="6" />
+      <line x1="3" y1="12" x2="3.01" y2="12" />
+      <line x1="3" y1="18" x2="3.01" y2="18" />
+    </svg>
+  )
+}
+
+export function PlusIcon({ size = 20 }: Props) {
+  return (
+    <svg {...base(size)}>
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  )
+}
+
 export function LogoutIcon({ size = 20 }: Props) {
   return (
     <svg {...base(size)}>

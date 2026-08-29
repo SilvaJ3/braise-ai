@@ -105,14 +105,26 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin: 10px 0 
 .topnav a svg { flex-shrink: 0; }
 .topnav .link { color: var(--muted); display: inline-flex; }
 
-.nav { display: flex; gap: 8px; margin: 8px 0 16px; }
+.nav { display: flex; gap: 8px; margin: 8px 0 16px; flex-wrap: wrap; }
 .nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   text-decoration: none;
   color: var(--muted);
   padding: 6px 12px;
   border-radius: 999px;
 }
 .nav a.active { background: var(--accent); color: #fff; }
+.nav a svg { flex-shrink: 0; }
+
+.icon-btn {
+  padding: 0;
+  width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 
 form.stack { display: block; }
 .field-half { flex: 1; min-width: 120px; }

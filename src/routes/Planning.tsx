@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import EntryForm from '../components/EntryForm'
 import MonthCalendar from '../components/MonthCalendar'
 import Today from '../components/Today'
+import { GridIcon, ListIcon, PlusIcon, SunIcon } from '../components/icons'
 import { useCreateEntry, useDeleteEntry, useEntries, useUpdateEntry } from '../lib/entries'
 import { PLATFORM_LABEL, STATUS_LABEL, TYPE_LABEL, nextStatus } from '../lib/labels'
 import type { ContentEntry, ContentStatus } from '../lib/supabase'
@@ -51,8 +52,12 @@ export default function Planning() {
         <h1>Planning</h1>
         <div className="spacer" />
         {!creating && !editing && (
-          <button className="primary" onClick={() => setCreating(true)}>
-            + Nouveau
+          <button
+            className="primary icon-btn"
+            onClick={() => setCreating(true)}
+            aria-label="Nouveau"
+          >
+            <PlusIcon />
           </button>
         )}
       </div>
@@ -66,6 +71,7 @@ export default function Planning() {
           }}
           style={{ cursor: 'pointer' }}
         >
+          <SunIcon />
           Aujourd'hui
         </a>
         <a
@@ -73,6 +79,7 @@ export default function Planning() {
           onClick={() => setView('calendrier')}
           style={{ cursor: 'pointer' }}
         >
+          <GridIcon />
           Calendrier
         </a>
         <a
@@ -83,6 +90,7 @@ export default function Planning() {
           }}
           style={{ cursor: 'pointer' }}
         >
+          <ListIcon />
           Liste
         </a>
       </div>
