@@ -8,9 +8,42 @@ import { GridIcon, ListIcon } from '../components/icons'
 import { useCreateEntry, useDeleteEntry, useEntries, useUpdateEntry } from '../lib/entries'
 import { logEvent } from '../lib/events'
 import { PLATFORM_LABEL, STATUS_LABEL, TYPE_LABEL, nextStatus } from '../lib/labels'
-import type { ContentEntry, ContentStatus } from '../lib/supabase'
+import type { ContentEntry, ContentEntryDraft, ContentStatus } from '../lib/supabase'
 
 type Filter = 'tous' | ContentStatus | 'idees'
+
+const PLANIFY_SPACING_DAYS = 2
+const PLANIFY_HOUR = 10 // rappel + action le matin même à 10h
+
+function ymd(d: Date) {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
+// Passage à "planifié" sans date : place la publication au prochain créneau
+// libre (une action tous les 2 jours), rappel le matin même à 10h.
+function autoPlanifyPatch(entries: ContentEntry[]): Partial<ContentEntryDraft> {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const lastPlanned = entries
+    .filter((e) => e.status === 'planifie' && e.date)
+    .map((e) => e.date as string)
+    .sort()
+    .pop()
+  const anchor =
+    lastPlanned && lastPlanned >= ymd(today) ? new Date(lastPlanned + 'T00:00:00') : today
+  anchor.setDate(anchor.getDate() + PLANIFY_SPACING_DAYS)
+
+  const date = ymd(anchor)
+  const at = new Date(`${date}T${String(PLANIFY_HOUR).padStart(2, '0')}:00`)
+  return {
+    status: 'planifie',
+    date,
+    scheduled_time: `${String(PLANIFY_HOUR).padStart(2, '0')}:00`,
+    reminder_lead_hours: 0,
+    reminder_at: at.toISOString(),
+  }
+}
 
 const FILTERS: { key: Filter; label: string }[] = [
   { key: 'tous', label: 'Tous' },
@@ -171,9 +204,14 @@ export default function Planning() {
               <div className="row" style={{ marginTop: 10 }}>
                 {e.status !== 'publie' && (
                   <button
-                    onClick={() =>
-                      update.mutate({ id: e.id, patch: { status: nextStatus(e.status) } })
-                    }
+                    onClick={() => {
+                      const next = nextStatus(e.status)
+                      const patch =
+                        next === 'planifie' && !e.date
+                          ? autoPlanifyPatch(entries)
+                          : { status: next }
+                      update.mutate({ id: e.id, patch })
+                    }}
                   >
                     → {STATUS_LABEL[nextStatus(e.status)]}
                   </button>

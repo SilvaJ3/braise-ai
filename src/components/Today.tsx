@@ -3,6 +3,7 @@ import { useGenerateIdeas, useMarkSuggestion, useSuggestions } from '../lib/assi
 import { useEntries } from '../lib/entries'
 import { logEvent } from '../lib/events'
 import { PLATFORM_LABEL, STATUS_LABEL } from '../lib/labels'
+import type { AssistantSuggestion } from '../lib/supabase'
 import Skeleton from './Skeleton'
 
 // ponytail: "vu" est local (pas de colonne reminder_dismissed_at en V1).
@@ -13,6 +14,24 @@ export default function Today() {
   const markSuggestion = useMarkSuggestion()
   const generate = useGenerateIdeas()
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
+  // suggestions marquées "OK" pendant la session : restent visibles (grisées)
+  // avec un bouton Rétablir, disparaissent au prochain chargement.
+  const [done, setDone] = useState<Record<string, AssistantSuggestion>>({})
+
+  function markDone(s: AssistantSuggestion) {
+    logEvent('suggestion_done')
+    setDone((d) => ({ ...d, [s.id]: s }))
+    markSuggestion.mutate({ id: s.id, statut: 'traite' })
+  }
+
+  function restore(s: AssistantSuggestion) {
+    setDone((d) => {
+      const rest = { ...d }
+      delete rest[s.id]
+      return rest
+    })
+    markSuggestion.mutate({ id: s.id, statut: 'nouveau' })
+  }
 
   const now = Date.now()
   const today = new Date().toISOString().slice(0, 10)
@@ -73,7 +92,7 @@ export default function Today() {
           {(generate.error as Error).message}
         </p>
       )}
-      {suggestions.length === 0 && !generate.isPending && (
+      {suggestions.length === 0 && Object.keys(done).length === 0 && !generate.isPending && (
         <p className="empty">Rien pour l'instant. « Générer des idées » pour démarrer.</p>
       )}
       {suggestions.map((s) => (
@@ -84,18 +103,26 @@ export default function Today() {
               {s.type === 'idee_contenu' ? 'Idée ajoutée au planning' : 'Observation'}
             </span>
             <div className="spacer" />
-            <button
-              className="link"
-              onClick={() => {
-                logEvent('suggestion_done')
-                markSuggestion.mutate({ id: s.id, statut: 'traite' })
-              }}
-            >
+            <button className="link" onClick={() => markDone(s)}>
               OK
             </button>
           </div>
         </div>
       ))}
+      {Object.values(done)
+        .filter((s) => !suggestions.some((q) => q.id === s.id))
+        .map((s) => (
+          <div className="card" key={s.id} style={{ opacity: 0.55 }}>
+            <div style={{ whiteSpace: 'pre-wrap' }}>{s.message}</div>
+            <div className="row" style={{ marginTop: 8 }}>
+              <span className="muted">✓ Traité</span>
+              <div className="spacer" />
+              <button className="link" onClick={() => restore(s)}>
+                Rétablir
+              </button>
+            </div>
+          </div>
+        ))}
 
       <h2>À publier aujourd'hui</h2>
       {todayItems.length === 0 && <p className="empty">Rien de planifié pour aujourd'hui.</p>}

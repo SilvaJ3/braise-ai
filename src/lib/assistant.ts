@@ -45,7 +45,7 @@ export function useSuggestions() {
 export function useMarkSuggestion() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, statut }: { id: string; statut: 'vu' | 'traite' }) => {
+    mutationFn: async ({ id, statut }: { id: string; statut: 'nouveau' | 'vu' | 'traite' }) => {
       const { error } = await supabase
         .from('assistant_suggestions')
         .update({ statut })

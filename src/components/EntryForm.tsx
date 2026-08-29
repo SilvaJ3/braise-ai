@@ -14,7 +14,14 @@ const EMPTY: ContentEntryDraft = {
   reminder_at: null,
 }
 
-const LEAD_OPTIONS = [1, 3, 12, 24, 48]
+const LEAD_OPTIONS: { h: number; label: string }[] = [
+  { h: 0, label: "à l'heure de publication" },
+  { h: 1, label: '1 h avant' },
+  { h: 3, label: '3 h avant' },
+  { h: 12, label: '12 h avant' },
+  { h: 24, label: '24 h avant' },
+  { h: 48, label: '48 h avant' },
+]
 
 // date "AAAA-MM-JJ" + heure "HH:MM" - X h  ->  ISO (heure locale)
 function computeReminderAt(
@@ -165,9 +172,9 @@ export default function EntryForm({
         }
       >
         <option value="">Pas de rappel</option>
-        {LEAD_OPTIONS.map((h) => (
-          <option key={h} value={h}>
-            {h} h avant
+        {LEAD_OPTIONS.map((o) => (
+          <option key={o.h} value={o.h}>
+            {o.label}
           </option>
         ))}
       </select>

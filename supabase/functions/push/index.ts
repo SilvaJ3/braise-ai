@@ -12,15 +12,21 @@ const CORS = {
 const APP_URL = 'https://braise-ai.vercel.app'
 const VAPID_PUBLIC =
   'BLzRPJbag3rpK5ffOUdVkRfNZq3tua2RzadSjyNNb2u4iEUiCcbCiZnj3uPjOMFUKiUeSYGDSe1vkgWL7taGa7U'
-const VAPID_PRIVATE = Deno.env.get('VAPID_PRIVATE_KEY')
+const VAPID_PRIVATE = Deno.env.get('VAPID_PRIVATE_KEY')?.replace(/["'\s]/g, '') || undefined
 
 const admin = createClient(
   Deno.env.get('SUPABASE_URL')!,
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
 )
 
-if (VAPID_PRIVATE) {
-  webpush.setVapidDetails('mailto:silvabraga.junior@gmail.com', VAPID_PUBLIC, VAPID_PRIVATE)
+let vapidReady = false
+try {
+  if (VAPID_PRIVATE) {
+    webpush.setVapidDetails('mailto:silvabraga.junior@gmail.com', VAPID_PUBLIC, VAPID_PRIVATE)
+    vapidReady = true
+  }
+} catch (e) {
+  console.error('VAPID setup failed:', e)
 }
 
 type Payload = { title: string; body: string; url?: string }
@@ -126,7 +132,7 @@ async function handleWeeklyDigest(): Promise<Response> {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'POST uniquement' }, 405)
-  if (!VAPID_PRIVATE) return json({ error: 'VAPID_PRIVATE_KEY non configurée' }, 500)
+  if (!vapidReady) return json({ error: 'VAPID_PRIVATE_KEY manquante ou invalide' }, 500)
 
   try {
     const body = await req.clone().json().catch(() => ({}))

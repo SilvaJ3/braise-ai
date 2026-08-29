@@ -223,20 +223,26 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ni après, de la
 {"ideas":[{"title":"...","platform":"instagram|facebook|tiktok|null","type":"post|story|reel|null","note":"pourquoi / angle"}],"observations":["..."]}`
 
   const resp = await anthropic({
-    max_tokens: 2000,
+    max_tokens: 3000,
     system,
     messages: [{ role: 'user', content: 'Génère les idées et observations de la semaine.' }],
   })
   const raw = textOf(resp.content)
 
-  let parsed: { ideas?: IdeaInput[]; observations?: string[] }
-  try {
-    parsed = JSON.parse(raw)
-  } catch {
-    const s = raw.indexOf('{')
-    const e = raw.lastIndexOf('}')
-    parsed = s >= 0 && e > s ? JSON.parse(raw.slice(s, e + 1)) : { ideas: [], observations: [] }
+  const tryParse = (t: string): { ideas?: IdeaInput[]; observations?: string[] } | null => {
+    try {
+      return JSON.parse(t)
+    } catch {
+      return null
+    }
   }
+  const s = raw.indexOf('{')
+  const e = raw.lastIndexOf('}')
+  const sliced = s >= 0 && e > s ? raw.slice(s, e + 1) : raw
+  const parsed: { ideas?: IdeaInput[]; observations?: string[] } =
+    tryParse(raw) ??
+    tryParse(sliced) ??
+    tryParse(sliced.replace(/,(\s*[}\]])/g, '$1')) ?? { ideas: [], observations: [] }
 
   let inserted = 0
   for (const idea of (parsed.ideas ?? []).slice(0, 6)) {
