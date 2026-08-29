@@ -5,9 +5,15 @@ import Fab from '../components/Fab'
 import MonthCalendar from '../components/MonthCalendar'
 import Skeleton from '../components/Skeleton'
 import { GridIcon, ListIcon } from '../components/icons'
-import { useCreateEntry, useDeleteEntry, useEntries, useUpdateEntry } from '../lib/entries'
+import {
+  useCreateEntry,
+  useDeleteEntry,
+  useEntries,
+  useSetPerf,
+  useUpdateEntry,
+} from '../lib/entries'
 import { logEvent } from '../lib/events'
-import { PLATFORM_LABEL, STATUS_LABEL, TYPE_LABEL, nextStatus } from '../lib/labels'
+import { PERF_LABEL, PLATFORM_LABEL, STATUS_LABEL, TYPE_LABEL, nextStatus } from '../lib/labels'
 import type { ContentEntry, ContentEntryDraft, ContentStatus } from '../lib/supabase'
 
 type Filter = 'tous' | ContentStatus | 'idees'
@@ -64,6 +70,7 @@ export default function Planning() {
   const create = useCreateEntry()
   const update = useUpdateEntry()
   const del = useDeleteEntry()
+  const setPerf = useSetPerf()
 
   const [view, setView] = useState<'calendrier' | 'liste'>('calendrier')
   const [filter, setFilter] = useState<Filter>('tous')
@@ -201,6 +208,23 @@ export default function Planning() {
                 {e.product && <span className="muted">· {e.product}</span>}
               </div>
               {e.notes && <p style={{ margin: '8px 0 0' }}>{e.notes}</p>}
+
+              {e.status === 'publie' && !e.perf && (
+                <div className="row" style={{ marginTop: 10 }}>
+                  <span className="muted">Ça a marché ?</span>
+                  {(['carton', 'ok', 'bof'] as const).map((p) => (
+                    <button key={p} onClick={() => setPerf.mutate({ id: e.id, perf: p })}>
+                      {PERF_LABEL[p]}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {e.status === 'publie' && e.perf && (
+                <div className="row" style={{ marginTop: 8 }}>
+                  <span className="badge">{PERF_LABEL[e.perf]}</span>
+                </div>
+              )}
+
               <div className="row" style={{ marginTop: 10 }}>
                 {e.status !== 'publie' && (
                   <button

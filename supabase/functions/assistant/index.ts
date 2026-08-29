@@ -9,16 +9,16 @@ const CORS = {
 }
 
 const MODEL = 'claude-opus-5'
+// Run hebdo : modèle plus rapide + effort bas pour tenir dans la limite edge function
+const WEEKLY_MODEL = 'claude-sonnet-5'
 
-// ponytail: profil métier codé en dur. Passer en table éditable si Alexandra
-// veut l'ajuster souvent.
-const PROFIL = `Tu assistes Alexandra, artisane qui fabrique des bougies à la main en Belgique.
+const DEFAULT_PROFIL = `Tu assistes Alexandra, artisane qui fabrique des bougies à la main en Belgique.
 Elle vend en direct sur les réseaux sociaux (Instagram, Facebook, TikTok) et en dépôt-vente
 à des boutiques (B2B). Elle gère tout seule et manque de temps. Ton rôle : l'inspirer, lui
 proposer des idées de contenu concrètes et actionnables, et l'accompagner dans son planning.
-Sois chaleureux, direct, jamais corporate. Réponds en français.
+Sois chaleureux, direct, jamais corporate. Réponds en français.`
 
-Quand Alexandra te demande d'ajouter une ou des idées à son planning (ou dit oui à ta
+const TOOL_RULE = `Quand Alexandra te demande d'ajouter une ou des idées à son planning (ou dit oui à ta
 proposition de le faire), utilise l'outil ajouter_idees_au_planning. N'invente pas de dates
 si elle n'en donne pas : laisse date vide (l'entrée reste une simple idée).`
 
@@ -88,6 +88,33 @@ const ADD_TOOL = {
   },
 }
 
+const WEB_SEARCH_TOOL = { type: 'web_search_20260209', name: 'web_search', max_uses: 2 }
+
+const BILAN_TOOL = {
+  name: 'rendre_bilan',
+  description: 'Rends ton bilan de la semaine : idées de publications + observations sur le planning.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      ideas: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            title: { type: 'string' },
+            platform: { type: 'string', enum: [...PLATFORMS] },
+            type: { type: 'string', enum: [...TYPES] },
+            note: { type: 'string', description: 'angle / pourquoi' },
+          },
+          required: ['title'],
+        },
+      },
+      observations: { type: 'array', items: { type: 'string' } },
+    },
+    required: ['ideas', 'observations'],
+  },
+}
+
 type AnthropicBlock = {
   type: string
   text?: string
@@ -95,8 +122,9 @@ type AnthropicBlock = {
   name?: string
   input?: unknown
 }
+type AnthropicResp = { content: AnthropicBlock[]; stop_reason: string }
 
-async function anthropic(body: Record<string, unknown>): Promise<{ content: AnthropicBlock[]; stop_reason: string }> {
+async function anthropic(body: Record<string, unknown>): Promise<AnthropicResp> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -142,6 +170,68 @@ async function loadPlanning(userId: string, limit: number): Promise<Entry[]> {
   return (data ?? []) as Entry[]
 }
 
+async function loadProfil(userId: string): Promise<string> {
+  const { data } = await admin
+    .from('assistant_profil')
+    .select('contenu')
+    .eq('user_id', userId)
+    .maybeSingle()
+  const c = (data?.contenu ?? '').trim()
+  return c || DEFAULT_PROFIL
+}
+
+async function loadProduits(userId: string): Promise<string> {
+  const { data } = await admin
+    .from('produits')
+    .select('nom, senteur, description, prix_vente, saison')
+    .eq('user_id', userId)
+    .eq('actif', true)
+    .order('nom')
+  if (!data?.length) return ''
+  const lines = data.map((p) => {
+    const bits = [
+      p.senteur,
+      p.prix_vente != null ? `${p.prix_vente} €` : null,
+      p.saison && p.saison !== 'toute_annee' ? p.saison : null,
+    ]
+      .filter(Boolean)
+      .join(', ')
+    return `- ${p.nom}${bits ? ` (${bits})` : ''}${p.description ? ` — ${p.description}` : ''}`
+  })
+  return `\n\nCatalogue de bougies d'Alexandra :\n${lines.join('\n')}`
+}
+
+async function loadPerf(userId: string): Promise<string> {
+  const { data } = await admin
+    .from('content_entries')
+    .select('title, perf, platform')
+    .eq('user_id', userId)
+    .eq('status', 'publie')
+    .not('perf', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(20)
+  if (!data?.length) return ''
+  const label: Record<string, string> = {
+    carton: 'a très bien marché',
+    ok: 'correct',
+    bof: 'a peu marché',
+  }
+  const lines = data.map(
+    (e) => `- ${e.title}${e.platform ? ` (${e.platform})` : ''} : ${label[e.perf as string]}`,
+  )
+  return `\n\nRetours sur les publications passées (tiens-en compte) :\n${lines.join('\n')}`
+}
+
+async function buildContext(userId: string, planningLimit: number): Promise<string> {
+  const [profil, produits, perf, planning] = await Promise.all([
+    loadProfil(userId),
+    loadProduits(userId),
+    loadPerf(userId),
+    loadPlanning(userId, planningLimit),
+  ])
+  return `${profil}${produits}${perf}\n\nPlanning actuel d'Alexandra :\n${planningContext(planning)}`
+}
+
 async function handleChat(req: Request): Promise<Response> {
   const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '')
   const { data: userData, error } = await admin.auth.getUser(token)
@@ -152,22 +242,29 @@ async function handleChat(req: Request): Promise<Response> {
   const messages = (body.messages ?? []).slice(-20)
   if (!messages.length) return json({ error: 'messages vides' }, 400)
 
-  const system = `${PROFIL}
+  const context = await buildContext(userId, 60)
+  const system = `${context}
+
+${TOOL_RULE}
+
+Tu peux utiliser la recherche web si Alexandra demande des tendances actuelles, des idées
+qui marchent en ce moment, ou des infos d'actualité.
 
 Écris en texte simple pour un écran de téléphone : pas de markdown (pas de **, #, >, -),
-des paragraphes courts, va à l'essentiel.
-
-Planning actuel d'Alexandra :
-${planningContext(await loadPlanning(userId, 60))}`
+des paragraphes courts, va à l'essentiel.`
 
   let added = 0
-  for (let step = 0; step < 4; step++) {
+  for (let step = 0; step < 6; step++) {
     const resp = await anthropic({
       max_tokens: 2000,
       system,
       messages,
-      tools: [ADD_TOOL],
+      tools: [ADD_TOOL, WEB_SEARCH_TOOL],
     })
+    if (resp.stop_reason === 'pause_turn') {
+      messages.push({ role: 'assistant', content: resp.content })
+      continue
+    }
     if (resp.stop_reason !== 'tool_use') {
       return json({ reply: textOf(resp.content), added })
     }
@@ -210,39 +307,34 @@ async function handleWeekly(req: Request): Promise<Response> {
   if (!userId) return json({ error: 'non autorisé' }, 401)
 
   const today = new Date().toISOString().slice(0, 10)
-  const system = `${PROFIL}
+  const context = await buildContext(userId, 80)
 
-Nous sommes le ${today}. Voici le planning d'Alexandra :
-${planningContext(await loadPlanning(userId, 80))}
+  // Bilan structuré (outil forcé → sortie fiable, rapide). La recherche de
+  // tendances web se fait dans le chat (interactif), pas dans le cron.
+  const system = `${context}
 
-Génère :
-1. 4 idées de publications concrètes pour les 2 prochaines semaines (varie les plateformes et les types).
+Nous sommes le ${today}.
+
+Prépare :
+1. 4 idées de publications concrètes pour les 2 prochaines semaines (varie les plateformes et les types ; appuie-toi sur le catalogue et les retours si disponibles).
 2. 1 à 3 observations utiles sur son planning (trous, idées qui stagnent, plateforme délaissée, saisonnalité).
 
-Réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ni après, de la forme :
-{"ideas":[{"title":"...","platform":"instagram|facebook|tiktok|null","type":"post|story|reel|null","note":"pourquoi / angle"}],"observations":["..."]}`
+Rends ton travail via l'outil rendre_bilan. N'écris pas de texte en dehors de l'outil.`
 
   const resp = await anthropic({
-    max_tokens: 3000,
+    model: WEEKLY_MODEL,
+    max_tokens: 2500,
+    output_config: { effort: 'low' },
     system,
-    messages: [{ role: 'user', content: 'Génère les idées et observations de la semaine.' }],
+    messages: [{ role: 'user', content: 'Génère le bilan de la semaine.' }],
+    tools: [BILAN_TOOL],
+    tool_choice: { type: 'tool', name: 'rendre_bilan' },
   })
-  const raw = textOf(resp.content)
-
-  const tryParse = (t: string): { ideas?: IdeaInput[]; observations?: string[] } | null => {
-    try {
-      return JSON.parse(t)
-    } catch {
-      return null
-    }
+  const call = resp.content.find((b) => b.type === 'tool_use')
+  const parsed = (call?.input as { ideas?: IdeaInput[]; observations?: string[] }) ?? {
+    ideas: [],
+    observations: [],
   }
-  const s = raw.indexOf('{')
-  const e = raw.lastIndexOf('}')
-  const sliced = s >= 0 && e > s ? raw.slice(s, e + 1) : raw
-  const parsed: { ideas?: IdeaInput[]; observations?: string[] } =
-    tryParse(raw) ??
-    tryParse(sliced) ??
-    tryParse(sliced.replace(/,(\s*[}\]])/g, '$1')) ?? { ideas: [], observations: [] }
 
   let inserted = 0
   for (const idea of (parsed.ideas ?? []).slice(0, 6)) {
@@ -285,6 +377,6 @@ Deno.serve(async (req) => {
     return json({ error: `mode inconnu: ${mode}` }, 400)
   } catch (e) {
     console.error(e)
-    return json({ error: String(e) }, 500)
+    return json({ error: `${e}` }, 500)
   }
 })

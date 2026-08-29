@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import Reglages from '../components/Reglages'
 import { SparkleIcon } from '../components/icons'
 import { askAssistant, type ChatMsg } from '../lib/assistant'
 import { logEvent } from '../lib/events'
@@ -8,6 +9,7 @@ import { logEvent } from '../lib/events'
 // deviennent des content_entries, qui eux persistent.
 export default function Assistant() {
   const qc = useQueryClient()
+  const [tab, setTab] = useState<'chat' | 'reglages'>('chat')
   const [msgs, setMsgs] = useState<ChatMsg[]>([])
   const [input, setInput] = useState('')
   const [added, setAdded] = useState(0)
@@ -43,6 +45,19 @@ export default function Assistant() {
     <>
       <h1>Assistant</h1>
 
+      <div className="subnav">
+        <a className={tab === 'chat' ? 'active' : ''} onClick={() => setTab('chat')}>
+          Discussion
+        </a>
+        <a className={tab === 'reglages' ? 'active' : ''} onClick={() => setTab('reglages')}>
+          Ce qu'il sait
+        </a>
+      </div>
+
+      {tab === 'reglages' && <Reglages />}
+
+      {tab === 'chat' && (
+        <>
       {msgs.length === 0 && (
         <div className="empty">
           <SparkleIcon size={28} />
@@ -90,6 +105,8 @@ export default function Assistant() {
           Envoyer
         </button>
       </form>
+        </>
+      )}
     </>
   )
 }

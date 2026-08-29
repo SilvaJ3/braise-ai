@@ -21,6 +21,12 @@ export const PLATFORM_LABEL: Record<string, string> = {
   tiktok: 'TikTok',
 }
 
+export const PERF_LABEL: Record<'carton' | 'ok' | 'bof', string> = {
+  carton: '🔥 Carton',
+  ok: '👍 OK',
+  bof: '😐 Bof',
+}
+
 export function nextStatus(s: ContentStatus): ContentStatus {
   const i = STATUS_ORDER.indexOf(s)
   return STATUS_ORDER[Math.min(i + 1, STATUS_ORDER.length - 1)]

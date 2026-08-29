@@ -42,6 +42,17 @@ export function useUpdateEntry() {
   })
 }
 
+export function useSetPerf() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, perf }: { id: string; perf: 'carton' | 'ok' | 'bof' }) => {
+      const { error } = await supabase.from('content_entries').update({ perf }).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  })
+}
+
 export function useDeleteEntry() {
   const qc = useQueryClient()
   return useMutation({

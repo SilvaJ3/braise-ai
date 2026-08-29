@@ -28,8 +28,25 @@ export type ContentEntry = {
   reminder_at: string | null
   reminder_sent_at: string | null
   source: 'manuel' | 'assistant'
+  perf: 'carton' | 'ok' | 'bof' | null
   created_at: string
 }
+
+export type Saison = 'toute_annee' | 'printemps' | 'ete' | 'automne' | 'hiver' | 'noel'
+
+export type Produit = {
+  id: string
+  user_id: string
+  nom: string
+  senteur: string | null
+  description: string | null
+  prix_vente: number | null
+  saison: Saison | null
+  actif: boolean
+  created_at: string
+}
+
+export type ProduitDraft = Omit<Produit, 'id' | 'user_id' | 'created_at'>
 
 export type AssistantSuggestion = {
   id: string
@@ -43,5 +60,5 @@ export type AssistantSuggestion = {
 
 export type ContentEntryDraft = Omit<
   ContentEntry,
-  'id' | 'user_id' | 'created_at' | 'source' | 'reminder_sent_at'
+  'id' | 'user_id' | 'created_at' | 'source' | 'reminder_sent_at' | 'perf'
 >
