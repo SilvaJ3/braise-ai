@@ -20,6 +20,44 @@ parce qu'il apporte de la valeur immédiate sur le planning seul. Conséquence :
 il raisonne uniquement sur le planning + le catalogue. Sa pleine valeur (relances boutiques,
 alertes stock) attend V2 et V3.
 
+## Architecture multi-utilisateurs
+
+Aujourd'hui l'app sert un seul compte (Alexandra). Objectif possible à terme : ouvrir à
+d'autres artisans si Junior commercialise l'outil. Le garde-fou de la spec reste valable —
+**ne pas généraliser prématurément** (config flexible par artisan, multi-seat, facturation)
+tant que l'usage réel n'a pas validé l'outil. Mais l'ossature doit rester compatible.
+
+**Déjà multi-tenant (à préserver, coût nul) :**
+
+- Chaque table porte `user_id` + une policy RLS `user_id = auth.uid()`. L'isolation des
+  données est acquise : ajouter un utilisateur = ajouter un compte auth, rien d'autre.
+- Supabase Auth gère N utilisateurs nativement.
+- `assistant_profil` et `produits` sont déjà par utilisateur → la voix de marque et le
+  catalogue de chaque artisan seraient isolés.
+- L'edge function `assistant` est déjà paramétrée par `userId` (`buildContext(userId)`).
+
+**Règle pour V2–V7 :** toute nouvelle table = `user_id not null` + RLS `user_id = auth.uid()`
+dès la migration. Jamais de table sans RLS. C'est 90 % du multi-tenant, gratuit si fait
+d'emblée, coûteux à rétrofiter.
+
+**Raccourcis mono-utilisateur assumés (à lever quand un 2ᵉ compte réel arrive) :**
+
+- `assistant/index.ts` → `isAuthorizedForWeekly` prend `users.users[0]` : le cron hebdo ne
+  sert que le premier utilisateur. Multi-user = boucler sur tous les comptes (ou fan-out).
+  ~5 lignes. Piège si on ajoute un compte de test : il masque Alexandra.
+- `DEFAULT_PROFIL` code en dur « Alexandra » et « bougies » — OK comme fallback, mais un vrai
+  produit a besoin d'un onboarding qui remplit `assistant_profil` à l'inscription.
+- Pas de flux d'inscription (désactivé volontairement). À rouvrir + écran onboarding le jour
+  de la commercialisation.
+- Branding « Au Coin du Feu » figé (manifest, titre, icônes). Un produit multi-artisan
+  demanderait un nom générique ou du white-label.
+- Push crons (`push-reminders`, `push-weekly-digest`) : vérifier qu'ils balaient bien tous
+  les utilisateurs et pas un seul, au moment d'ouvrir à d'autres.
+
+**À NE PAS construire maintenant :** inscription self-service, onboarding, facturation /
+plans / quotas, panneau admin, white-label, gestion d'équipe. YAGNI tant que la
+commercialisation n'est pas une décision prise.
+
 ---
 
 ## Phase 0 — test d'usage (aucun code)
@@ -154,3 +192,52 @@ Question ouverte : brancher directement le compte Instagram d'Alexandra sur l'ap
 À traiter comme une version dédiée (par exemple « V2.5 — Connexion Instagram »), après le
 retour d'usage. Commencer par la tranche 1 (insights read-only) si le retour montre que le
 suivi manuel des perfs est une corvée.
+
+---
+
+## Coûts récurrents
+
+Prix indicatifs ~début 2026, à reconfirmer. Le développement est une dépense ponctuelle,
+non incluse ici.
+
+| Poste | Gratuit possible | Payant | Choix retenu |
+|---|---|---|---|
+| **Supabase** (DB, Auth, Storage, edge functions, cron) | Oui (0 €) | Pro **25 $/mois** | **Pro.** Le tier gratuit met le projet en pause après 7 j d'inactivité et n'a aucune sauvegarde — inacceptable pour un outil dont Alexandra dépend (rappels, crons). |
+| **Hébergement front** (le PWA) | **Oui (0 €)** — Cloudflare Pages, usage commercial autorisé | Vercel Pro 20 $/mois | **Cloudflare Pages (0 €).** Vercel Hobby interdit l'usage commercial dans ses CGU ; soit payer Vercel Pro, soit migrer sur Cloudflare. |
+| **API Claude** (assistant : chat + bilan hebdo) | Non (à l'usage) | ~**2 à 10 €/mois** | Modèle **Sonnet** partout (chat + hebdo). Cron hebdo ≈ 0,20 €/mois. Chat ≈ 2-8 €/mois selon l'usage. Web search : 10 $ / 1000 recherches. |
+| **API Instagram / Meta** | **Oui (0 €)** | — | Graph API gratuite, pas d'abonnement. Coût = temps de dev uniquement. |
+| **Push notifications** | **Oui (0 €)** | — | Web Push (VAPID), pas de frais APNs/FCM. |
+| **Nom de domaine** | `*.pages.dev` / `*.vercel.app` (0 €) | ~**12 €/an** (~1 €/mois) | Optionnel. Un `.be` propre pour la comm. |
+| **Compte Apple Developer** | — | 99 $/an (~8 $/mois) | **Seulement si V8 natif.** Pas maintenant. |
+
+**Totaux :**
+
+- **Version minimale** (Supabase gratuit, Cloudflare, chat Sonnet) : ≈ **3-6 €/mois**.
+  Risque : pause du projet, pas de backup.
+- **Version recommandée** (Supabase Pro + Cloudflare + Sonnet + domaine) : ≈ **30-35 €/mois**.
+- **Version confort** (+ Vercel Pro au lieu de Cloudflare) : ≈ **50-55 €/mois**.
+
+La partie Instagram n'ajoute **rien** au récurrent (juste du stockage d'images si tranche 3 :
+~150 Mo/mois, négligeable dans le quota Supabase Pro).
+
+Seul poste vraiment incompressible dès qu'Alexandra dépend de l'outil : **Supabase Pro
+25 $/mois**.
+
+### Maintenance (temps, pas abonnement)
+
+- Meta déprécie ~1-2 fois/an un endpoint → 2-4 h pour bumper la version.
+- Mises à jour dépendances + patchs sécurité : quelques heures/trimestre.
+- Corrections de bugs remontés par l'usage réel.
+- Surveillance des crons (refresh token, push, bilan hebdo).
+
+Auto-maintenu : ~2-4 h/mois en moyenne, avec des pics sur les dépréciations Meta.
+Sous-traité : ~150-400 €/trimestre selon l'activité.
+
+### Si commercialisation (plusieurs artisans)
+
+- Supabase Pro tient largement plusieurs dizaines de comptes (8 Go DB, 100 Go storage).
+  Passage au tier supérieur ($599/mois Team) seulement à grande échelle.
+- Coût Claude : linéaire par utilisateur actif (~2-8 €/mois/artisan sur le chat). À
+  répercuter dans le prix de l'abonnement.
+- Ces coûts deviennent un vrai sujet de pricing — hors scope tant que la décision de
+  commercialiser n'est pas prise.

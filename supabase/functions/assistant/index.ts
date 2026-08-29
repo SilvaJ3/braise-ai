@@ -8,8 +8,9 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-const MODEL = 'claude-opus-5'
-// Run hebdo : modèle plus rapide + effort bas pour tenir dans la limite edge function
+// Sonnet partout : bon rapport qualité/coût, ~5-10x moins cher qu'Opus pour le chat.
+const MODEL = 'claude-sonnet-5'
+// Run hebdo : effort bas pour tenir dans la limite edge function
 const WEEKLY_MODEL = 'claude-sonnet-5'
 
 const DEFAULT_PROFIL = `Tu assistes Alexandra, artisane qui fabrique des bougies à la main en Belgique.
