@@ -1,7 +1,8 @@
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
-import { CalendarIcon, LogoutIcon, UserIcon } from './components/icons'
+import { Navigate, Route, Routes } from 'react-router-dom'
+import BottomNav from './components/BottomNav'
 import { useAuth } from './lib/auth'
-import { supabase } from './lib/supabase'
+import Assistant from './routes/Assistant'
+import Aujourdhui from './routes/Aujourdhui'
 import Compte from './routes/Compte'
 import Login from './routes/Login'
 import Planning from './routes/Planning'
@@ -21,25 +22,14 @@ export default function App() {
 
   return (
     <>
-      <nav className="topnav">
-        <NavLink to="/planning">
-          <CalendarIcon />
-          Planning
-        </NavLink>
-        <NavLink to="/compte">
-          <UserIcon />
-          Compte
-        </NavLink>
-        <div className="spacer" />
-        <button className="link" onClick={() => supabase.auth.signOut()} aria-label="Déconnexion">
-          <LogoutIcon />
-        </button>
-      </nav>
       <Routes>
+        <Route path="/" element={<Aujourdhui />} />
         <Route path="/planning" element={<Planning />} />
+        <Route path="/assistant" element={<Assistant />} />
         <Route path="/compte" element={<Compte />} />
-        <Route path="*" element={<Navigate to="/planning" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <BottomNav />
     </>
   )
 }

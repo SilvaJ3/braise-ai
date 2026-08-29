@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useGenerateIdeas, useMarkSuggestion, useSuggestions } from '../lib/assistant'
 import { useEntries } from '../lib/entries'
+import { logEvent } from '../lib/events'
 import { PLATFORM_LABEL, STATUS_LABEL } from '../lib/labels'
+import Skeleton from './Skeleton'
 
 // ponytail: "vu" est local (pas de colonne reminder_dismissed_at en V1).
 // Ajouter la persistance quand ça devient gênant.
@@ -32,7 +34,7 @@ export default function Today() {
     [entries, today],
   )
 
-  if (isLoading) return <p className="muted">Chargement…</p>
+  if (isLoading) return <Skeleton rows={4} />
 
   return (
     <>
@@ -57,7 +59,10 @@ export default function Today() {
         <div className="spacer" />
         <button
           className="link"
-          onClick={() => generate.mutate()}
+          onClick={() => {
+            logEvent('generate_ideas')
+            generate.mutate()
+          }}
           disabled={generate.isPending}
         >
           {generate.isPending ? 'Génération…' : 'Générer des idées'}
@@ -68,8 +73,8 @@ export default function Today() {
           {(generate.error as Error).message}
         </p>
       )}
-      {suggestions.length === 0 && (
-        <p className="muted">Rien pour l'instant. « Générer des idées » pour démarrer.</p>
+      {suggestions.length === 0 && !generate.isPending && (
+        <p className="empty">Rien pour l'instant. « Générer des idées » pour démarrer.</p>
       )}
       {suggestions.map((s) => (
         <div className="card" key={s.id}>
@@ -81,7 +86,10 @@ export default function Today() {
             <div className="spacer" />
             <button
               className="link"
-              onClick={() => markSuggestion.mutate({ id: s.id, statut: 'traite' })}
+              onClick={() => {
+                logEvent('suggestion_done')
+                markSuggestion.mutate({ id: s.id, statut: 'traite' })
+              }}
             >
               OK
             </button>
@@ -90,7 +98,7 @@ export default function Today() {
       ))}
 
       <h2>À publier aujourd'hui</h2>
-      {todayItems.length === 0 && <p className="muted">Rien de planifié pour aujourd'hui.</p>}
+      {todayItems.length === 0 && <p className="empty">Rien de planifié pour aujourd'hui.</p>}
       {todayItems.map((e) => (
         <div className="card" key={e.id}>
           <div className="row">

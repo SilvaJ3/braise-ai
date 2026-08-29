@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { LogoutIcon } from '../components/icons'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 
@@ -41,6 +42,15 @@ export default function Compte() {
           </button>
         </div>
       </form>
+
+      <button
+        className="link"
+        onClick={() => supabase.auth.signOut()}
+        style={{ marginTop: 20, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+      >
+        <LogoutIcon size={18} />
+        Se déconnecter
+      </button>
     </>
   )
 }

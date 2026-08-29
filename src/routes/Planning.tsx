@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import EntryForm from '../components/EntryForm'
+import Fab from '../components/Fab'
 import MonthCalendar from '../components/MonthCalendar'
-import Today from '../components/Today'
-import { GridIcon, ListIcon, PlusIcon, SparkleIcon, SunIcon } from '../components/icons'
-import Assistant from './Assistant'
+import Skeleton from '../components/Skeleton'
+import { GridIcon, ListIcon } from '../components/icons'
 import { useCreateEntry, useDeleteEntry, useEntries, useUpdateEntry } from '../lib/entries'
+import { logEvent } from '../lib/events'
 import { PLATFORM_LABEL, STATUS_LABEL, TYPE_LABEL, nextStatus } from '../lib/labels'
 import type { ContentEntry, ContentStatus } from '../lib/supabase'
 
@@ -24,20 +26,25 @@ function fmtDate(d: string | null) {
 }
 
 export default function Planning() {
+  const location = useLocation()
   const { data: entries = [], isLoading, error } = useEntries()
   const create = useCreateEntry()
   const update = useUpdateEntry()
   const del = useDeleteEntry()
 
-  const [view, setView] = useState<'aujourdhui' | 'calendrier' | 'liste' | 'assistant'>(
-    'aujourdhui',
-  )
+  const [view, setView] = useState<'calendrier' | 'liste'>('calendrier')
   const [filter, setFilter] = useState<Filter>('tous')
   const [day, setDay] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<ContentEntry | null>(null)
 
-  const showList = view === 'calendrier' || view === 'liste'
+  // FAB depuis "Aujourd'hui" : ouvre directement le formulaire
+  useEffect(() => {
+    if ((location.state as { new?: boolean } | null)?.new) {
+      setCreating(true)
+      window.history.replaceState({}, '')
+    }
+  }, [location.state])
 
   const shown = useMemo(() => {
     return entries.filter((e) => {
@@ -48,41 +55,16 @@ export default function Planning() {
     })
   }, [entries, filter, day])
 
-  if (isLoading) return <p className="muted">Chargement…</p>
-  if (error) return <p className="muted">Erreur : {(error as Error).message}</p>
+  const openForm = creating || editing !== null
 
   return (
     <>
-      <div className="row">
-        <h1>Planning</h1>
-        <div className="spacer" />
-        {!creating && !editing && view !== 'assistant' && (
-          <button
-            className="primary icon-btn"
-            onClick={() => setCreating(true)}
-            aria-label="Nouveau"
-          >
-            <PlusIcon />
-          </button>
-        )}
-      </div>
+      <h1>Planning</h1>
 
-      <div className="nav">
-        <a
-          className={view === 'aujourdhui' ? 'active' : ''}
-          onClick={() => {
-            setView('aujourdhui')
-            setDay(null)
-          }}
-          style={{ cursor: 'pointer' }}
-        >
-          <SunIcon />
-          Aujourd'hui
-        </a>
+      <div className="subnav">
         <a
           className={view === 'calendrier' ? 'active' : ''}
           onClick={() => setView('calendrier')}
-          style={{ cursor: 'pointer' }}
         >
           <GridIcon />
           Calendrier
@@ -93,29 +75,27 @@ export default function Planning() {
             setView('liste')
             setDay(null)
           }}
-          style={{ cursor: 'pointer' }}
         >
           <ListIcon />
           Liste
         </a>
-        <a
-          className={view === 'assistant' ? 'active' : ''}
-          onClick={() => {
-            setView('assistant')
-            setDay(null)
-          }}
-          style={{ cursor: 'pointer' }}
-        >
-          <SparkleIcon />
-          Assistant
-        </a>
       </div>
+
+      {isLoading && <Skeleton rows={5} />}
+      {error && <p className="muted">Erreur : {(error as Error).message}</p>}
 
       {creating && (
         <EntryForm
           busy={create.isPending}
           onCancel={() => setCreating(false)}
-          onSubmit={(draft) => create.mutate(draft, { onSuccess: () => setCreating(false) })}
+          onSubmit={(draft) =>
+            create.mutate(draft, {
+              onSuccess: () => {
+                setCreating(false)
+                logEvent('entry_created')
+              },
+            })
+          }
         />
       )}
 
@@ -130,83 +110,85 @@ export default function Planning() {
         />
       )}
 
-      {view === 'aujourdhui' && <Today />}
+      {!isLoading && !error && (
+        <>
+          {view === 'calendrier' && (
+            <MonthCalendar entries={entries} selected={day} onSelect={setDay} />
+          )}
 
-      {view === 'assistant' && <Assistant />}
+          {view === 'liste' && (
+            <div className="subnav">
+              {FILTERS.map((f) => (
+                <a
+                  key={f.key}
+                  className={filter === f.key ? 'active' : ''}
+                  onClick={() => setFilter(f.key)}
+                >
+                  {f.label}
+                </a>
+              ))}
+            </div>
+          )}
 
-      {view === 'calendrier' && (
-        <MonthCalendar entries={entries} selected={day} onSelect={setDay} />
-      )}
-
-      {view === 'liste' && (
-        <div className="nav" style={{ flexWrap: 'wrap' }}>
-          {FILTERS.map((f) => (
-            <a
-              key={f.key}
-              className={filter === f.key ? 'active' : ''}
-              onClick={() => setFilter(f.key)}
-              style={{ cursor: 'pointer' }}
-            >
-              {f.label}
-            </a>
-          ))}
-        </div>
-      )}
-
-      {showList && day && (
-        <div className="row" style={{ margin: '8px 0' }}>
-          <strong>{fmtDate(day)}</strong>
-          <button className="link" onClick={() => setDay(null)}>
-            tout afficher
-          </button>
-        </div>
-      )}
-
-      {showList && shown.length === 0 && <p className="muted">Rien ici.</p>}
-
-      {showList &&
-        shown.map((e) => (
-        <div className="card" key={e.id}>
-          <div className="row">
-            <strong>{e.title}</strong>
-            <div className="spacer" />
-            {e.source === 'assistant' && (
-              <span className="badge" title="Suggestion de l'assistant">
-                ✨
-              </span>
-            )}
-            <span className="badge">{STATUS_LABEL[e.status]}</span>
-          </div>
-          <div className="row" style={{ marginTop: 6 }}>
-            <span className="muted">{fmtDate(e.date)}</span>
-            {e.platform && <span className="muted">· {PLATFORM_LABEL[e.platform]}</span>}
-            {e.type && <span className="muted">· {TYPE_LABEL[e.type]}</span>}
-            {e.product && <span className="muted">· {e.product}</span>}
-          </div>
-          {e.notes && <p style={{ margin: '8px 0 0' }}>{e.notes}</p>}
-          <div className="row" style={{ marginTop: 10 }}>
-            {e.status !== 'publie' && (
-              <button
-                onClick={() => update.mutate({ id: e.id, patch: { status: nextStatus(e.status) } })}
-              >
-                → {STATUS_LABEL[nextStatus(e.status)]}
+          {day && (
+            <div className="row" style={{ margin: '8px 0' }}>
+              <strong>{fmtDate(day)}</strong>
+              <button className="link" onClick={() => setDay(null)}>
+                tout afficher
               </button>
-            )}
-            <button className="link" onClick={() => setEditing(e)}>
-              Modifier
-            </button>
-            <div className="spacer" />
-            <button
-              className="link"
-              onClick={() => {
-                if (confirm(`Supprimer « ${e.title} » ?`)) del.mutate(e.id)
-              }}
-            >
-              Supprimer
-            </button>
-          </div>
-        </div>
-      ))}
+            </div>
+          )}
+
+          {shown.length === 0 && <p className="empty">Rien ici pour l'instant.</p>}
+
+          {shown.map((e) => (
+            <div className="card" key={e.id}>
+              <div className="row">
+                <strong>{e.title}</strong>
+                <div className="spacer" />
+                {e.source === 'assistant' && (
+                  <span className="badge" title="Suggestion de l'assistant">
+                    ✨
+                  </span>
+                )}
+                <span className="badge">{STATUS_LABEL[e.status]}</span>
+              </div>
+              <div className="row" style={{ marginTop: 6 }}>
+                <span className="muted">{fmtDate(e.date)}</span>
+                {e.platform && <span className="muted">· {PLATFORM_LABEL[e.platform]}</span>}
+                {e.type && <span className="muted">· {TYPE_LABEL[e.type]}</span>}
+                {e.product && <span className="muted">· {e.product}</span>}
+              </div>
+              {e.notes && <p style={{ margin: '8px 0 0' }}>{e.notes}</p>}
+              <div className="row" style={{ marginTop: 10 }}>
+                {e.status !== 'publie' && (
+                  <button
+                    onClick={() =>
+                      update.mutate({ id: e.id, patch: { status: nextStatus(e.status) } })
+                    }
+                  >
+                    → {STATUS_LABEL[nextStatus(e.status)]}
+                  </button>
+                )}
+                <button className="link" onClick={() => setEditing(e)}>
+                  Modifier
+                </button>
+                <div className="spacer" />
+                <button
+                  className="link"
+                  onClick={() => {
+                    if (confirm(`Supprimer « ${e.title} » ?`)) del.mutate(e.id)
+                  }}
+                >
+                  Supprimer
+                </button>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      {!openForm && <Fab onClick={() => setCreating(true)} />}
     </>
   )
 }

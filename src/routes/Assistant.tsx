@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { SparkleIcon } from '../components/icons'
 import { askAssistant, type ChatMsg } from '../lib/assistant'
+import { logEvent } from '../lib/events'
 
 // ponytail: historique en mémoire seulement (perdu au reload). Les idées gardées
 // deviennent des content_entries, qui eux persistent.
@@ -11,6 +13,10 @@ export default function Assistant() {
   const [added, setAdded] = useState(0)
   const endRef = useRef<HTMLDivElement>(null)
 
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [msgs])
+
   const send = useMutation({
     mutationFn: (next: ChatMsg[]) => askAssistant(next),
     onSuccess: ({ reply, added }) => {
@@ -19,7 +25,6 @@ export default function Assistant() {
         setAdded((n) => n + added)
         qc.invalidateQueries({ queryKey: ['content_entries'] })
       }
-      requestAnimationFrame(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }))
     },
   })
 
@@ -30,20 +35,21 @@ export default function Assistant() {
     const next = [...msgs, { role: 'user' as const, content: text }]
     setMsgs(next)
     setInput('')
+    logEvent('chat_message')
     send.mutate(next)
   }
 
   return (
     <>
       <h1>Assistant</h1>
-      <p className="muted">
-        Demande des idées de contenu, un angle pour une bougie, un plan de semaine…
-      </p>
 
       {msgs.length === 0 && (
-        <div className="card muted">
-          Ex : « 3 idées de reels pour la collection d'automne » ou « aide-moi à
-          relancer Facebook ».
+        <div className="empty">
+          <SparkleIcon size={28} />
+          <p>
+            Demande des idées de contenu, un angle pour une bougie, un plan de
+            semaine. Dis-lui « ajoute ça au planning » quand une idée te plaît.
+          </p>
         </div>
       )}
 
@@ -52,20 +58,18 @@ export default function Assistant() {
           key={i}
           className="card"
           style={{
-            background: m.role === 'user' ? 'var(--bg)' : 'var(--card)',
+            background: m.role === 'user' ? 'var(--accent-soft)' : 'var(--card)',
             whiteSpace: 'pre-wrap',
           }}
         >
-          <span className="muted" style={{ fontSize: '0.75rem' }}>
+          <span className="muted" style={{ fontSize: '0.72rem', fontWeight: 600 }}>
             {m.role === 'user' ? 'Toi' : 'Assistant'}
           </span>
           <div style={{ marginTop: 4 }}>{m.content}</div>
         </div>
       ))}
 
-      {added > 0 && (
-        <p className="muted">✨ {added} idée(s) ajoutée(s) au planning.</p>
-      )}
+      {added > 0 && <p className="muted">✨ {added} idée(s) ajoutée(s) au planning.</p>}
       {send.isPending && <p className="muted">L'assistant réfléchit…</p>}
       {send.error && (
         <p className="muted" style={{ color: 'var(--accent)' }}>
@@ -74,12 +78,13 @@ export default function Assistant() {
       )}
       <div ref={endRef} />
 
-      <form className="row" onSubmit={submit} style={{ marginTop: 12 }}>
+      <form className="row chat-input" onSubmit={submit}>
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Écris ici…"
           style={{ flex: 1 }}
+          enterKeyHint="send"
         />
         <button className="primary" type="submit" disabled={send.isPending || !input.trim()}>
           Envoyer

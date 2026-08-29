@@ -152,7 +152,13 @@ async function handleChat(req: Request): Promise<Response> {
   const messages = (body.messages ?? []).slice(-20)
   if (!messages.length) return json({ error: 'messages vides' }, 400)
 
-  const system = `${PROFIL}\n\nPlanning actuel d'Alexandra :\n${planningContext(await loadPlanning(userId, 60))}`
+  const system = `${PROFIL}
+
+Écris en texte simple pour un écran de téléphone : pas de markdown (pas de **, #, >, -),
+des paragraphes courts, va à l'essentiel.
+
+Planning actuel d'Alexandra :
+${planningContext(await loadPlanning(userId, 60))}`
 
   let added = 0
   for (let step = 0; step < 4; step++) {
