@@ -7,16 +7,25 @@ const EMPTY: ContentEntryDraft = {
   type: null,
   platform: null,
   date: null,
+  scheduled_time: null,
+  reminder_lead_hours: null,
   notes: null,
   status: 'idee',
   reminder_at: null,
 }
 
-function toLocalInput(iso: string | null): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+const LEAD_OPTIONS = [1, 3, 12, 24, 48]
+
+// date "AAAA-MM-JJ" + heure "HH:MM" - X h  ->  ISO (heure locale)
+function computeReminderAt(
+  date: string | null,
+  time: string | null,
+  leadHours: number | null,
+): string | null {
+  if (!date || !time || leadHours == null) return null
+  const at = new Date(`${date}T${time}`)
+  if (Number.isNaN(at.getTime())) return null
+  return new Date(at.getTime() - leadHours * 3_600_000).toISOString()
 }
 
 export default function EntryForm({
@@ -38,6 +47,10 @@ export default function EntryForm({
           type: initial.type,
           platform: initial.platform,
           date: initial.date,
+          scheduled_time: initial.scheduled_time
+            ? initial.scheduled_time.slice(0, 5)
+            : null,
+          reminder_lead_hours: initial.reminder_lead_hours,
           notes: initial.notes,
           status: initial.status,
           reminder_at: initial.reminder_at,
@@ -51,8 +64,14 @@ export default function EntryForm({
 
   function submit(e: FormEvent) {
     e.preventDefault()
-    onSubmit({ ...d, title: d.title.trim() })
+    onSubmit({
+      ...d,
+      title: d.title.trim(),
+      reminder_at: computeReminderAt(d.date, d.scheduled_time, d.reminder_lead_hours),
+    })
   }
+
+  const canRemind = !!d.date && !!d.scheduled_time
 
   return (
     <form className="card stack" onSubmit={submit}>
@@ -103,13 +122,60 @@ export default function EntryForm({
         </div>
       </div>
 
-      <label htmlFor="date">Date de publication (vide = simple idée)</label>
-      <input
-        id="date"
-        type="date"
-        value={d.date ?? ''}
-        onChange={(e) => set('date', e.target.value || null)}
-      />
+      <div className="row">
+        <div className="field-half">
+          <label htmlFor="date">Date (vide = simple idée)</label>
+          <input
+            id="date"
+            type="date"
+            value={d.date ?? ''}
+            onChange={(e) => {
+              const date = e.target.value || null
+              set('date', date)
+              if (!date) {
+                set('scheduled_time', null)
+                set('reminder_lead_hours', null)
+              }
+            }}
+          />
+        </div>
+        <div className="field-half">
+          <label htmlFor="time">Heure</label>
+          <input
+            id="time"
+            type="time"
+            value={d.scheduled_time ?? ''}
+            disabled={!d.date}
+            onChange={(e) => {
+              const time = e.target.value || null
+              set('scheduled_time', time)
+              if (!time) set('reminder_lead_hours', null)
+            }}
+          />
+        </div>
+      </div>
+
+      <label htmlFor="lead">Me le rappeler</label>
+      <select
+        id="lead"
+        value={d.reminder_lead_hours ?? ''}
+        disabled={!canRemind}
+        onChange={(e) =>
+          set('reminder_lead_hours', e.target.value ? Number(e.target.value) : null)
+        }
+      >
+        <option value="">Pas de rappel</option>
+        {LEAD_OPTIONS.map((h) => (
+          <option key={h} value={h}>
+            {h} h avant
+          </option>
+        ))}
+      </select>
+      {!canRemind && (
+        <p className="muted" style={{ marginTop: 4 }}>
+          Renseigne une date et une heure pour activer le rappel.
+        </p>
+      )}
 
       <label htmlFor="status">Statut</label>
       <select
@@ -122,16 +188,6 @@ export default function EntryForm({
         <option value="planifie">Planifié</option>
         <option value="publie">Publié</option>
       </select>
-
-      <label htmlFor="reminder">Rappel (optionnel)</label>
-      <input
-        id="reminder"
-        type="datetime-local"
-        value={toLocalInput(d.reminder_at)}
-        onChange={(e) =>
-          set('reminder_at', e.target.value ? new Date(e.target.value).toISOString() : null)
-        }
-      />
 
       <label htmlFor="notes">Notes</label>
       <textarea

@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { LogoutIcon } from '../components/icons'
 import { useAuth } from '../lib/auth'
+import { disablePush, enablePush, pushStatus, sendTestPush, type PushStatus } from '../lib/push'
 import { supabase } from '../lib/supabase'
 
 export default function Compte() {
@@ -8,6 +9,14 @@ export default function Compte() {
   const [password, setPassword] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  const [push, setPush] = useState<PushStatus | null>(null)
+  const [pushBusy, setPushBusy] = useState(false)
+  const [pushMsg, setPushMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    pushStatus().then(setPush)
+  }, [])
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -19,11 +28,74 @@ export default function Compte() {
     if (!error) setPassword('')
   }
 
+  async function togglePush(on: boolean) {
+    setPushBusy(true)
+    setPushMsg(null)
+    try {
+      if (on) {
+        await enablePush()
+        setPush('on')
+      } else {
+        await disablePush()
+        setPush('off')
+      }
+    } catch (e) {
+      setPushMsg((e as Error).message)
+    } finally {
+      setPushBusy(false)
+    }
+  }
+
   return (
     <>
       <h1>Compte</h1>
       <p className="muted">{session?.user.email}</p>
 
+      <h2>Notifications</h2>
+      <div className="card">
+        {push === null && <p className="muted">…</p>}
+        {push === 'unsupported' && (
+          <p className="muted">
+            Non disponible sur cet appareil. Sur iPhone : ajoute d'abord l'app à
+            l'écran d'accueil.
+          </p>
+        )}
+        {push === 'denied' && (
+          <p className="muted">
+            Bloquées. Autorise les notifications pour ce site dans les réglages du
+            navigateur.
+          </p>
+        )}
+        {push === 'off' && (
+          <>
+            <p className="muted" style={{ marginTop: 0 }}>
+              Reçois le rappel de tes publications et le point hebdo de l'assistant.
+            </p>
+            <button className="primary" disabled={pushBusy} onClick={() => togglePush(true)}>
+              {pushBusy ? '…' : 'Activer'}
+            </button>
+          </>
+        )}
+        {push === 'on' && (
+          <div className="row">
+            <span>Activées ✅</span>
+            <div className="spacer" />
+            <button className="link" disabled={pushBusy} onClick={() => sendTestPush()}>
+              Test
+            </button>
+            <button className="link" disabled={pushBusy} onClick={() => togglePush(false)}>
+              Désactiver
+            </button>
+          </div>
+        )}
+        {pushMsg && (
+          <p className="muted" style={{ color: 'var(--accent)' }}>
+            {pushMsg}
+          </p>
+        )}
+      </div>
+
+      <h2>Mot de passe</h2>
       <form className="card stack" onSubmit={submit}>
         <label htmlFor="np">Nouveau mot de passe</label>
         <input

@@ -21,9 +21,12 @@ export type ContentEntry = {
   type: ContentType | null
   platform: Platform | null
   date: string | null
+  scheduled_time: string | null
+  reminder_lead_hours: number | null
   notes: string | null
   status: ContentStatus
   reminder_at: string | null
+  reminder_sent_at: string | null
   source: 'manuel' | 'assistant'
   created_at: string
 }
@@ -40,5 +43,5 @@ export type AssistantSuggestion = {
 
 export type ContentEntryDraft = Omit<
   ContentEntry,
-  'id' | 'user_id' | 'created_at' | 'source'
+  'id' | 'user_id' | 'created_at' | 'source' | 'reminder_sent_at'
 >

@@ -154,7 +154,15 @@ export default function Planning() {
                 <span className="badge">{STATUS_LABEL[e.status]}</span>
               </div>
               <div className="row" style={{ marginTop: 6 }}>
-                <span className="muted">{fmtDate(e.date)}</span>
+                <span className="muted">
+                  {fmtDate(e.date)}
+                  {e.scheduled_time ? ` · ${e.scheduled_time.slice(0, 5)}` : ''}
+                </span>
+                {e.reminder_at && (
+                  <span className="muted" title="Rappel programmé">
+                    · 🔔
+                  </span>
+                )}
                 {e.platform && <span className="muted">· {PLATFORM_LABEL[e.platform]}</span>}
                 {e.type && <span className="muted">· {TYPE_LABEL[e.type]}</span>}
                 {e.product && <span className="muted">· {e.product}</span>}

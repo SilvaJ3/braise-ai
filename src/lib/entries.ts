@@ -33,7 +33,9 @@ export function useUpdateEntry() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: Partial<ContentEntryDraft> }) => {
-      const { error } = await supabase.from('content_entries').update(patch).eq('id', id)
+      // rappel modifié -> autorise un nouvel envoi
+      const body = 'reminder_at' in patch ? { ...patch, reminder_sent_at: null } : patch
+      const { error } = await supabase.from('content_entries').update(body).eq('id', id)
       if (error) throw error
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
