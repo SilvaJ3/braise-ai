@@ -7,6 +7,9 @@ declare const self: ServiceWorkerGlobalScope & {
 
 precacheAndRoute(self.__WB_MANIFEST)
 self.skipWaiting()
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim())
+})
 
 type PushPayload = { title?: string; body?: string; url?: string }
 
