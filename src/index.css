@@ -86,7 +86,9 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin: 10px 0 
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 8px 0 16px;
+  margin: 8px 0 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
 }
 .topnav a {
   display: inline-flex;
