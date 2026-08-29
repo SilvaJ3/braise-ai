@@ -93,3 +93,36 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin: 10px 0 
 
 form.stack { display: block; }
 .field-half { flex: 1; min-width: 120px; }
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-top: 8px;
+}
+.cal-head span { text-align: center; font-size: 0.75rem; padding: 4px 0; }
+
+.cal-day {
+  aspect-ratio: 1;
+  min-height: 0;
+  padding: 4px 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--bg);
+  font-size: 0.85rem;
+}
+.cal-day.is-today { border-color: var(--line); font-weight: 700; }
+.cal-day.is-sel { background: var(--accent); color: #fff; }
+
+.cal-dots { display: flex; gap: 2px; min-height: 6px; }
+.cal-dots i { width: 6px; height: 6px; border-radius: 999px; display: block; }
+
+.cal-legend { flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.cal-dot {
+  width: 8px; height: 8px; border-radius: 999px;
+  display: inline-block; vertical-align: middle; margin-right: 2px;
+}

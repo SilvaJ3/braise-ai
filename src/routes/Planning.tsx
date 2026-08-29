@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import EntryForm from '../components/EntryForm'
+import MonthCalendar from '../components/MonthCalendar'
 import { useCreateEntry, useDeleteEntry, useEntries, useUpdateEntry } from '../lib/entries'
 import { PLATFORM_LABEL, STATUS_LABEL, TYPE_LABEL, nextStatus } from '../lib/labels'
 import type { ContentEntry, ContentStatus } from '../lib/supabase'
@@ -16,10 +17,7 @@ const FILTERS: { key: Filter; label: string }[] = [
 
 function fmtDate(d: string | null) {
   if (!d) return 'sans date'
-  return new Date(d + 'T00:00:00').toLocaleDateString('fr-BE', {
-    day: '2-digit',
-    month: 'short',
-  })
+  return new Date(d + 'T00:00:00').toLocaleDateString('fr-BE', { day: '2-digit', month: 'short' })
 }
 
 export default function Planning() {
@@ -28,17 +26,20 @@ export default function Planning() {
   const update = useUpdateEntry()
   const del = useDeleteEntry()
 
+  const [view, setView] = useState<'calendrier' | 'liste'>('calendrier')
   const [filter, setFilter] = useState<Filter>('tous')
+  const [day, setDay] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<ContentEntry | null>(null)
 
   const shown = useMemo(() => {
     return entries.filter((e) => {
+      if (day) return e.date === day
       if (filter === 'tous') return true
       if (filter === 'idees') return e.date == null
       return e.status === filter
     })
-  }, [entries, filter])
+  }, [entries, filter, day])
 
   if (isLoading) return <p className="muted">Chargement…</p>
   if (error) return <p className="muted">Erreur : {(error as Error).message}</p>
@@ -55,13 +56,31 @@ export default function Planning() {
         )}
       </div>
 
+      <div className="nav">
+        <a
+          className={view === 'calendrier' ? 'active' : ''}
+          onClick={() => setView('calendrier')}
+          style={{ cursor: 'pointer' }}
+        >
+          Calendrier
+        </a>
+        <a
+          className={view === 'liste' ? 'active' : ''}
+          onClick={() => {
+            setView('liste')
+            setDay(null)
+          }}
+          style={{ cursor: 'pointer' }}
+        >
+          Liste
+        </a>
+      </div>
+
       {creating && (
         <EntryForm
           busy={create.isPending}
           onCancel={() => setCreating(false)}
-          onSubmit={(draft) =>
-            create.mutate(draft, { onSuccess: () => setCreating(false) })
-          }
+          onSubmit={(draft) => create.mutate(draft, { onSuccess: () => setCreating(false) })}
         />
       )}
 
@@ -71,26 +90,38 @@ export default function Planning() {
           busy={update.isPending}
           onCancel={() => setEditing(null)}
           onSubmit={(patch) =>
-            update.mutate(
-              { id: editing.id, patch },
-              { onSuccess: () => setEditing(null) },
-            )
+            update.mutate({ id: editing.id, patch }, { onSuccess: () => setEditing(null) })
           }
         />
       )}
 
-      <div className="nav" style={{ flexWrap: 'wrap' }}>
-        {FILTERS.map((f) => (
-          <a
-            key={f.key}
-            className={filter === f.key ? 'active' : ''}
-            onClick={() => setFilter(f.key)}
-            style={{ cursor: 'pointer' }}
-          >
-            {f.label}
-          </a>
-        ))}
-      </div>
+      {view === 'calendrier' && (
+        <MonthCalendar entries={entries} selected={day} onSelect={setDay} />
+      )}
+
+      {view === 'liste' && (
+        <div className="nav" style={{ flexWrap: 'wrap' }}>
+          {FILTERS.map((f) => (
+            <a
+              key={f.key}
+              className={filter === f.key ? 'active' : ''}
+              onClick={() => setFilter(f.key)}
+              style={{ cursor: 'pointer' }}
+            >
+              {f.label}
+            </a>
+          ))}
+        </div>
+      )}
+
+      {day && (
+        <div className="row" style={{ margin: '8px 0' }}>
+          <strong>{fmtDate(day)}</strong>
+          <button className="link" onClick={() => setDay(null)}>
+            tout afficher
+          </button>
+        </div>
+      )}
 
       {shown.length === 0 && <p className="muted">Rien ici.</p>}
 
@@ -111,9 +142,7 @@ export default function Planning() {
           <div className="row" style={{ marginTop: 10 }}>
             {e.status !== 'publie' && (
               <button
-                onClick={() =>
-                  update.mutate({ id: e.id, patch: { status: nextStatus(e.status) } })
-                }
+                onClick={() => update.mutate({ id: e.id, patch: { status: nextStatus(e.status) } })}
               >
                 → {STATUS_LABEL[nextStatus(e.status)]}
               </button>
