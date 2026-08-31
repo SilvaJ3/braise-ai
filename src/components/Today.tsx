@@ -2,9 +2,45 @@ import { useMemo, useState } from 'react'
 import { useGenerateIdeas, useMarkSuggestion, useSuggestions } from '../lib/assistant'
 import { useEntries } from '../lib/entries'
 import { logEvent } from '../lib/events'
+import { Highlight } from '../lib/highlight'
 import { PLATFORM_LABEL, STATUS_LABEL } from '../lib/labels'
 import type { AssistantSuggestion } from '../lib/supabase'
+import { ChevronDownIcon } from './icons'
 import Skeleton from './Skeleton'
+
+// Une idée générée par l'assistant est stockée en "titre — détail" : on affiche
+// le titre seul, et le détail (angle, pourquoi) ne s'ouvre qu'au clic — pour
+// juger d'un coup d'œil si l'idée intéresse avant de lire tout le raisonnement.
+function splitIdea(s: AssistantSuggestion): { title: string; detail: string | null } {
+  if (s.type !== 'idee_contenu') return { title: s.message, detail: null }
+  const i = s.message.indexOf(' — ')
+  return i === -1
+    ? { title: s.message, detail: null }
+    : { title: s.message.slice(0, i), detail: s.message.slice(i + 3) }
+}
+
+function SuggestionBody({ s }: { s: AssistantSuggestion }) {
+  const { title, detail } = splitIdea(s)
+  const [open, setOpen] = useState(false)
+  if (!detail) return <div>{<Highlight text={title} />}</div>
+  return (
+    <div>
+      <button
+        type="button"
+        className={`idea-toggle${open ? ' is-open' : ''}`}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span style={{ flex: 1 }}>{<Highlight text={title} />}</span>
+        <ChevronDownIcon />
+      </button>
+      {open && (
+        <p className="idea-detail">
+          <Highlight text={detail} />
+        </p>
+      )}
+    </div>
+  )
+}
 
 // ponytail: "vu" est local (pas de colonne reminder_dismissed_at en V1).
 // Ajouter la persistance quand ça devient gênant.
@@ -97,7 +133,7 @@ export default function Today() {
       )}
       {suggestions.map((s) => (
         <div className="card" key={s.id}>
-          <div style={{ whiteSpace: 'pre-wrap' }}>{s.message}</div>
+          <SuggestionBody s={s} />
           <div className="row" style={{ marginTop: 8 }}>
             <span className="muted">
               {s.type === 'idee_contenu' ? 'Idée ajoutée au planning' : 'Observation'}
@@ -113,7 +149,7 @@ export default function Today() {
         .filter((s) => !suggestions.some((q) => q.id === s.id))
         .map((s) => (
           <div className="card" key={s.id} style={{ opacity: 0.55 }}>
-            <div style={{ whiteSpace: 'pre-wrap' }}>{s.message}</div>
+            <SuggestionBody s={s} />
             <div className="row" style={{ marginTop: 8 }}>
               <span className="muted">✓ Traité</span>
               <div className="spacer" />

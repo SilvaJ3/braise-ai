@@ -4,6 +4,7 @@ import Reglages from '../components/Reglages'
 import { SparkleIcon } from '../components/icons'
 import { useChatMessages, useSendMessage } from '../lib/assistant'
 import { logEvent } from '../lib/events'
+import { Highlight } from '../lib/highlight'
 
 // L'historique est persistant (table chat_messages). La réponse est générée en
 // arrière-plan côté serveur : Alexandra peut fermer l'app, une notification push
@@ -90,7 +91,7 @@ export default function Assistant() {
                 </div>
               ) : (
                 <div style={{ marginTop: 4, color: m.status === 'error' ? 'var(--accent)' : undefined }}>
-                  {m.content}
+                  <Highlight text={m.content} />
                 </div>
               )}
               {m.role === 'assistant' && m.meta?.added ? (
