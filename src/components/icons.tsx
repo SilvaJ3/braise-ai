@@ -82,6 +82,14 @@ export function PlusIcon({ size = 20 }: Props) {
   )
 }
 
+export function ChevronDownIcon({ size = 16 }: Props) {
+  return (
+    <svg {...base(size)}>
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  )
+}
+
 export function LogoutIcon({ size = 20 }: Props) {
   return (
     <svg {...base(size)}>
