@@ -5,6 +5,9 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App.tsx'
 import './index.css'
 import { AuthProvider } from './lib/auth.tsx'
+import { applyColors, loadColors } from './lib/theme.ts'
+
+applyColors(loadColors())
 
 const qc = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000 } } })
 
