@@ -10,8 +10,9 @@ Référence produit : `specs/spec-app-au-coin-du-feu.md` et `specs/vision-assist
 |---|---|
 | V1 — Planning réseaux sociaux + rappels au login | Fait, déployé (https://braise-ai.vercel.app) |
 | V1.5 — Notifications push PWA | Fait (+ date/heure/rappel par entrée, auto-planification, fix mise à jour du service worker) |
-| V7 — Couche IA assistant | Démarrée en avance : chat d'idées (historique persistant, réponse en arrière-plan + notification push), bilan hebdo (cron lundi, tous les comptes), voix de marque éditable, catalogue produits, retour « ça a marché ? », recherche web dans le chat. Reste à brancher sur V2/V3. |
-| V2, V3, V4, V5, V6, V8 | Pas commencés |
+| V7 — Couche IA assistant | Démarrée en avance : chat d'idées (historique persistant, réponse en arrière-plan + notification push), bilan hebdo (cron lundi, tous les comptes), voix de marque éditable, catalogue produits, retour « ça a marché ? », recherche web dans le chat, boutiques (V2) branchées sur `buildContext` + suggestion `relance_boutique`. Reste à brancher sur V3. |
+| V2 — CRM boutiques | Fait : tables `boutiques`/`boutique_contacts_log`, écran liste + fiche (mobile), lien `content_entries.boutique_id`, suggestion `relance_boutique` (calcul déterministe, seuil 21 j, cron hebdo). |
+| V3, V4, V5, V6, V8 | Pas commencés |
 
 ## Écart assumé vs spec
 
