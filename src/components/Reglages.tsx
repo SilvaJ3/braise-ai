@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   useCreateProduit,
   useDeleteProduit,
@@ -185,6 +186,12 @@ function ProduitsManager() {
       {isLoading && <p className="muted">…</p>}
       {!isLoading && produits.length === 0 && !creating && (
         <p className="empty">Ajoute tes bougies pour des idées plus précises.</p>
+      )}
+      {!creating && !editing && (
+        <p className="muted" style={{ margin: '4px 0 10px' }}>
+          Tu as un export Shopify ou un tableau ?{' '}
+          <Link to="/atelier?tab=import&entity=produits">Importer un fichier</Link>
+        </p>
       )}
       {produits.map((p) => (
         <div className="card" key={p.id} style={{ opacity: p.actif ? 1 : 0.5 }}>

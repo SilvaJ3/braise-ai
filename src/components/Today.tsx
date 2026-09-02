@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useGenerateIdeas, useMarkSuggestion, useSuggestions } from '../lib/assistant'
+import { ymd } from '../lib/dates'
 import { useEntries } from '../lib/entries'
 import { logEvent } from '../lib/events'
 import { Highlight } from '../lib/highlight'
@@ -42,14 +43,44 @@ function SuggestionBody({ s }: { s: AssistantSuggestion }) {
   )
 }
 
-// ponytail: "vu" est local (pas de colonne reminder_dismissed_at en V1).
-// Ajouter la persistance quand ça devient gênant.
+// "Vu" sur un rappel : mémorisé en local (par appareil), pas de colonne DB en V1.
+const DISMISSED_KEY = 'reminders-dismissed'
+function loadDismissed(): Set<string> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(DISMISSED_KEY) ?? '[]')
+    return new Set(Array.isArray(raw) ? raw.filter((x) => typeof x === 'string').slice(-200) : [])
+  } catch {
+    return new Set()
+  }
+}
+function saveDismissed(s: Set<string>) {
+  try {
+    localStorage.setItem(DISMISSED_KEY, JSON.stringify([...s]))
+  } catch {
+    /* ignore */
+  }
+}
+
+const SUGGESTION_LABEL: Record<AssistantSuggestion['type'], string> = {
+  idee_contenu: 'Idée ajoutée au planning',
+  observation: 'Observation',
+  relance_boutique: 'Relance boutique',
+  alerte_stock: 'Stock à recommander',
+}
+
 export default function Today() {
   const { data: entries = [], isLoading } = useEntries()
   const { data: suggestions = [] } = useSuggestions()
   const markSuggestion = useMarkSuggestion()
   const generate = useGenerateIdeas()
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set())
+  const [dismissed, setDismissed] = useState<Set<string>>(loadDismissed)
+  function dismiss(id: string) {
+    setDismissed((s) => {
+      const next = new Set(s).add(id)
+      saveDismissed(next)
+      return next
+    })
+  }
   // suggestions marquées "OK" pendant la session : restent visibles (grisées)
   // avec un bouton Rétablir, disparaissent au prochain chargement.
   const [done, setDone] = useState<Record<string, AssistantSuggestion>>({})
@@ -70,7 +101,7 @@ export default function Today() {
   }
 
   const now = Date.now()
-  const today = new Date().toISOString().slice(0, 10)
+  const today = ymd()
 
   const due = useMemo(
     () =>
@@ -101,7 +132,7 @@ export default function Today() {
               <span>{e.title}</span>
               <span className="muted">· {STATUS_LABEL[e.status]}</span>
               <div className="spacer" />
-              <button className="link" onClick={() => setDismissed((s) => new Set(s).add(e.id))}>
+              <button className="link" onClick={() => dismiss(e.id)}>
                 Vu
               </button>
             </div>
@@ -135,13 +166,7 @@ export default function Today() {
         <div className="card" key={s.id}>
           <SuggestionBody s={s} />
           <div className="row" style={{ marginTop: 8 }}>
-            <span className="muted">
-              {s.type === 'idee_contenu'
-                ? 'Idée ajoutée au planning'
-                : s.type === 'relance_boutique'
-                  ? 'Relance boutique'
-                  : 'Observation'}
-            </span>
+            <span className="muted">{SUGGESTION_LABEL[s.type] ?? 'Suggestion'}</span>
             <div className="spacer" />
             <button className="link" onClick={() => markDone(s)}>
               OK

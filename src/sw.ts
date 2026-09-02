@@ -34,10 +34,17 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const url = (event.notification.data as { url?: string } | undefined)?.url ?? '/'
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
-      const open = clients.find((c) => 'focus' in c)
-      if (open) return (open as WindowClient).focus()
-      return self.clients.openWindow(url)
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clients) => {
+      const open = clients.find((c) => 'focus' in c) as WindowClient | undefined
+      if (!open) return self.clients.openWindow(url)
+      await open.focus()
+      if ('navigate' in open && !open.url.endsWith(url)) {
+        try {
+          await open.navigate(url)
+        } catch {
+          /* navigation refusée (origine différente) : le focus suffit */
+        }
+      }
     }),
   )
 })

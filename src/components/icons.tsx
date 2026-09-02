@@ -109,3 +109,11 @@ export function LogoutIcon({ size = 20 }: Props) {
     </svg>
   )
 }
+
+export function FlameIcon({ size = 20 }: Props) {
+  return (
+    <svg {...base(size)}>
+      <path d="M12 22c4.4 0 7-2.9 7-6.5 0-3-1.6-5-3.2-6.8-.5 1.6-1.5 2.6-2.6 3.1.3-2.6-.5-6-3.7-8.8.3 3-1.3 4.5-2.7 6.2C5.6 10.7 5 12.7 5 15.5 5 19.1 7.6 22 12 22z" />
+    </svg>
+  )
+}

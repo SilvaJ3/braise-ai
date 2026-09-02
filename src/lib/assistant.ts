@@ -1,17 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { functionErrorMessage as errMessage } from './push'
 import { supabase, type AssistantSuggestion, type ChatMessage } from './supabase'
 
-async function errMessage(error: unknown): Promise<string> {
-  const ctx = (error as { context?: Response })?.context
-  if (ctx && typeof ctx.json === 'function') {
-    try {
-      const body = await ctx.json()
-      if (body?.error) return body.error
-    } catch {
-      /* ignore */
-    }
-  }
-  return (error as Error).message
+export const MAX_MESSAGE_CHARS = 4000 // même limite que l'edge function
+const HISTORY_LIMIT = 100
+// Au-delà, une réponse « pending » est considérée plantée : l'edge function la clôt en
+// erreur au prochain envoi, et le client ne bloque plus la saisie.
+export const PENDING_STALE_MS = 5 * 60_000
+
+export function isPendingActive(m: ChatMessage, now = Date.now()): boolean {
+  return m.status === 'pending' && now - new Date(m.created_at).getTime() < PENDING_STALE_MS
 }
 
 // Envoie une question. La réponse est générée en arrière-plan côté serveur (edge function
@@ -33,13 +31,14 @@ export function useChatMessages() {
       const { data, error } = await supabase
         .from('chat_messages')
         .select('*')
-        .order('created_at', { ascending: true })
+        .order('created_at', { ascending: false })
+        .limit(HISTORY_LIMIT)
       if (error) throw error
-      return data as ChatMessage[]
+      return (data as ChatMessage[]).reverse()
     },
-    // Tant qu'une réponse est en cours, on rafraîchit toutes les 2,5 s.
+    // Tant qu'une réponse est en cours (et pas plantée), on rafraîchit toutes les 2,5 s.
     refetchInterval: (query) =>
-      (query.state.data as ChatMessage[] | undefined)?.some((m) => m.status === 'pending')
+      (query.state.data as ChatMessage[] | undefined)?.some((m) => isPendingActive(m))
         ? 2500
         : false,
   })

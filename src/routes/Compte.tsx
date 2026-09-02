@@ -36,6 +36,19 @@ export default function Compte() {
     if (!error) setPassword('')
   }
 
+  async function testPush() {
+    setPushBusy(true)
+    setPushMsg(null)
+    try {
+      await sendTestPush()
+      setPushMsg('Notification de test envoyée.')
+    } catch (e) {
+      setPushMsg((e as Error).message)
+    } finally {
+      setPushBusy(false)
+    }
+  }
+
   async function togglePush(on: boolean) {
     setPushBusy(true)
     setPushMsg(null)
@@ -124,7 +137,7 @@ export default function Compte() {
           <div className="row">
             <span>Activées ✅</span>
             <div className="spacer" />
-            <button className="link" disabled={pushBusy} onClick={() => sendTestPush()}>
+            <button className="link" disabled={pushBusy} onClick={testPush}>
               Test
             </button>
             <button className="link" disabled={pushBusy} onClick={() => togglePush(false)}>

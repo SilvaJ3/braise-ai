@@ -12,6 +12,7 @@ import {
   useSetPerf,
   useUpdateEntry,
 } from '../lib/entries'
+import { ymd } from '../lib/dates'
 import { logEvent } from '../lib/events'
 import { PERF_LABEL, PLATFORM_LABEL, STATUS_LABEL, TYPE_LABEL, nextStatus } from '../lib/labels'
 import type { ContentEntry, ContentEntryDraft, ContentStatus } from '../lib/supabase'
@@ -20,11 +21,6 @@ type Filter = 'tous' | ContentStatus | 'idees'
 
 const PLANIFY_SPACING_DAYS = 2
 const PLANIFY_HOUR = 10 // rappel + action le matin même à 10h
-
-function ymd(d: Date) {
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
-}
 
 // Passage à "planifié" sans date : place la publication au prochain créneau
 // libre (une action tous les 2 jours), rappel le matin même à 10h.

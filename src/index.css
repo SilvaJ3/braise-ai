@@ -401,3 +401,14 @@ form.stack {
   color: var(--muted);
   font-size: 0.9rem;
 }
+
+/* Import : ligne d'aperçu cliquable (case + résumé) */
+.import-row {
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+.import-row input[type='checkbox'] {
+  margin-top: 3px;
+  flex-shrink: 0;
+}

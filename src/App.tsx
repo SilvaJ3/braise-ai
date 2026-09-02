@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import BottomNav from './components/BottomNav'
 import { useAuth } from './lib/auth'
 import Assistant from './routes/Assistant'
+import Atelier from './routes/Atelier'
 import Aujourdhui from './routes/Aujourdhui'
 import BoutiqueFiche from './routes/BoutiqueFiche'
 import Boutiques from './routes/Boutiques'
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="/planning" element={<Planning />} />
         <Route path="/boutiques" element={<Boutiques />} />
         <Route path="/boutiques/:id" element={<BoutiqueFiche />} />
+        <Route path="/atelier" element={<Atelier />} />
         <Route path="/assistant" element={<Assistant />} />
         <Route path="/compte" element={<Compte />} />
         <Route path="*" element={<Navigate to="/" replace />} />

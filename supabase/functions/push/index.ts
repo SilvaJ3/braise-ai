@@ -46,6 +46,8 @@ async function sendToSubs(subs: Sub[], payload: Payload): Promise<number> {
       const status = (e as { statusCode?: number }).statusCode
       if (status === 404 || status === 410) {
         await admin.from('push_subscriptions').delete().eq('id', s.id)
+      } else {
+        console.error('push failed', status ?? String(e).slice(0, 200))
       }
     }
   }
@@ -87,18 +89,39 @@ async function handleTest(req: Request): Promise<Response> {
   return json({ sent })
 }
 
+// Un rappel plus vieux que ça (cron en panne, app hors ligne) n'a plus de sens : on le marque
+// envoyé sans notifier plutôt que d'arroser de rappels périmés.
+const REMINDER_MAX_AGE_MS = 24 * 3_600_000
+
 async function handleReminders(): Promise<Response> {
-  const { data: due } = await admin
+  const nowIso = new Date().toISOString()
+  // Réservation atomique : on marque d'abord (update ... where reminder_sent_at is null),
+  // on envoie ensuite. Deux runs qui se chevauchent ne peuvent pas envoyer deux fois.
+  const { data: due, error } = await admin
     .from('content_entries')
-    .select('id, user_id, title, scheduled_time')
+    .update({ reminder_sent_at: nowIso })
     .not('reminder_at', 'is', null)
     .is('reminder_sent_at', null)
-    .lte('reminder_at', new Date().toISOString())
+    .lte('reminder_at', nowIso)
     .neq('status', 'publie')
+    .select('id, user_id, title, scheduled_time, reminder_at')
+  if (error) return json({ error: error.message }, 500)
 
   let sent = 0
+  let skipped = 0
+  const cutoff = Date.now() - REMINDER_MAX_AGE_MS
+  const subsCache = new Map<string, Sub[]>()
   for (const e of due ?? []) {
-    const subs = await subsForUser(e.user_id as string)
+    if (new Date(e.reminder_at as string).getTime() < cutoff) {
+      skipped++
+      continue
+    }
+    const uid = e.user_id as string
+    let subs = subsCache.get(uid)
+    if (!subs) {
+      subs = await subsForUser(uid)
+      subsCache.set(uid, subs)
+    }
     const heure = (e.scheduled_time as string | null)?.slice(0, 5)
     if (subs.length) {
       sent += await sendToSubs(subs, {
@@ -107,12 +130,8 @@ async function handleReminders(): Promise<Response> {
         url: `${APP_URL}/planning`,
       })
     }
-    await admin
-      .from('content_entries')
-      .update({ reminder_sent_at: new Date().toISOString() })
-      .eq('id', e.id)
   }
-  return json({ due: due?.length ?? 0, sent })
+  return json({ due: due?.length ?? 0, sent, skipped })
 }
 
 // Notification ciblée déclenchée par une autre edge function (ex: assistant quand une
@@ -123,13 +142,14 @@ async function handleNotify(req: Request, body: Record<string, unknown>): Promis
     return json({ error: 'non autorisé' }, 401)
   }
   const userId = typeof body.user_id === 'string' ? body.user_id : ''
-  const title = typeof body.title === 'string' ? body.title : ''
+  const title = typeof body.title === 'string' ? body.title.slice(0, 100) : ''
   if (!userId || !title) return json({ error: 'user_id et title requis' }, 400)
+  const url = typeof body.url === 'string' && body.url.startsWith(APP_URL) ? body.url : undefined
   const subs = await subsForUser(userId)
   const sent = await sendToSubs(subs, {
     title,
-    body: typeof body.body === 'string' ? body.body : '',
-    url: typeof body.url === 'string' ? body.url : undefined,
+    body: typeof body.body === 'string' ? body.body.slice(0, 500) : '',
+    url,
   })
   return json({ sent })
 }
@@ -167,6 +187,6 @@ Deno.serve(async (req) => {
     return json({ error: `mode inconnu: ${mode}` }, 400)
   } catch (e) {
     console.error(e)
-    return json({ error: String(e) }, 500)
+    return json({ error: String((e as Error).message ?? e).slice(0, 300) }, 500)
   }
 })

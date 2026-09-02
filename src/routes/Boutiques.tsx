@@ -4,13 +4,9 @@ import BoutiqueForm from '../components/BoutiqueForm'
 import Fab from '../components/Fab'
 import Skeleton from '../components/Skeleton'
 import { useBoutiques, useCreateBoutique, useLastContacts } from '../lib/boutiques'
+import { joursDepuis } from '../lib/dates'
 
-const RELANCE_SEUIL_JOURS = 21 // ~3 semaines sans contact
-
-function joursDepuis(date: string) {
-  const ms = Date.now() - new Date(date + 'T00:00:00').getTime()
-  return Math.floor(ms / 86_400_000)
-}
+const RELANCE_SEUIL_JOURS = 21 // ~3 semaines sans contact (même seuil que l'edge function)
 
 export default function Boutiques() {
   const navigate = useNavigate()

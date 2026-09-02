@@ -3,16 +3,22 @@
 Assistant virtuel pour la gestion d'une activité artisanale de bougies.
 Mobile-first, PWA installable sur iPhone. Voir `specs/` pour la vision et la roadmap.
 
-## V1 (en cours)
+## Fonctionnel
 
-Planning réseaux sociaux : CRUD idées / publications, statuts
-(idée → à faire → planifié → publié), rappels affichés à la connexion.
+- **Planning réseaux sociaux** (V1) : idées / publications, statuts, calendrier, rappels push (V1.5).
+- **Boutiques** (V2) : fiches dépôt-vente, mini-carte, relances suggérées.
+- **Atelier** (V3, en cours) : matières premières (stock, seuil, fournisseur), fournisseurs,
+  **import par IA** d'un Excel / CSV / PDF / photo vers bougies, matières, fournisseurs ou boutiques.
+- **Assistant** (V7) : chat d'idées, bilan hebdo, alertes stock et relances.
+
+Détail et reste à faire : `ROADMAP.md`.
 
 ## Stack
 
 - React + Vite + TypeScript, PWA via `vite-plugin-pwa`
-- Supabase (Postgres + Auth), une table `content_entries`, RLS par `auth.uid()`
+- Supabase (Postgres + Auth + edge functions + pg_cron), RLS `user_id = (select auth.uid())` sur toutes les tables
 - React Query pour l'accès aux données
+- Edge functions (Deno) : `assistant` (chat + bilan hebdo), `push` (Web Push), `import` (parsing IA)
 - Déploiement : Vercel
 
 ## Développement
@@ -21,12 +27,27 @@ Planning réseaux sociaux : CRUD idées / publications, statuts
 npm install
 cp .env.example .env   # renseigner URL + clé publishable Supabase
 npm run dev
+npm run check   # lint + typecheck + tests (ce que fait la CI)
 ```
 
 ## Base de données
 
-Migration dans `supabase/migrations/`. Déjà appliquée sur le projet Supabase
-`au-coin-du-feu` (ref `nnssqleqvfafbkkxyqne`).
+Migrations dans `supabase/migrations/`, appliquées sur le projet Supabase
+`au-coin-du-feu` (ref `nnssqleqvfafbkkxyqne`). Règle : toute table = `user_id not null`
++ RLS `(select auth.uid())` dès la migration.
+
+## Edge functions
+
+```bash
+supabase functions deploy assistant
+supabase functions deploy push
+supabase functions deploy import
+```
+
+Secrets attendus : `ANTHROPIC_API_KEY`, `VAPID_PRIVATE_KEY` (+ `SUPABASE_*` fournis
+automatiquement). Le secret de cron `assistant_cron_secret` vit dans Vault (voir migration 0003).
+`supabase/functions/_shared/` est partagé entre les fonctions et importé par le front
+(`src/lib/importer.ts`) : TypeScript pur, pas de dépendance Deno/DOM.
 
 ## Compte utilisateur
 
@@ -44,8 +65,3 @@ Ajouter un autre utilisateur : Authentication → Users → Add user.
 2. Importer dans Vercel, framework « Vite »
 3. Variables d'environnement Vercel : `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
 4. Sur iPhone (Safari) : ouvrir l'URL → Partager → « Sur l'écran d'accueil »
-
-## Hors périmètre V1
-
-Notifications push / service worker custom (V1.5), CRM boutiques (V2),
-catalogue / matières / commandes (V3+), couche IA (V7).

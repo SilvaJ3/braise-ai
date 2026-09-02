@@ -59,6 +59,21 @@ export async function disablePush(): Promise<void> {
 
 export async function sendTestPush(): Promise<void> {
   const { data, error } = await supabase.functions.invoke('push', { body: { mode: 'test' } })
-  if (error) throw error
+  if (error) throw new Error(await functionErrorMessage(error))
   if (data?.error) throw new Error(data.error)
+}
+
+// Une edge function qui répond 4xx/5xx renvoie un FunctionsHttpError dont le message est
+// générique ; le vrai message est dans le body JSON.
+export async function functionErrorMessage(error: unknown): Promise<string> {
+  const ctx = (error as { context?: Response })?.context
+  if (ctx && typeof ctx.json === 'function') {
+    try {
+      const body = await ctx.clone().json()
+      if (body?.error) return String(body.error)
+    } catch {
+      /* ignore */
+    }
+  }
+  return (error as Error)?.message ?? String(error)
 }

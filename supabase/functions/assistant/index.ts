@@ -1,6 +1,7 @@
 // Assistant IA "Au Coin du Feu" — chat d'idées (réponse en arrière-plan + push) + bilan hebdo.
 // Clé Anthropic uniquement côté serveur (secret Supabase ANTHROPIC_API_KEY).
 import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { anthropicMessages, textOf, type AnthropicResp } from '../_shared/anthropic.ts'
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void }
 
@@ -27,6 +28,13 @@ const TOOL_RULE = `Quand Alexandra te demande d'ajouter une ou des idées à son
 proposition de le faire), utilise l'outil ajouter_idees_au_planning. N'invente pas de dates
 si elle n'en donne pas : laisse date vide (l'entrée reste une simple idée).`
 
+// Garde-fous
+const MAX_MESSAGE_CHARS = 4000 // question utilisateur
+const MAX_TITLE_CHARS = 300 // titre d'idée (contrainte DB content_entries_title_len)
+const MAX_NOTE_CHARS = 4000
+const PENDING_STALE_MS = 5 * 60_000 // réponse « en cours » plus vieille que ça = plantée
+const WEEKLY_MIN_INTERVAL_MS = 10 * 60_000 // anti-spam du bouton « Générer des idées »
+
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY')
@@ -48,19 +56,21 @@ type IdeaInput = {
 }
 
 async function insertEntry(userId: string, idea: IdeaInput): Promise<string | null> {
-  if (!idea.title) return null
+  const title = typeof idea.title === 'string' ? idea.title.trim().slice(0, MAX_TITLE_CHARS) : ''
+  if (!title) return null
   const date = typeof idea.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(idea.date) ? idea.date : null
+  const notes = typeof idea.note === 'string' && idea.note.trim() ? idea.note.trim().slice(0, MAX_NOTE_CHARS) : null
   const { data, error } = await admin
     .from('content_entries')
     .insert({
       user_id: userId,
-      title: idea.title,
+      title,
       platform: clean(idea.platform, PLATFORMS),
       type: clean(idea.type, TYPES),
       date,
       status: 'idee',
       source: 'assistant',
-      notes: idea.note ?? null,
+      notes,
     })
     .select('id')
     .single()
@@ -120,31 +130,11 @@ const BILAN_TOOL = {
   },
 }
 
-type AnthropicBlock = {
-  type: string
-  text?: string
-  id?: string
-  name?: string
-  input?: unknown
+// Timeout 100 s + 2 retries (429/5xx/réseau). Le chat tourne en arrière-plan (waitUntil),
+// le bilan hebdo doit tenir dans la limite de l'edge function.
+function anthropic(body: Record<string, unknown>, timeoutMs = 100_000): Promise<AnthropicResp> {
+  return anthropicMessages(ANTHROPIC_KEY!, { model: MODEL, ...body }, { timeoutMs, retries: 2 })
 }
-type AnthropicResp = { content: AnthropicBlock[]; stop_reason: string }
-
-async function anthropic(body: Record<string, unknown>): Promise<AnthropicResp> {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'x-api-key': ANTHROPIC_KEY!,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({ model: MODEL, ...body }),
-  })
-  if (!res.ok) throw new Error(`Anthropic ${res.status}: ${await res.text()}`)
-  return await res.json()
-}
-
-const textOf = (content: AnthropicBlock[]): string =>
-  content.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('')
 
 // Envoie une notification push à un utilisateur via la fonction `push` (mode notify,
 // authentifié par la clé service role — échange interne entre edge functions).
@@ -160,6 +150,7 @@ async function sendPush(userId: string, title: string, body: string): Promise<vo
         body,
         url: `${APP_URL}/assistant`,
       }),
+      signal: AbortSignal.timeout(15_000),
     })
   } catch (e) {
     console.error('sendPush failed', e)
@@ -280,15 +271,69 @@ async function loadBoutiques(userId: string): Promise<string> {
   return `\n\nBoutiques en dépôt-vente d'Alexandra :\n${lines.join('\n')}`
 }
 
+type MatiereRow = {
+  id: string
+  nom: string
+  unite: string
+  stock_actuel: number
+  seuil_alerte: number | null
+  fournisseur: { nom: string; delai_livraison_jours: number | null } | null
+}
+
+async function loadMatieres(userId: string): Promise<MatiereRow[]> {
+  const { data } = await admin
+    .from('matieres_premieres')
+    .select('id, nom, unite, stock_actuel, seuil_alerte, fournisseur:fournisseurs(nom, delai_livraison_jours)')
+    .eq('user_id', userId)
+    .eq('actif', true)
+    .order('nom')
+    .limit(60)
+  return ((data ?? []) as unknown[]).map((r) => {
+    const row = r as Record<string, unknown>
+    const f = Array.isArray(row.fournisseur) ? row.fournisseur[0] : row.fournisseur
+    return {
+      id: row.id as string,
+      nom: row.nom as string,
+      unite: row.unite as string,
+      stock_actuel: Number(row.stock_actuel ?? 0),
+      seuil_alerte: row.seuil_alerte == null ? null : Number(row.seuil_alerte),
+      fournisseur: (f as MatiereRow['fournisseur']) ?? null,
+    }
+  })
+}
+
+const fmtQty = (n: number, unite: string) =>
+  `${Number.isInteger(n) ? n : n.toFixed(2).replace(/\.?0+$/, '')} ${unite === 'piece' ? 'pc' : unite}`
+
+function stockContext(matieres: MatiereRow[]): string {
+  if (!matieres.length) return ''
+  const sous = matieres.filter((m) => m.seuil_alerte != null && m.stock_actuel <= m.seuil_alerte)
+  const lines = matieres.map((m) => {
+    const bits = [fmtQty(m.stock_actuel, m.unite)]
+    if (m.seuil_alerte != null) bits.push(`seuil ${fmtQty(m.seuil_alerte, m.unite)}`)
+    if (m.fournisseur?.nom) {
+      bits.push(
+        `chez ${m.fournisseur.nom}${m.fournisseur.delai_livraison_jours != null ? `, délai ${m.fournisseur.delai_livraison_jours} j` : ''}`,
+      )
+    }
+    return `- ${m.nom} : ${bits.join(', ')}`
+  })
+  const alerte = sous.length
+    ? `\nSous le seuil (à recommander) : ${sous.map((m) => m.nom).join(', ')}.`
+    : ''
+  return `\n\nStock de matières premières :\n${lines.join('\n')}${alerte}`
+}
+
 async function buildContext(userId: string, planningLimit: number): Promise<string> {
-  const [profil, produits, perf, planning, boutiques] = await Promise.all([
+  const [profil, produits, perf, planning, boutiques, matieres] = await Promise.all([
     loadProfil(userId),
     loadProduits(userId),
     loadPerf(userId),
     loadPlanning(userId, planningLimit),
     loadBoutiques(userId),
+    loadMatieres(userId).catch(() => [] as MatiereRow[]),
   ])
-  return `${profil}${produits}${perf}${boutiques}\n\nPlanning actuel d'Alexandra :\n${planningContext(planning)}`
+  return `${profil}${produits}${perf}${boutiques}${stockContext(matieres)}\n\nPlanning actuel d'Alexandra :\n${planningContext(planning)}`
 }
 
 // --- Chat : réponse générée en arrière-plan, notifiée par push ------------------
@@ -323,6 +368,10 @@ async function runChatTurn(
       const results: Array<{ type: string; tool_use_id?: string; content: string }> = []
       for (const block of resp.content) {
         if (block.type !== 'tool_use') continue
+        if (block.name !== ADD_TOOL.name) {
+          results.push({ type: 'tool_result', tool_use_id: block.id, content: 'Outil inconnu.' })
+          continue
+        }
         const idees = (block.input as { idees?: IdeaInput[] })?.idees ?? []
         let n = 0
         for (const idea of idees.slice(0, 10)) {
@@ -342,7 +391,7 @@ async function runChatTurn(
     }
     await admin
       .from('chat_messages')
-      .update({ content: reply, status: 'done', meta: { added } })
+      .update({ content: reply.slice(0, 20_000), status: 'done', meta: { added } })
       .eq('id', assistantId)
     await sendPush(userId, "Réponse de l'assistant", reply.slice(0, 140))
   } catch (e) {
@@ -364,18 +413,32 @@ async function handleChat(req: Request): Promise<Response> {
   if (error || !userData.user) return json({ error: 'non authentifié' }, 401)
   const userId = userData.user.id
 
-  const body = await req.json()
+  const body = await req.json().catch(() => ({}))
   const message = typeof body.message === 'string' ? body.message.trim() : ''
   if (!message) return json({ error: 'message vide' }, 400)
+  if (message.length > MAX_MESSAGE_CHARS) {
+    return json({ error: `message trop long (max ${MAX_MESSAGE_CHARS} caractères)` }, 400)
+  }
 
   // Une seule réponse en cours à la fois : ne pas réempiler si l'assistant travaille déjà.
-  const { data: busy } = await admin
+  // Une réponse « pending » trop vieille = edge function tuée avant d'écrire : on la clôt en
+  // erreur pour ne pas bloquer le chat indéfiniment.
+  const { data: busyRows } = await admin
     .from('chat_messages')
-    .select('id')
+    .select('id, created_at')
     .eq('user_id', userId)
     .eq('role', 'assistant')
     .eq('status', 'pending')
-    .maybeSingle()
+    .order('created_at', { ascending: true })
+  const now = Date.now()
+  const stale = (busyRows ?? []).filter((r) => now - new Date(r.created_at as string).getTime() > PENDING_STALE_MS)
+  if (stale.length) {
+    await admin
+      .from('chat_messages')
+      .update({ content: "La réponse n'a pas abouti (délai dépassé). Repose ta question.", status: 'error' })
+      .in('id', stale.map((r) => r.id as string))
+  }
+  const busy = (busyRows ?? []).find((r) => !stale.includes(r))
   if (busy) return json({ pending_id: busy.id, already: true })
 
   await admin.from('chat_messages').insert({ user_id: userId, role: 'user', content: message })
@@ -474,9 +537,40 @@ async function detectRelancesBoutique(userId: string): Promise<number> {
   return created
 }
 
+// Suggestion alerte_stock : déterministe (stock <= seuil), une seule « nouveau » par matière.
+async function detectAlertesStock(userId: string): Promise<number> {
+  const matieres = await loadMatieres(userId).catch(() => [] as MatiereRow[])
+  const sous = matieres.filter((m) => m.seuil_alerte != null && m.stock_actuel <= m.seuil_alerte)
+  if (!sous.length) return 0
+
+  const { data: pending } = await admin
+    .from('assistant_suggestions')
+    .select('matiere_id')
+    .eq('user_id', userId)
+    .eq('type', 'alerte_stock')
+    .eq('statut', 'nouveau')
+  const alreadyPending = new Set((pending ?? []).map((s) => s.matiere_id as string))
+
+  let created = 0
+  for (const m of sous) {
+    if (alreadyPending.has(m.id)) continue
+    const delai = m.fournisseur?.delai_livraison_jours
+    const bits = [`${m.nom} : ${fmtQty(m.stock_actuel, m.unite)} en stock, seuil ${fmtQty(m.seuil_alerte as number, m.unite)}`]
+    if (m.fournisseur?.nom) bits.push(`à commander chez ${m.fournisseur.nom}${delai != null ? ` (délai ${delai} j)` : ''}`)
+    await admin.from('assistant_suggestions').insert({
+      user_id: userId,
+      type: 'alerte_stock',
+      message: bits.join(' — '),
+      matiere_id: m.id,
+    })
+    created++
+  }
+  return created
+}
+
 async function runWeeklyForUser(
   userId: string,
-): Promise<{ ideas_inserted: number; observations: number; relances: number }> {
+): Promise<{ ideas_inserted: number; observations: number; relances: number; alertes_stock: number }> {
   const today = new Date().toISOString().slice(0, 10)
   const context = await buildContext(userId, 80)
 
@@ -490,15 +584,18 @@ Prépare :
 
 Rends ton travail via l'outil rendre_bilan. N'écris pas de texte en dehors de l'outil.`
 
-  const resp = await anthropic({
-    model: WEEKLY_MODEL,
-    max_tokens: 2500,
-    output_config: { effort: 'low' },
-    system,
-    messages: [{ role: 'user', content: 'Génère le bilan de la semaine.' }],
-    tools: [BILAN_TOOL],
-    tool_choice: { type: 'tool', name: 'rendre_bilan' },
-  })
+  const resp = await anthropic(
+    {
+      model: WEEKLY_MODEL,
+      max_tokens: 2500,
+      output_config: { effort: 'low' },
+      system,
+      messages: [{ role: 'user', content: 'Génère le bilan de la semaine.' }],
+      tools: [BILAN_TOOL],
+      tool_choice: { type: 'tool', name: 'rendre_bilan' },
+    },
+    60_000,
+  )
   const call = resp.content.find((b) => b.type === 'tool_use')
   const parsed = (call?.input as { ideas?: IdeaInput[]; observations?: string[] }) ?? {
     ideas: [],
@@ -524,8 +621,9 @@ Rends ton travail via l'outil rendre_bilan. N'écris pas de texte en dehors de l
   }
 
   const relances = await detectRelancesBoutique(userId)
+  const alertes_stock = await detectAlertesStock(userId)
 
-  return { ideas_inserted: inserted, observations: observations.length, relances }
+  return { ideas_inserted: inserted, observations: observations.length, relances, alertes_stock }
 }
 
 async function handleWeekly(req: Request): Promise<Response> {
@@ -550,7 +648,21 @@ async function handleWeekly(req: Request): Promise<Response> {
   const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '')
   const { data: userData } = await admin.auth.getUser(token)
   if (!userData.user) return json({ error: 'non autorisé' }, 401)
-  return json(await runWeeklyForUser(userData.user.id))
+  const userId = userData.user.id
+
+  // Anti-spam : un bilan manuel au plus toutes les 10 min (chaque run coûte un appel LLM
+  // et ajoute des idées au planning).
+  const since = new Date(Date.now() - WEEKLY_MIN_INTERVAL_MS).toISOString()
+  const { count } = await admin
+    .from('assistant_suggestions')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('type', 'idee_contenu')
+    .gte('created_at', since)
+  if ((count ?? 0) > 0) {
+    return json({ error: "Des idées viennent d'être générées. Réessaie dans quelques minutes." }, 429)
+  }
+  return json(await runWeeklyForUser(userId))
 }
 
 function json(body: unknown, status = 200): Response {
@@ -573,6 +685,6 @@ Deno.serve(async (req) => {
     return json({ error: `mode inconnu: ${mode}` }, 400)
   } catch (e) {
     console.error(e)
-    return json({ error: `${e}` }, 500)
+    return json({ error: String((e as Error).message ?? e).slice(0, 300) }, 500)
   }
 })
