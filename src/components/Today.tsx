@@ -136,7 +136,11 @@ export default function Today() {
           <SuggestionBody s={s} />
           <div className="row" style={{ marginTop: 8 }}>
             <span className="muted">
-              {s.type === 'idee_contenu' ? 'Idée ajoutée au planning' : 'Observation'}
+              {s.type === 'idee_contenu'
+                ? 'Idée ajoutée au planning'
+                : s.type === 'relance_boutique'
+                  ? 'Relance boutique'
+                  : 'Observation'}
             </span>
             <div className="spacer" />
             <button className="link" onClick={() => markDone(s)}>

@@ -247,14 +247,48 @@ async function loadPerf(userId: string): Promise<string> {
   return `\n\nRetours sur les publications passées (tiens-en compte) :\n${lines.join('\n')}`
 }
 
+type BoutiqueRow = { id: string; nom: string; canal_prefere: string | null }
+
+async function loadBoutiques(userId: string): Promise<string> {
+  const { data: boutiques } = await admin
+    .from('boutiques')
+    .select('id, nom, canal_prefere')
+    .eq('user_id', userId)
+    .eq('actif', true)
+    .order('nom')
+  if (!boutiques?.length) return ''
+
+  const { data: contacts } = await admin
+    .from('boutique_contacts_log')
+    .select('boutique_id, date')
+    .eq('user_id', userId)
+    .order('date', { ascending: false })
+  const lastByBoutique = new Map<string, string>()
+  for (const c of contacts ?? []) {
+    if (!lastByBoutique.has(c.boutique_id as string)) {
+      lastByBoutique.set(c.boutique_id as string, c.date as string)
+    }
+  }
+
+  const today = Date.now()
+  const lines = (boutiques as BoutiqueRow[]).map((b) => {
+    const last = lastByBoutique.get(b.id)
+    const jours = last ? Math.floor((today - new Date(`${last}T00:00:00`).getTime()) / 86_400_000) : null
+    const contactBit = jours == null ? 'jamais contactée' : `dernier contact il y a ${jours} j`
+    return `- ${b.nom}${b.canal_prefere ? ` (${b.canal_prefere})` : ''} — ${contactBit}`
+  })
+  return `\n\nBoutiques en dépôt-vente d'Alexandra :\n${lines.join('\n')}`
+}
+
 async function buildContext(userId: string, planningLimit: number): Promise<string> {
-  const [profil, produits, perf, planning] = await Promise.all([
+  const [profil, produits, perf, planning, boutiques] = await Promise.all([
     loadProfil(userId),
     loadProduits(userId),
     loadPerf(userId),
     loadPlanning(userId, planningLimit),
+    loadBoutiques(userId),
   ])
-  return `${profil}${produits}${perf}\n\nPlanning actuel d'Alexandra :\n${planningContext(planning)}`
+  return `${profil}${produits}${perf}${boutiques}\n\nPlanning actuel d'Alexandra :\n${planningContext(planning)}`
 }
 
 // --- Chat : réponse générée en arrière-plan, notifiée par push ------------------
@@ -383,9 +417,66 @@ des paragraphes courts, va à l'essentiel.`
 
 // --- Bilan hebdo : tous les utilisateurs (cron) ou l'appelant (déclenchement manuel) ---
 
+// Seuil avant relance : pas de contact depuis 3 semaines. À caler avec Alexandra.
+const RELANCE_SEUIL_JOURS = 21
+
+// Suggestion relance_boutique : calcul déterministe (pas via le LLM, pour éviter
+// toute hallucination sur les dates), une seule suggestion "nouveau" par boutique à la fois.
+async function detectRelancesBoutique(userId: string): Promise<number> {
+  const { data: boutiques } = await admin
+    .from('boutiques')
+    .select('id, nom')
+    .eq('user_id', userId)
+    .eq('actif', true)
+  if (!boutiques?.length) return 0
+
+  const { data: contacts } = await admin
+    .from('boutique_contacts_log')
+    .select('boutique_id, date')
+    .eq('user_id', userId)
+    .order('date', { ascending: false })
+  const lastByBoutique = new Map<string, string>()
+  for (const c of contacts ?? []) {
+    if (!lastByBoutique.has(c.boutique_id as string)) {
+      lastByBoutique.set(c.boutique_id as string, c.date as string)
+    }
+  }
+
+  const { data: pending } = await admin
+    .from('assistant_suggestions')
+    .select('boutique_id')
+    .eq('user_id', userId)
+    .eq('type', 'relance_boutique')
+    .eq('statut', 'nouveau')
+  const alreadyPending = new Set((pending ?? []).map((s) => s.boutique_id as string))
+
+  const today = Date.now()
+  let created = 0
+  for (const b of boutiques as { id: string; nom: string }[]) {
+    if (alreadyPending.has(b.id)) continue
+    const last = lastByBoutique.get(b.id)
+    const jours = last
+      ? Math.floor((today - new Date(`${last}T00:00:00`).getTime()) / 86_400_000)
+      : Infinity
+    if (jours < RELANCE_SEUIL_JOURS) continue
+    const semaines = Math.floor(jours / 7)
+    const message = last
+      ? `${b.nom} : pas de contact depuis ${semaines} semaine${semaines > 1 ? 's' : ''}`
+      : `${b.nom} : jamais contactée`
+    await admin.from('assistant_suggestions').insert({
+      user_id: userId,
+      type: 'relance_boutique',
+      message,
+      boutique_id: b.id,
+    })
+    created++
+  }
+  return created
+}
+
 async function runWeeklyForUser(
   userId: string,
-): Promise<{ ideas_inserted: number; observations: number }> {
+): Promise<{ ideas_inserted: number; observations: number; relances: number }> {
   const today = new Date().toISOString().slice(0, 10)
   const context = await buildContext(userId, 80)
 
@@ -432,7 +523,9 @@ Rends ton travail via l'outil rendre_bilan. N'écris pas de texte en dehors de l
     await admin.from('assistant_suggestions').insert({ user_id: userId, type: 'observation', message })
   }
 
-  return { ideas_inserted: inserted, observations: observations.length }
+  const relances = await detectRelancesBoutique(userId)
+
+  return { ideas_inserted: inserted, observations: observations.length, relances }
 }
 
 async function handleWeekly(req: Request): Promise<Response> {

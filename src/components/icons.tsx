@@ -90,6 +90,16 @@ export function ChevronDownIcon({ size = 16 }: Props) {
   )
 }
 
+export function StoreIcon({ size = 20 }: Props) {
+  return (
+    <svg {...base(size)}>
+      <path d="M3 9l1.5-5h15L21 9" />
+      <path d="M3 9v10a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V9" />
+      <path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0" />
+    </svg>
+  )
+}
+
 export function LogoutIcon({ size = 20 }: Props) {
   return (
     <svg {...base(size)}>

@@ -29,6 +29,7 @@ export type ContentEntry = {
   reminder_sent_at: string | null
   source: 'manuel' | 'assistant'
   perf: 'carton' | 'ok' | 'bof' | null
+  boutique_id: string | null
   created_at: string
 }
 
@@ -51,12 +52,46 @@ export type ProduitDraft = Omit<Produit, 'id' | 'user_id' | 'created_at'>
 export type AssistantSuggestion = {
   id: string
   user_id: string
-  type: 'idee_contenu' | 'observation'
+  type: 'idee_contenu' | 'observation' | 'relance_boutique'
   message: string
   source_id: string | null
+  boutique_id: string | null
   statut: 'nouveau' | 'vu' | 'traite'
   created_at: string
 }
+
+export type CanalContact = 'email' | 'telephone' | 'instagram' | 'visite' | 'autre'
+
+export type Boutique = {
+  id: string
+  user_id: string
+  nom: string
+  adresse: string | null
+  horaires: Record<string, string> | null
+  canal_prefere: CanalContact | null
+  email: string | null
+  telephone: string | null
+  notes: string | null
+  actif: boolean
+  created_at: string
+}
+
+export type BoutiqueDraft = Omit<Boutique, 'id' | 'user_id' | 'created_at'>
+
+export type BoutiqueContactLog = {
+  id: string
+  user_id: string
+  boutique_id: string
+  date: string
+  canal: CanalContact | null
+  resume: string | null
+  created_at: string
+}
+
+export type BoutiqueContactLogDraft = Omit<
+  BoutiqueContactLog,
+  'id' | 'user_id' | 'created_at'
+>
 
 export type ContentEntryDraft = Omit<
   ContentEntry,
