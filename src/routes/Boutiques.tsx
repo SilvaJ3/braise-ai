@@ -1,17 +1,9 @@
 import { useMemo, useState } from 'react'
-import BoutiqueDetail from '../components/BoutiqueDetail'
+import { useNavigate } from 'react-router-dom'
 import BoutiqueForm from '../components/BoutiqueForm'
 import Fab from '../components/Fab'
 import Skeleton from '../components/Skeleton'
-import {
-  useBoutiques,
-  useCreateBoutique,
-  useDeleteBoutique,
-  useLastContacts,
-  useUpdateBoutique,
-} from '../lib/boutiques'
-import { CANAL_LABEL } from '../lib/labels'
-import type { Boutique } from '../lib/supabase'
+import { useBoutiques, useCreateBoutique, useLastContacts } from '../lib/boutiques'
 
 const RELANCE_SEUIL_JOURS = 21 // ~3 semaines sans contact
 
@@ -21,18 +13,13 @@ function joursDepuis(date: string) {
 }
 
 export default function Boutiques() {
+  const navigate = useNavigate()
   const { data: boutiques = [], isLoading, error } = useBoutiques()
   const { data: lastContacts = {} } = useLastContacts()
   const create = useCreateBoutique()
-  const update = useUpdateBoutique()
-  const del = useDeleteBoutique()
 
   const [creating, setCreating] = useState(false)
-  const [editing, setEditing] = useState<Boutique | null>(null)
-  const [selected, setSelected] = useState<Boutique | null>(null)
   const [showInactives, setShowInactives] = useState(false)
-
-  const openForm = creating || editing !== null
 
   const shown = useMemo(
     () => boutiques.filter((b) => showInactives || b.actif),
@@ -63,18 +50,7 @@ export default function Boutiques() {
         />
       )}
 
-      {editing && (
-        <BoutiqueForm
-          initial={editing}
-          busy={update.isPending}
-          onCancel={() => setEditing(null)}
-          onSubmit={(patch) =>
-            update.mutate({ id: editing.id, patch }, { onSuccess: () => setEditing(null) })
-          }
-        />
-      )}
-
-      {!isLoading && !error && !openForm && (
+      {!isLoading && !error && !creating && (
         <>
           {shown.length === 0 && <p className="empty">Aucune boutique pour l'instant.</p>}
 
@@ -82,9 +58,14 @@ export default function Boutiques() {
             const last = lastContacts[b.id]
             const jours = last ? joursDepuis(last) : null
             const relance = jours !== null && jours >= RELANCE_SEUIL_JOURS
-            const isSelected = selected?.id === b.id
+
             return (
-              <div className="card" key={b.id}>
+              <div
+                className="card"
+                key={b.id}
+                onClick={() => navigate(`/boutiques/${b.id}`)}
+                style={{ cursor: 'pointer' }}
+              >
                 <div className="row">
                   <strong>{b.nom}</strong>
                   <div className="spacer" />
@@ -95,49 +76,16 @@ export default function Boutiques() {
                     </span>
                   )}
                 </div>
-                <div className="row" style={{ marginTop: 6 }}>
-                  {b.adresse && <span className="muted">{b.adresse}</span>}
-                  {b.canal_prefere && (
-                    <span className="muted">· {CANAL_LABEL[b.canal_prefere]}</span>
-                  )}
-                </div>
                 <p className="muted" style={{ margin: '6px 0 0' }}>
-                  {last
-                    ? `Dernier contact : il y a ${jours} j`
-                    : 'Aucun contact enregistré'}
+                  {last ? `Dernier contact : il y a ${jours} j` : 'Aucun contact enregistré'}
                 </p>
-                {b.notes && <p style={{ margin: '8px 0 0' }}>{b.notes}</p>}
-
-                <div className="row" style={{ marginTop: 10 }}>
-                  <button onClick={() => setSelected(isSelected ? null : b)}>
-                    {isSelected ? 'Fermer' : 'Fiche'}
-                  </button>
-                  <button className="link" onClick={() => setEditing(b)}>
-                    Modifier
-                  </button>
-                  <div className="spacer" />
-                  <button
-                    className="link"
-                    onClick={() => {
-                      if (confirm(`Supprimer « ${b.nom} » ?`)) del.mutate(b.id)
-                    }}
-                  >
-                    Supprimer
-                  </button>
-                </div>
-
-                {isSelected && (
-                  <div style={{ marginTop: 12 }}>
-                    <BoutiqueDetail boutique={b} />
-                  </div>
-                )}
               </div>
             )
           })}
         </>
       )}
 
-      {!openForm && <Fab onClick={() => setCreating(true)} />}
+      {!creating && <Fab onClick={() => setCreating(true)} />}
     </>
   )
 }
