@@ -73,6 +73,8 @@ export type Boutique = {
   telephone: string | null
   notes: string | null
   actif: boolean
+  lat: number | null
+  lng: number | null
   created_at: string
 }
 

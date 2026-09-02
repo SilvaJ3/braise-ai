@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { geocodeAdresse } from '../lib/geocode'
 import { CANAL_LABEL } from '../lib/labels'
 import type { Boutique, BoutiqueDraft, CanalContact } from '../lib/supabase'
 
@@ -11,6 +12,8 @@ const EMPTY: BoutiqueDraft = {
   telephone: null,
   notes: null,
   actif: true,
+  lat: null,
+  lng: null,
 }
 
 const CANAUX: CanalContact[] = ['email', 'telephone', 'instagram', 'visite', 'autre']
@@ -37,15 +40,31 @@ export default function BoutiqueForm({
           telephone: initial.telephone,
           notes: initial.notes,
           actif: initial.actif,
+          lat: initial.lat,
+          lng: initial.lng,
         }
       : EMPTY,
   )
   const [horairesText, setHorairesText] = useState(
     initial?.horaires?.note ?? '',
   )
+  const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
 
   function set<K extends keyof BoutiqueDraft>(k: K, v: BoutiqueDraft[K]) {
     setD((prev) => ({ ...prev, [k]: v }))
+  }
+
+  async function localiser() {
+    if (!d.adresse?.trim()) return
+    setGeoStatus('loading')
+    const point = await geocodeAdresse(d.adresse.trim())
+    if (!point) {
+      setGeoStatus('error')
+      return
+    }
+    set('lat', point.lat)
+    set('lng', point.lng)
+    setGeoStatus('ok')
   }
 
   function submit(e: FormEvent) {
@@ -72,8 +91,23 @@ export default function BoutiqueForm({
       <input
         id="adresse"
         value={d.adresse ?? ''}
-        onChange={(e) => set('adresse', e.target.value || null)}
+        onChange={(e) => {
+          set('adresse', e.target.value || null)
+          setGeoStatus('idle')
+        }}
       />
+      <div className="row" style={{ marginTop: -6 }}>
+        <button type="button" onClick={localiser} disabled={!d.adresse?.trim() || geoStatus === 'loading'}>
+          {geoStatus === 'loading' ? 'Recherche…' : 'Localiser sur la carte'}
+        </button>
+        {geoStatus === 'ok' && <span className="muted">📍 Localisée</span>}
+        {geoStatus === 'error' && (
+          <span className="muted" style={{ color: 'var(--accent)' }}>
+            Adresse introuvable
+          </span>
+        )}
+        {geoStatus === 'idle' && d.lat != null && <span className="muted">📍 Déjà localisée</span>}
+      </div>
 
       <label htmlFor="horaires">Horaires</label>
       <input
