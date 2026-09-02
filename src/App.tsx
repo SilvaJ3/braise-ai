@@ -3,6 +3,7 @@ import BottomNav from './components/BottomNav'
 import { useAuth } from './lib/auth'
 import Assistant from './routes/Assistant'
 import Aujourdhui from './routes/Aujourdhui'
+import BoutiqueFiche from './routes/BoutiqueFiche'
 import Boutiques from './routes/Boutiques'
 import Compte from './routes/Compte'
 import Login from './routes/Login'
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="/" element={<Aujourdhui />} />
         <Route path="/planning" element={<Planning />} />
         <Route path="/boutiques" element={<Boutiques />} />
+        <Route path="/boutiques/:id" element={<BoutiqueFiche />} />
         <Route path="/assistant" element={<Assistant />} />
         <Route path="/compte" element={<Compte />} />
         <Route path="*" element={<Navigate to="/" replace />} />
