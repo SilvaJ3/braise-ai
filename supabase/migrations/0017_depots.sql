@@ -26,13 +26,8 @@ create policy "profil_entreprise: own row" on public.profil_entreprise
 create trigger profil_entreprise_updated_at before update on public.profil_entreprise
   for each row execute function public.set_updated_at();
 
--- Pré-remplissage one-shot pour les comptes déjà créés, avec les mentions légales figurant
--- sur le bon papier existant. Modifiable ensuite depuis l'écran Compte.
-insert into public.profil_entreprise (user_id, nom, adresse, telephone, tva, email)
-select id, 'Au Coin du Feu', 'Rue Cardinale Lavigerie 7, 1040 Etterbeek', '0471469685',
-       'BE0797472335', 'Aucoin.dufeu2023@gmail.com'
-from auth.users
-on conflict (user_id) do nothing;
+-- Aucune donnée pré-remplie ici : chaque utilisateur saisit ses coordonnées dans
+-- Compte → Mes coordonnées. La ligne est créée à la première sauvegarde (upsert).
 
 -- Bons de dépôt -----------------------------------------------------------------------------
 

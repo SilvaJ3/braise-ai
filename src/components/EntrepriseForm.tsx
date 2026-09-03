@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { PROFIL_VIDE, useProfilEntreprise, useSaveProfilEntreprise } from '../lib/depots'
+import { aliasDepuisNom, MAIL_DOMAIN, PROFIL_VIDE, useProfilEntreprise, useSaveProfilEntreprise } from '../lib/depots'
 import type { ProfilEntrepriseDraft } from '../lib/supabase'
 
 // Ce bloc alimente l'en-tête et le pied des bons de dépôt : ce qui est saisi ici s'imprime
@@ -24,7 +24,8 @@ export default function EntrepriseForm() {
   return (
     <div className="card stack">
       <p className="muted" style={{ marginTop: 0 }}>
-        S'imprime en en-tête des bons de dépôt envoyés aux boutiques.
+        Ces informations s'impriment en en-tête des bons de dépôt envoyés aux boutiques.
+        Elles ne servent qu'à ça.
       </p>
       <label htmlFor="e-nom">Nom / enseigne</label>
       <input id="e-nom" value={d.nom} maxLength={200} onChange={(e) => set('nom', e.target.value)} />
@@ -45,6 +46,16 @@ export default function EntrepriseForm() {
 
       <label htmlFor="e-mail">Email affiché sur le bon</label>
       <input id="e-mail" type="email" value={d.email} maxLength={200} onChange={(e) => set('email', e.target.value)} />
+
+      <div className="card" style={{ background: 'var(--accent-soft)', border: 'none', padding: 12 }}>
+        <p className="muted" style={{ margin: 0 }}>
+          Tes bons partent de{' '}
+          <strong>{`${aliasDepuisNom(d.nom || '')}@${MAIL_DOMAIN}`}</strong>, l'adresse de l'app.
+          {d.email
+            ? ` Quand une boutique répond, le message arrive sur ${d.email}.`
+            : " Renseigne ton email ci-dessus pour recevoir les réponses des boutiques."}
+        </p>
+      </div>
 
       <label htmlFor="e-mention">Mention au-dessus de la signature</label>
       <textarea

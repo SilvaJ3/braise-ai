@@ -21,7 +21,7 @@ Détail et reste à faire : `ROADMAP.md`.
 - Supabase (Postgres + Auth + edge functions + pg_cron), RLS `user_id = (select auth.uid())` sur toutes les tables
 - React Query pour l'accès aux données
 - Edge functions (Deno) : `assistant` (chat + bilan hebdo), `push` (Web Push), `import` (parsing IA),
-  `depot` (PDF du bon de dépôt + envoi SMTP)
+  `depot` (PDF du bon de dépôt + envoi du mail)
 - Déploiement : Vercel
 
 ## Développement
@@ -48,21 +48,37 @@ supabase functions deploy import
 supabase functions deploy depot
 ```
 
-Secrets attendus : `ANTHROPIC_API_KEY`, `VAPID_PRIVATE_KEY`, `GMAIL_USER`,
-`GMAIL_APP_PASSWORD` (+ `SUPABASE_*` fournis automatiquement). Le secret de cron `assistant_cron_secret` vit dans Vault (voir migration 0003).
+Secrets attendus : `ANTHROPIC_API_KEY`, `VAPID_PRIVATE_KEY`, `RESEND_API_KEY`,
+`MAIL_DOMAIN` (+ `SUPABASE_*` fournis automatiquement). Le secret de cron `assistant_cron_secret` vit dans Vault (voir migration 0003).
 ### Envoi des mails (bons de dépôt)
 
-Les bons partent de l'adresse Gmail de l'artisane, via un **mot de passe d'application**
-Google (jamais le mot de passe du compte) :
+Les mails partent du **service de l'application**, pas de la boîte de l'utilisateur : aucun
+réglage technique ne lui est demandé, et un nouveau compte peut envoyer immédiatement.
 
-1. Compte Google → Sécurité → activer la **validation en 2 étapes** (prérequis obligatoire).
-2. Sécurité → **Mots de passe des applications** → en générer un, nommé « Au Coin du Feu ».
-3. `supabase secrets set GMAIL_USER=adresse@gmail.com GMAIL_APP_PASSWORD="xxxx xxxx xxxx xxxx"`
-   (les espaces sont retirés automatiquement).
+- Expéditeur : `<nom commercial> <alias@braise.io>`, l'alias étant dérivé du nom
+  (« Au Coin du Feu » → `aucoindufeu@braise.io`), attribué au premier envoi et jamais changé.
+- `Reply-To` pointe sur l'adresse saisie dans **Compte → Mes coordonnées** : quand une
+  boutique répond, le message arrive directement chez l'utilisateur.
 
-Le client SMTP est maison (`_shared/smtp.ts`, TLS direct sur le port 465). Pour changer de
-fournisseur sans toucher au code : secrets `SMTP_HOST` et `SMTP_PORT`. Passer à Resend ou
-Brevo ne demanderait que de réécrire `sendMail`.
+Mise en place, une seule fois :
+
+1. Créer un compte sur [resend.com](https://resend.com) (gratuit : 3000 mails/mois,
+   100/jour) et générer une clé API (`re_…`).
+2. **Pour tester sans rien acheter** : poser `RESEND_API_KEY` et `MAIL_DOMAIN=resend.dev`
+   dans les secrets Supabase (Dashboard → Edge Functions → Secrets). Les bons partent alors
+   de `onboarding@resend.dev` et **ne peuvent être envoyés qu'à l'adresse du compte Resend** :
+   de quoi valider toute la chaîne (PDF, pièce jointe, mise en forme) avant d'aller plus loin.
+3. **Pour de vrai** : acheter le domaine, l'ajouter dans Resend → *Domains*, poser les 3
+   enregistrements DNS proposés (SPF, DKIM, suivi), attendre la vérification, puis passer
+   `MAIL_DOMAIN=braise.io`.
+
+Tant que le domaine n'est pas vérifié, l'envoi échoue avec le message renvoyé par Resend
+(« domain is not verified »), affiché tel quel dans l'app. Changer de prestataire ne demande
+que de réécrire `envoyerMail` dans `_shared/mailer.ts`.
+
+**Variante possible plus tard** : faire suivre `alias@braise.io` vers la boîte de
+l'utilisateur (Cloudflare Email Routing, gratuit) pour que son adresse personnelle
+n'apparaisse plus du tout dans les mails. Le `Reply-To` deviendrait alors inutile.
 
 `supabase/functions/_shared/` est partagé entre les fonctions et importé par le front
 (`src/lib/importer.ts`) : TypeScript pur, pas de dépendance Deno/DOM.
