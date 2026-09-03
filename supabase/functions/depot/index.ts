@@ -1,14 +1,13 @@
 // Bon de dépôt (V4) : génère le PDF signé, le range dans Storage et l'envoie par mail à la
-// boutique (copie à l'artisane). Le PDF et l'envoi vivent ici pour que le mot de passe
-// d'application Gmail ne quitte jamais le serveur.
+// boutique (copie à l'artisane). Le PDF et l'envoi vivent ici : la clé du service de mail
+// ne quitte jamais le serveur.
 //
 // Modes :
 //   apercu  → renvoie le PDF en base64, n'écrit rien (bouton « Aperçu » avant signature)
 //   envoyer → fige la signature + le numéro, stocke le PDF, envoie le mail
 //
-// Secrets attendus : GMAIL_USER, GMAIL_APP_PASSWORD (mot de passe d'application Google,
-// pas le mot de passe du compte). SMTP_HOST / SMTP_PORT permettent de basculer vers un
-// autre fournisseur sans toucher au code.
+// Les mails partent du service de l'application (Resend, domaine MAIL_DOMAIN) : l'utilisateur
+// n'a aucun réglage technique à faire. Secrets attendus : RESEND_API_KEY, MAIL_DOMAIN.
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import {
   emailBody,
@@ -21,7 +20,7 @@ import {
   type Emetteur,
 } from '../_shared/depot-doc.ts'
 import { renderDepotPdf } from '../_shared/depot-pdf.ts'
-import { sendMail } from '../_shared/smtp.ts'
+import { aliasDepuisNom, envoyerMail } from '../_shared/mailer.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -31,10 +30,8 @@ const CORS = {
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const GMAIL_USER = Deno.env.get('GMAIL_USER')?.trim()
-const GMAIL_PASSWORD = Deno.env.get('GMAIL_APP_PASSWORD')?.replace(/\s+/g, '')
-const SMTP_HOST = Deno.env.get('SMTP_HOST')?.trim() || 'smtp.gmail.com'
-const SMTP_PORT = Number(Deno.env.get('SMTP_PORT') ?? '465')
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')?.trim()
+const MAIL_DOMAIN = Deno.env.get('MAIL_DOMAIN')?.trim() || 'braise.io'
 
 const BUCKET = 'depots'
 const MAX_SIGNATURE_CHARS = 400_000
@@ -64,6 +61,36 @@ async function loadEmetteur(userId: string): Promise<Emetteur> {
     .eq('user_id', userId)
     .maybeSingle()
   return { ...DEFAULT_EMETTEUR, ...data } as Emetteur
+}
+
+/**
+ * Adresse d'expédition du compte, créée au premier envoi et jamais changée ensuite : un
+ * destinataire qui a déjà reçu un bon doit retrouver le même expéditeur la fois suivante.
+ * En cas d'homonymie entre deux comptes, on suffixe (-2, -3…).
+ */
+async function aliasMail(userId: string, nom: string): Promise<string> {
+  const { data } = await admin
+    .from('profil_entreprise')
+    .select('alias_mail')
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (data?.alias_mail) return data.alias_mail as string
+
+  const souhaite = aliasDepuisNom(nom)
+  for (let i = 1; i <= 20; i++) {
+    const candidat = i === 1 ? souhaite : `${souhaite}-${i}`
+    const { error } = await admin
+      .from('profil_entreprise')
+      .update({ alias_mail: candidat })
+      .eq('user_id', userId)
+    // 23505 = violation d'unicité : l'alias est déjà pris par un autre compte.
+    if (!error) return candidat
+    if (error.code !== '23505') throw new Error(error.message)
+  }
+  // Repli impossible à collisionner.
+  const secours = `bons-${userId.slice(0, 8)}`
+  await admin.from('profil_entreprise').update({ alias_mail: secours }).eq('user_id', userId)
+  return secours
 }
 
 type DepotRow = {
@@ -160,15 +187,15 @@ async function handleApercu(userId: string, body: Record<string, unknown>): Prom
 }
 
 async function handleEnvoyer(userId: string, body: Record<string, unknown>): Promise<Response> {
-  if (!GMAIL_USER || !GMAIL_PASSWORD) {
-    return json({ error: "L'envoi de mail n'est pas configuré (secrets GMAIL_USER / GMAIL_APP_PASSWORD)." }, 500)
+  if (!RESEND_API_KEY) {
+    return json({ error: "Le service d'envoi de mail n'est pas configuré (secret RESEND_API_KEY)." }, 500)
   }
   const loaded = await loadDepot(userId, String(body.depot_id ?? ''))
   if (!loaded) return json({ error: 'bon de dépôt introuvable' }, 404)
   const { row, doc } = loaded
 
   // Signature : celle qui vient d'être tracée prime ; sinon on réutilise celle déjà figée
-  // (réessai d'envoi après un échec SMTP, sans refaire signer la boutique).
+  // (réessai d'envoi après un échec, sans refaire signer la boutique).
   if (typeof body.signature_image === 'string' && body.signature_image) {
     doc.signature_image = body.signature_image.replace(/^data:[^;]+;base64,/, '').slice(0, MAX_SIGNATURE_CHARS)
   }
@@ -215,22 +242,23 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>): Pro
     .eq('id', row.id)
 
   try {
-    await sendMail(
-      { hostname: SMTP_HOST, port: SMTP_PORT, username: GMAIL_USER, password: GMAIL_PASSWORD },
+    await envoyerMail(
+      { apiKey: RESEND_API_KEY, domain: MAIL_DOMAIN },
       {
-        fromName: doc.emetteur.nom || GMAIL_USER,
-        fromEmail: GMAIL_USER,
+        fromName: doc.emetteur.nom,
+        fromAlias: await aliasMail(userId, doc.emetteur.nom),
+        // Les réponses des boutiques arrivent directement dans la boîte de l'utilisateur.
         replyTo: doc.emetteur.email || undefined,
         to,
         cc,
         subject: emailSubject(doc),
         text: emailBody(doc),
-        attachments: [{ filename: pdfFilename(doc), contentType: 'application/pdf', base64: toBase64(pdf) }],
+        attachments: [{ filename: pdfFilename(doc), base64: toBase64(pdf) }],
       },
     )
   } catch (e) {
     const message = String((e as Error).message ?? e).slice(0, 500)
-    console.error('sendMail', message)
+    console.error('envoyerMail', message)
     await admin.from('depots').update({ send_error: message }).eq('id', row.id)
     return json({ error: `Bon signé et enregistré, mais l'envoi du mail a échoué : ${message}`, numero: doc.numero, signe: true }, 502)
   }

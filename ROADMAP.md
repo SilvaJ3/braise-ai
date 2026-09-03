@@ -146,12 +146,15 @@ tableau articles / qté / prix TTC, renvoi aux conditions générales du contrat
 - **PDF** généré côté serveur par un générateur maison (`_shared/pdf-lite.ts` : Helvetica,
   encodage WinAnsi, images JPEG, multi-pages). Pas de dépendance : le bundler Supabase refuse
   les CDN et `npm:pdf-lib` serait disproportionné. Sortie validée en test par relecture pdf.js.
-- **Mail** : SMTP Gmail (mot de passe d'application), pièce jointe PDF, destinataire pré-rempli
-  avec le contact de la boutique et modifiable, copie à l'artisane. Voir README → « Envoi des mails ».
+- **Mail** : envoyé par le **service de l'app** (Resend sur le domaine `braise.io`), pièce
+  jointe PDF, destinataire pré-rempli avec le contact de la boutique et modifiable, copie à
+  l'artisane. Expéditeur `aucoindufeu@braise.io`, `Reply-To` vers son adresse pour que les
+  réponses lui reviennent. Aucun réglage technique demandé à l'utilisateur — c'est la raison
+  de ce choix plutôt qu'une connexion à sa propre boîte. Voir README → « Envoi des mails ».
 - **Archivage** : bucket Storage privé `depots`, chemin `<user_id>/<depot_id>.pdf`, relu par
   URL signée (1 h).
 - **Numérotation** : `AAAA-NNN`, attribuée à la signature, jamais réutilisée.
-- **Reprise sur échec** : si le SMTP tombe, le bon reste signé et numéroté ; l'envoi se relance
+- **Reprise sur échec** : si l'envoi tombe, le bon reste signé et numéroté ; il se relance
   sans refaire signer la boutique.
 - **Données figées** : nom / adresse / mail de la boutique sont recopiés dans le bon au moment
   du dépôt, pour que le document reste fidèle si la fiche change ensuite.
@@ -169,6 +172,12 @@ note n'est pas un avis juridique.**
 - Lien avec les futures `commandes_boutique` (V3) : aujourd'hui le bon est autonome.
 - Décompte mensuel / facturation (articles 4 et 12 du contrat) : hors périmètre pour l'instant.
 - Le contrat cadre lui-même n'est pas dans l'app (décision assumée).
+- **Prérequis avant le premier envoi réel** : compte Resend + clé API. Le domaine peut
+  attendre : avec `MAIL_DOMAIN=resend.dev`, tout se teste depuis le bac à sable de Resend
+  (envoi limité à l'adresse du titulaire du compte).
+- Option écartée pour l'instant : connexion OAuth à la boîte Gmail de l'utilisateur (le mail
+  partirait de sa vraie adresse, mais Google impose une validation de plusieurs semaines pour
+  ce droit, et la connexion casse tous les 7 jours avant validation).
 
 ## V5 — Intégration Gmail (reporté, le plus lourd)
 
@@ -282,7 +291,8 @@ non incluse ici.
 | **API Claude** (assistant : chat + bilan hebdo) | Non (à l'usage) | ~**2 à 10 €/mois** | Modèle **Sonnet** partout (chat + hebdo). Cron hebdo ≈ 0,20 €/mois. Chat ≈ 2-8 €/mois selon l'usage. Web search : 10 $ / 1000 recherches. |
 | **API Instagram / Meta** | **Oui (0 €)** | — | Graph API gratuite, pas d'abonnement. Coût = temps de dev uniquement. |
 | **Push notifications** | **Oui (0 €)** | — | Web Push (VAPID), pas de frais APNs/FCM. |
-| **Nom de domaine** | `*.pages.dev` / `*.vercel.app` (0 €) | ~**12 €/an** (~1 €/mois) | Optionnel. Un `.be` propre pour la comm. |
+| **Nom de domaine** (`braise.io`) | — | **~35-60 €/an** pour un `.io` (un `.be` ≈ 10 €/an, un `.app` ≈ 15 €/an) | Sert d'expéditeur aux bons de dépôt (`alias@braise.io`) et de vitrine. Le `.io` est l'extension la plus chère du lot — à arbitrer. |
+| **Resend** (envoi des bons de dépôt) | **Oui (0 €)** — 3000 mails/mois, 100/jour | 20 $/mois au-delà | **Gratuit.** Quelques bons par mois, très loin du plafond. |
 | **Compte Apple Developer** | — | 99 $/an (~8 $/mois) | **Seulement si V8 natif.** Pas maintenant. |
 
 **Totaux :**

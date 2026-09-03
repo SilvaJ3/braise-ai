@@ -137,7 +137,7 @@ export function parseEmails(input: string): { valid: string[]; invalid: string[]
 /** Ce qui empêche d'envoyer. Vide = prêt. */
 export function problemesEnvoi(doc: DepotDoc, destinataires: string[]): string[] {
   const p: string[] = []
-  if (!doc.emetteur.nom.trim()) p.push('Renseigne le nom de ton entreprise dans Compte → Mon entreprise.')
+  if (!doc.emetteur.nom.trim()) p.push('Renseigne tes coordonnées dans Compte → Mes coordonnées.')
   if (!doc.boutique_nom.trim()) p.push('Nom de la boutique manquant.')
   if (!doc.lignes.length) p.push('Ajoute au moins un article.')
   if (doc.lignes.some((l) => !l.designation.trim())) p.push('Une ligne est sans désignation.')

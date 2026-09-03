@@ -73,7 +73,7 @@ export default function Compte() {
       <h1>Compte</h1>
       <p className="muted">{session?.user.email}</p>
 
-      <h2>Mon entreprise</h2>
+      <h2>Mes coordonnées</h2>
       <EntrepriseForm />
 
       <h2>Apparence</h2>

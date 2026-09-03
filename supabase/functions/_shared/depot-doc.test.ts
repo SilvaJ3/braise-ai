@@ -125,7 +125,7 @@ describe('problemesEnvoi', () => {
       [],
     )
     expect(p).toHaveLength(4)
-    expect(p.join(' ')).toMatch(/entreprise/)
+    expect(p.join(' ')).toMatch(/coordonnées/)
     expect(p.join(' ')).toMatch(/article/)
     expect(p.join(' ')).toMatch(/signature/)
     expect(p.join(' ')).toMatch(/destinataire/)
