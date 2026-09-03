@@ -7,6 +7,7 @@ import Aujourdhui from './routes/Aujourdhui'
 import BoutiqueFiche from './routes/BoutiqueFiche'
 import Boutiques from './routes/Boutiques'
 import Compte from './routes/Compte'
+import Depot from './routes/Depot'
 import Login from './routes/Login'
 import Planning from './routes/Planning'
 
@@ -31,6 +32,8 @@ export default function App() {
         <Route path="/boutiques" element={<Boutiques />} />
         <Route path="/boutiques/:id" element={<BoutiqueFiche />} />
         <Route path="/atelier" element={<Atelier />} />
+        <Route path="/boutiques/:boutiqueId/depot" element={<Depot />} />
+        <Route path="/depots/:depotId" element={<Depot />} />
         <Route path="/assistant" element={<Assistant />} />
         <Route path="/compte" element={<Compte />} />
         <Route path="*" element={<Navigate to="/" replace />} />

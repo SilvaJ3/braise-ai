@@ -4,12 +4,14 @@ import BoutiqueForm from '../components/BoutiqueForm'
 import Skeleton from '../components/Skeleton'
 import { useState } from 'react'
 import { useBoutiques, useDeleteBoutique, useUpdateBoutique } from '../lib/boutiques'
+import { fmtDateCourte, STATUT_LABEL, useDepots } from '../lib/depots'
 import { CANAL_LABEL } from '../lib/labels'
 
 export default function BoutiqueFiche() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { data: boutiques = [], isLoading } = useBoutiques()
+  const { data: depots = [] } = useDepots(id)
   const update = useUpdateBoutique()
   const del = useDeleteBoutique()
   const [editing, setEditing] = useState(false)
@@ -62,6 +64,35 @@ export default function BoutiqueFiche() {
           </div>
 
           <BoutiqueDetail boutique={boutique} />
+
+          <div className="row" style={{ marginTop: 16 }}>
+            <h2 style={{ margin: 0 }}>Bons de dépôt</h2>
+            <div className="spacer" />
+            <button className="link" onClick={() => navigate(`/boutiques/${boutique.id}/depot`)}>
+              + Nouveau
+            </button>
+          </div>
+          {depots.length === 0 && <p className="empty">Aucun bon pour cette boutique.</p>}
+          {depots.map((d) => (
+            <div
+              className="card"
+              key={d.id}
+              onClick={() => navigate(`/depots/${d.id}`)}
+              style={{ cursor: 'pointer' }}
+            >
+              <div className="row">
+                <strong>{d.numero ?? 'Brouillon'}</strong>
+                <span className="muted">· {fmtDateCourte(d.date_depot)}</span>
+                <div className="spacer" />
+                <span className="badge">{STATUT_LABEL[d.statut]}</span>
+              </div>
+              {d.send_error && d.statut !== 'envoye' && (
+                <p className="muted" style={{ margin: '6px 0 0', color: 'var(--accent)' }}>
+                  Envoi à relancer
+                </p>
+              )}
+            </div>
+          ))}
         </>
       )}
     </>

@@ -13,7 +13,8 @@ Référence produit : `specs/spec-app-au-coin-du-feu.md` et `specs/vision-assist
 | V7 — Couche IA assistant | Démarrée en avance : chat d'idées (historique persistant, réponse en arrière-plan + notification push), bilan hebdo (cron lundi, tous les comptes), voix de marque éditable, catalogue produits, retour « ça a marché ? », recherche web dans le chat, boutiques (V2) branchées sur `buildContext` + suggestion `relance_boutique`. Reste à brancher sur V3. |
 | V2 — CRM boutiques | Fait : tables `boutiques`/`boutique_contacts_log`, écran liste + fiche (mobile), lien `content_entries.boutique_id`, suggestion `relance_boutique` (calcul déterministe, seuil 21 j, cron hebdo). |
 | V3 — Atelier | **Entamée** : tables `fournisseurs`, `matieres_premieres`, `produit_recettes` (BOM, sans UI encore), écran « Atelier » (matières + fournisseurs), **import universel par IA** (Excel / CSV / PDF / photo → bougies, matières, fournisseurs, boutiques), suggestion `alerte_stock` + stock dans le contexte de l'assistant. Reste : recettes (UI), commandes boutique, calcul du besoin matière, commandes fournisseur. |
-| V4, V5, V6, V8 | Pas commencés |
+| V4 — Bon de dépôt signé + envoi mail | **Fait** (voir plus bas). Le contrat cadre (13 articles) reste hors app : signé une fois par boutique, sur papier. |
+| V5, V6, V8 | Pas commencés |
 
 ## Écart assumé vs spec
 
@@ -133,13 +134,41 @@ matière première → il faut commander chez Z ».
 - ✅ **Assistant** : suggestion `alerte_stock` (déterministe, stock ≤ seuil, une par matière,
   cron hebdo) + stock/seuils/fournisseurs dans `buildContext`.
 
-## V4 — Dépôt / livraison + signature
+## V4 — Bon de dépôt signé + envoi par mail (fait)
 
-- Formulaire de dépôt lié à une `commande_boutique` (la passe en « livrée »).
-- Capture de signature (canvas tactile).
-- Génération PDF (bon de dépôt + livraison).
-- **À vérifier avant de coder** : validité juridique d'une signature simple vs qualifiée
-  (eIDAS) pour un bon de dépôt B2B en Belgique.
+Calqué sur le bon papier existant : en-tête émetteur, bloc « information point de vente »,
+tableau articles / qté / prix TTC, renvoi aux conditions générales du contrat, date + signature.
+
+- **Écran** : fiche boutique → « Bons de dépôt » → *Nouveau*. Articles ajoutés **un par un**
+  depuis le catalogue (ou en saisie libre) ; rien n'est pré-rempli, la liste reste courte.
+- **Signature** tactile (canvas), exportée en JPEG ; elle survit à un redimensionnement
+  (ouverture du clavier, rotation) — le tracé est redessiné après coup.
+- **PDF** généré côté serveur par un générateur maison (`_shared/pdf-lite.ts` : Helvetica,
+  encodage WinAnsi, images JPEG, multi-pages). Pas de dépendance : le bundler Supabase refuse
+  les CDN et `npm:pdf-lib` serait disproportionné. Sortie validée en test par relecture pdf.js.
+- **Mail** : SMTP Gmail (mot de passe d'application), pièce jointe PDF, destinataire pré-rempli
+  avec le contact de la boutique et modifiable, copie à l'artisane. Voir README → « Envoi des mails ».
+- **Archivage** : bucket Storage privé `depots`, chemin `<user_id>/<depot_id>.pdf`, relu par
+  URL signée (1 h).
+- **Numérotation** : `AAAA-NNN`, attribuée à la signature, jamais réutilisée.
+- **Reprise sur échec** : si le SMTP tombe, le bon reste signé et numéroté ; l'envoi se relance
+  sans refaire signer la boutique.
+- **Données figées** : nom / adresse / mail de la boutique sont recopiés dans le bon au moment
+  du dépôt, pour que le document reste fidèle si la fiche change ensuite.
+
+**Point juridique à trancher (non bloquant).** La signature tactile est une *signature
+électronique simple* au sens eIDAS : recevable comme preuve, mais contestable — la charge de
+prouver son intégrité revient à l'artisane. Pour un bon de dépôt B2B entre commerçants, c'est
+l'usage courant et suffisant en pratique. Ce qui la renforce déjà ici : horodatage serveur,
+PDF archivé, copie envoyée aux deux parties le jour même. Aller plus loin (itsme, signature
+qualifiée) serait un chantier à part. **À confirmer avec un juriste avant tout litige : cette
+note n'est pas un avis juridique.**
+
+### Reste à faire sur V4
+
+- Lien avec les futures `commandes_boutique` (V3) : aujourd'hui le bon est autonome.
+- Décompte mensuel / facturation (articles 4 et 12 du contrat) : hors périmètre pour l'instant.
+- Le contrat cadre lui-même n'est pas dans l'app (décision assumée).
 
 ## V5 — Intégration Gmail (reporté, le plus lourd)
 
