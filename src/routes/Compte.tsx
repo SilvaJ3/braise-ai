@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import EntrepriseForm from '../components/EntrepriseForm'
 import { LogoutIcon } from '../components/icons'
 import { useAuth } from '../lib/auth'
 import { disablePush, enablePush, pushStatus, sendTestPush, type PushStatus } from '../lib/push'
@@ -71,6 +72,9 @@ export default function Compte() {
     <>
       <h1>Compte</h1>
       <p className="muted">{session?.user.email}</p>
+
+      <h2>Mon entreprise</h2>
+      <EntrepriseForm />
 
       <h2>Apparence</h2>
       <div className="card stack">

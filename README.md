@@ -9,6 +9,8 @@ Mobile-first, PWA installable sur iPhone. Voir `specs/` pour la vision et la roa
 - **Boutiques** (V2) : fiches dépôt-vente, mini-carte, relances suggérées.
 - **Atelier** (V3, en cours) : matières premières (stock, seuil, fournisseur), fournisseurs,
   **import par IA** d'un Excel / CSV / PDF / photo vers bougies, matières, fournisseurs ou boutiques.
+- **Bons de dépôt** (V4) : bon signé au doigt sur le téléphone, PDF généré et envoyé par mail
+  à la boutique (copie à l'artisane), archivé dans Supabase Storage.
 - **Assistant** (V7) : chat d'idées, bilan hebdo, alertes stock et relances.
 
 Détail et reste à faire : `ROADMAP.md`.
@@ -18,7 +20,8 @@ Détail et reste à faire : `ROADMAP.md`.
 - React + Vite + TypeScript, PWA via `vite-plugin-pwa`
 - Supabase (Postgres + Auth + edge functions + pg_cron), RLS `user_id = (select auth.uid())` sur toutes les tables
 - React Query pour l'accès aux données
-- Edge functions (Deno) : `assistant` (chat + bilan hebdo), `push` (Web Push), `import` (parsing IA)
+- Edge functions (Deno) : `assistant` (chat + bilan hebdo), `push` (Web Push), `import` (parsing IA),
+  `depot` (PDF du bon de dépôt + envoi SMTP)
 - Déploiement : Vercel
 
 ## Développement
@@ -42,10 +45,25 @@ Migrations dans `supabase/migrations/`, appliquées sur le projet Supabase
 supabase functions deploy assistant
 supabase functions deploy push
 supabase functions deploy import
+supabase functions deploy depot
 ```
 
-Secrets attendus : `ANTHROPIC_API_KEY`, `VAPID_PRIVATE_KEY` (+ `SUPABASE_*` fournis
-automatiquement). Le secret de cron `assistant_cron_secret` vit dans Vault (voir migration 0003).
+Secrets attendus : `ANTHROPIC_API_KEY`, `VAPID_PRIVATE_KEY`, `GMAIL_USER`,
+`GMAIL_APP_PASSWORD` (+ `SUPABASE_*` fournis automatiquement). Le secret de cron `assistant_cron_secret` vit dans Vault (voir migration 0003).
+### Envoi des mails (bons de dépôt)
+
+Les bons partent de l'adresse Gmail de l'artisane, via un **mot de passe d'application**
+Google (jamais le mot de passe du compte) :
+
+1. Compte Google → Sécurité → activer la **validation en 2 étapes** (prérequis obligatoire).
+2. Sécurité → **Mots de passe des applications** → en générer un, nommé « Au Coin du Feu ».
+3. `supabase secrets set GMAIL_USER=adresse@gmail.com GMAIL_APP_PASSWORD="xxxx xxxx xxxx xxxx"`
+   (les espaces sont retirés automatiquement).
+
+Le client SMTP est maison (`_shared/smtp.ts`, TLS direct sur le port 465). Pour changer de
+fournisseur sans toucher au code : secrets `SMTP_HOST` et `SMTP_PORT`. Passer à Resend ou
+Brevo ne demanderait que de réécrire `sendMail`.
+
 `supabase/functions/_shared/` est partagé entre les fonctions et importé par le front
 (`src/lib/importer.ts`) : TypeScript pur, pas de dépendance Deno/DOM.
 

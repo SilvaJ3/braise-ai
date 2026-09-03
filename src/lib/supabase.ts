@@ -154,6 +154,58 @@ export type ProduitRecette = {
   created_at: string
 }
 
+// --- V4 : bons de dépôt ---
+
+export type ProfilEntreprise = {
+  user_id: string
+  nom: string
+  adresse: string
+  telephone: string
+  tva: string
+  email: string
+  mention_signature: string
+  updated_at: string
+}
+
+export type ProfilEntrepriseDraft = Omit<ProfilEntreprise, 'user_id' | 'updated_at'>
+
+export type DepotStatut = 'brouillon' | 'signe' | 'envoye'
+
+export type Depot = {
+  id: string
+  user_id: string
+  boutique_id: string | null
+  numero: string | null
+  date_depot: string
+  statut: DepotStatut
+  boutique_nom: string
+  boutique_adresse: string | null
+  boutique_email: string | null
+  notes: string | null
+  signataire_nom: string | null
+  signature_image: string | null
+  signed_at: string | null
+  pdf_path: string | null
+  email_to: string[]
+  email_cc: string[]
+  sent_at: string | null
+  send_error: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type DepotLigneRow = {
+  id: string
+  user_id: string
+  depot_id: string
+  produit_id: string | null
+  designation: string
+  quantite: number
+  prix_unitaire: number
+  position: number
+  created_at: string
+}
+
 export type ChatMessage = {
   id: string
   user_id: string
