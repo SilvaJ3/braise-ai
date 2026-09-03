@@ -10,8 +10,10 @@ Référence produit : `specs/spec-app-au-coin-du-feu.md` et `specs/vision-assist
 |---|---|
 | V1 — Planning réseaux sociaux + rappels au login | Fait, déployé (https://braise-ai.vercel.app) |
 | V1.5 — Notifications push PWA | Fait (+ date/heure/rappel par entrée, auto-planification, fix mise à jour du service worker) |
-| V7 — Couche IA assistant | Démarrée en avance : chat d'idées (historique persistant, réponse en arrière-plan + notification push), bilan hebdo (cron lundi, tous les comptes), voix de marque éditable, catalogue produits, retour « ça a marché ? », recherche web dans le chat. Reste à brancher sur V2/V3. |
-| V2, V3, V4, V5, V6, V8 | Pas commencés |
+| V7 — Couche IA assistant | Démarrée en avance : chat d'idées (historique persistant, réponse en arrière-plan + notification push), bilan hebdo (cron lundi, tous les comptes), voix de marque éditable, catalogue produits, retour « ça a marché ? », recherche web dans le chat, boutiques (V2) branchées sur `buildContext` + suggestion `relance_boutique`. Reste à brancher sur V3. |
+| V2 — CRM boutiques | Fait : tables `boutiques`/`boutique_contacts_log`, écran liste + fiche (mobile), lien `content_entries.boutique_id`, suggestion `relance_boutique` (calcul déterministe, seuil 21 j, cron hebdo). |
+| V3 — Atelier | **Entamée** : tables `fournisseurs`, `matieres_premieres`, `produit_recettes` (BOM, sans UI encore), écran « Atelier » (matières + fournisseurs), **import universel par IA** (Excel / CSV / PDF / photo → bougies, matières, fournisseurs, boutiques), suggestion `alerte_stock` + stock dans le contexte de l'assistant. Reste : recettes (UI), commandes boutique, calcul du besoin matière, commandes fournisseur. |
+| V4, V5, V6, V8 | Pas commencés |
 
 ## Écart assumé vs spec
 
@@ -71,9 +73,8 @@ On ajuste wording / design / rappels selon ce qui coince. Rien d'autre ne démar
 
 ## Reliquat court (au fil du retour, pas un chantier)
 
-- **Import CSV produits — UI.** Bouton dans « Ce qu'il sait », `papaparse`, mappage des
-  colonnes, upsert sur `produits.shopify_handle` (colonne déjà en place). ~½ jour.
-  Le catalogue actuel (4 bougies) est déjà importé en base, donc pas urgent.
+- **Import CSV produits — UI.** ✅ Fait, en plus général : voir « Import universel » ci-dessous
+  (Atelier → Importer, entité « Bougies », dédoublonnage sur `shopify_handle` puis nom).
 - **Sync API Shopify.** App custom Shopify (token Admin API permanent, pas d'OAuth),
   edge function `sync-shopify`, bouton « Synchroniser depuis Shopify ». ~1 jour.
   À faire quand la boutique est live et le catalogue stable.
@@ -94,20 +95,43 @@ On ajuste wording / design / rappels selon ce qui coince. Rien d'autre ne démar
 - **Assistant** : nouvelle suggestion `relance_boutique` — « [Boutique] : pas de contact
   depuis X semaines » (seuil à caler avec Alexandra).
 
+## Import universel (V3, fait)
+
+Un seul écran (Atelier → Importer) pour charger un fichier dans n'importe quelle entité :
+bougies, matières premières, fournisseurs, boutiques.
+
+- **Formats** : xlsx / xlsm / csv / tsv / txt / json / pdf / photo (png, jpg, webp). 6 Mo max, 500 lignes max. Pas de .xls / .ods / .numbers (enregistrer en .xlsx ou .csv).
+- **Pipeline** : le client envoie le fichier en base64 à l'edge function `import` → tableur
+  converti en CSV texte (lecteur xlsx maison `_shared/xlsx-lite.ts`, sans dépendance : le bundler Supabase refuse le CDN SheetJS et `npm:xlsx` 0.18 a deux CVE), PDF/image passés tels quels à Claude → Claude (Sonnet) renvoie
+  les lignes typées via un outil dont le schéma est généré depuis la définition de l'entité
+  (`supabase/functions/_shared/import-entities.ts`) → chaque ligne repasse par `normalizeRow`
+  (types, bornes, enums, troncature) → aperçu côté client avec plan **nouveau / mise à jour /
+  identique** contre l'existant → l'utilisatrice coche/décoche et confirme → insert/update via RLS.
+- **Secours sans IA** : si Anthropic est indisponible (ou clé absente), lecture déterministe par
+  en-têtes de colonnes (synonymes FR/EN/Shopify) pour les CSV et tableurs ; côté client aussi
+  pour les CSV si le serveur ne répond pas.
+- **Règles** : jamais d'écrasement d'une valeur existante par du vide ; l'unité d'une matière
+  existante n'est pas modifiée par un import ; les fournisseurs cités par les matières sont créés
+  s'ils n'existent pas ; doublons internes au fichier fusionnés (première occurrence).
+- **Coût** : ~1 à 5 centimes par fichier (Sonnet, quelques milliers de tokens).
+- **Limites connues** : pas d'édition cellule par cellule dans l'aperçu (on corrige après
+  import via les fiches) ; pas d'import de recettes/BOM ni d'historique de contacts.
+
 ## V3 — Catalogue + matières premières + fournisseurs + commandes
 
 Le gros morceau. Cœur métier : « il me faut X bougies pour telle boutique → il me faut Y
 matière première → il faut commander chez Z ».
 
-- Étendre `produits` : recette / BOM (`produit_recette` : matière + quantité par unité produit).
-- `matieres_premieres` : stock actuel, seuil d'alerte, fournisseur lié.
-- `fournisseurs` : délai de livraison, contact.
+- ✅ `produit_recettes` (BOM : matière + quantité par unité produit) — table créée, UI à faire.
+- ✅ `matieres_premieres` : stock actuel, seuil d'alerte, catégorie, unité, prix unitaire, fournisseur lié.
+- ✅ `fournisseurs` : délai de livraison, contact, site.
+- ✅ Écran Atelier (onglets Matières / Fournisseurs / Importer), bandeau « À recommander ».
 - `commandes_boutique` + `commande_lignes` : statut demande → confirmée → en prod → livrée.
 - **Calcul du besoin matière** : somme(qté produit commandé × qté matière par recette),
   groupé par matière, comparé au `stock_actuel` → écart = quantité à commander par fournisseur.
 - `commandes_fournisseur` générées depuis cet écart (statut à commander → commandée → reçue).
-- **Assistant** : suggestion `alerte_stock` — « Cire sous seuil, délai fournisseur 5j,
-  commande maintenant ».
+- ✅ **Assistant** : suggestion `alerte_stock` (déterministe, stock ≤ seuil, une par matière,
+  cron hebdo) + stock/seuils/fournisseurs dans `buildContext`.
 
 ## V4 — Dépôt / livraison + signature
 
@@ -193,6 +217,29 @@ retour d'usage. Commencer par la tranche 1 (insights read-only) si le retour mon
 suivi manuel des perfs est une corvée.
 
 ---
+
+## Audit de robustesse (septembre 2026) — ce qui a été durci
+
+- **Chat bloqué** : une réponse `pending` orpheline (edge function tuée avant d'écrire) bloquait
+  la saisie pour toujours. Désormais clôturée en erreur après 5 min, côté serveur et côté client.
+- **Rappels push** : réservation atomique (`update … where reminder_sent_at is null` avant
+  envoi) → plus de double envoi si deux crons se chevauchent ; rappels de plus de 24 h marqués
+  sans notifier.
+- **Anthropic** : timeout + retry (429/5xx/réseau) partagé (`_shared/anthropic.ts`) ; limites
+  de taille (message 4000 car., titre 300, réponse 20 000) ; anti-spam du bouton « Générer des
+  idées » (10 min).
+- **DB** : policies RLS en `(select auth.uid())` (advisor Supabase, évalué une fois par
+  requête), index FK manquants, contraintes de longueur (`not valid`, sans re-scan).
+- **Front** : ErrorBoundary (plus d'écran blanc muet), date locale (`ymd`) au lieu de
+  `toISOString` (bug entre minuit et 2 h), couleurs du thème validées avant injection CSS,
+  géocodage sans exception (timeout 10 s), historique de chat limité à 100 messages, retour
+  visuel du test push, notification qui navigue vers la bonne page.
+- **Outillage** : vitest (parseur CSV, normalisation, mapping, dates, thème), `npm run check`,
+  workflow GitHub Actions (lint + tests + build).
+
+**À faire à la main côté Supabase (pas migrable)** :
+- Authentication → Password → activer *Leaked password protection* (advisor).
+- Extension `pg_net` dans `public` (advisor, faible impact ; déplacer = recréer les crons).
 
 ## Coûts récurrents
 

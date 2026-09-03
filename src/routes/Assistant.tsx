@@ -2,8 +2,9 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import Reglages from '../components/Reglages'
 import { SparkleIcon } from '../components/icons'
-import { useChatMessages, useSendMessage } from '../lib/assistant'
+import { MAX_MESSAGE_CHARS, isPendingActive, useChatMessages, useSendMessage } from '../lib/assistant'
 import { logEvent } from '../lib/events'
+import { Highlight } from '../lib/highlight'
 
 // L'historique est persistant (table chat_messages). La réponse est générée en
 // arrière-plan côté serveur : Alexandra peut fermer l'app, une notification push
@@ -16,7 +17,7 @@ export default function Assistant() {
   const { data: messages = [] } = useChatMessages()
   const send = useSendMessage()
 
-  const pending = messages.some((m) => m.status === 'pending')
+  const pending = messages.some((m) => isPendingActive(m))
   const handledRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -86,11 +87,13 @@ export default function Assistant() {
               </span>
               {m.status === 'pending' ? (
                 <div className="muted" style={{ marginTop: 4 }}>
-                  L'assistant réfléchit… tu peux fermer l'app, tu seras notifiée.
+                  {isPendingActive(m)
+                    ? "L'assistant réfléchit… tu peux fermer l'app, tu seras notifiée."
+                    : "La réponse n'a pas abouti. Repose ta question."}
                 </div>
               ) : (
                 <div style={{ marginTop: 4, color: m.status === 'error' ? 'var(--accent)' : undefined }}>
-                  {m.content}
+                  <Highlight text={m.content} />
                 </div>
               )}
               {m.role === 'assistant' && m.meta?.added ? (
@@ -116,6 +119,7 @@ export default function Assistant() {
               placeholder={pending ? 'Réponse en cours…' : 'Écris ici…'}
               style={{ flex: 1 }}
               enterKeyHint="send"
+              maxLength={MAX_MESSAGE_CHARS}
               disabled={pending}
             />
             <button

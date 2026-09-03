@@ -12,6 +12,7 @@ const EMPTY: ContentEntryDraft = {
   notes: null,
   status: 'idee',
   reminder_at: null,
+  boutique_id: null,
 }
 
 const LEAD_OPTIONS: { h: number; label: string }[] = [
@@ -61,6 +62,7 @@ export default function EntryForm({
           notes: initial.notes,
           status: initial.status,
           reminder_at: initial.reminder_at,
+          boutique_id: initial.boutique_id,
         }
       : EMPTY,
   )

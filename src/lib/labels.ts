@@ -1,4 +1,4 @@
-import type { ContentStatus } from './supabase'
+import type { CanalContact, ContentStatus } from './supabase'
 
 export const STATUS_LABEL: Record<ContentStatus, string> = {
   idee: 'Idée',
@@ -25,6 +25,14 @@ export const PERF_LABEL: Record<'carton' | 'ok' | 'bof', string> = {
   carton: '🔥 Carton',
   ok: '👍 OK',
   bof: '😐 Bof',
+}
+
+export const CANAL_LABEL: Record<CanalContact, string> = {
+  email: 'Email',
+  telephone: 'Téléphone',
+  instagram: 'Instagram',
+  visite: 'Visite',
+  autre: 'Autre',
 }
 
 export function nextStatus(s: ContentStatus): ContentStatus {

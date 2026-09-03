@@ -82,12 +82,38 @@ export function PlusIcon({ size = 20 }: Props) {
   )
 }
 
+export function ChevronDownIcon({ size = 16 }: Props) {
+  return (
+    <svg {...base(size)}>
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  )
+}
+
+export function StoreIcon({ size = 20 }: Props) {
+  return (
+    <svg {...base(size)}>
+      <path d="M3 9l1.5-5h15L21 9" />
+      <path d="M3 9v10a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V9" />
+      <path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0" />
+    </svg>
+  )
+}
+
 export function LogoutIcon({ size = 20 }: Props) {
   return (
     <svg {...base(size)}>
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
       <polyline points="16 17 21 12 16 7" />
       <line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
+  )
+}
+
+export function FlameIcon({ size = 20 }: Props) {
+  return (
+    <svg {...base(size)}>
+      <path d="M12 22c4.4 0 7-2.9 7-6.5 0-3-1.6-5-3.2-6.8-.5 1.6-1.5 2.6-2.6 3.1.3-2.6-.5-6-3.7-8.8.3 3-1.3 4.5-2.7 6.2C5.6 10.7 5 12.7 5 15.5 5 19.1 7.6 22 12 22z" />
     </svg>
   )
 }
