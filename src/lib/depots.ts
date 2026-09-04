@@ -13,7 +13,6 @@ export type {
   DepotDoc,
   DepotLigne,
 } from '../../supabase/functions/_shared/depot-doc'
-export { aliasDepuisNom } from '../../supabase/functions/_shared/mailer'
 export {
   fmtDateCourte,
   fmtDateLongue,

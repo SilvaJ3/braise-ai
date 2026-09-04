@@ -1,9 +1,10 @@
 // Envoi des mails par le service de l'application (Resend, API HTTP).
 //
-// Choix : l'expéditeur appartient à l'app (`<alias>@braise.io`), pas à l'artisane. Aucun
-// réglage technique ne lui est demandé, et un nouveau compte peut envoyer immédiatement.
-// Son nom commercial reste affiché comme expéditeur, et `Reply-To` renvoie vers sa propre
-// adresse pour que les réponses des boutiques arrivent bien chez elle.
+// Choix : l'expéditeur est une adresse fixe et unique pour toute l'app, `no-reply@braise.io`
+// — pas celle de l'artisane, aucun réglage technique ne lui est demandé, et un nouveau
+// compte peut envoyer immédiatement. Son nom commercial reste affiché comme expéditeur
+// (« Au Coin du Feu <no-reply@braise.io> »), et `Reply-To` renvoie vers sa propre adresse
+// pour que les réponses des boutiques arrivent bien chez elle.
 //
 // API HTTP plutôt que SMTP : pas de port sortant à ouvrir, erreurs explicites, et le même
 // code marche quel que soit l'hébergeur.
@@ -13,8 +14,6 @@ export type Piece = { filename: string; base64: string }
 export type Mail = {
   /** Nom affiché de l'expéditeur (le nom commercial de l'utilisateur). */
   fromName: string
-  /** Partie locale de l'adresse d'envoi, sans le domaine. */
-  fromAlias: string
   /** Adresse à laquelle les destinataires répondent. */
   replyTo?: string
   to: string[]
@@ -40,6 +39,9 @@ export const DOMAINE_TEST = 'resend.dev'
 
 export const estModeTest = (domaine: string): boolean => domaine === DOMAINE_TEST
 
+/** Alias fixe pour tous les comptes, hors mode test (voir DOMAINE_TEST). */
+export const ALIAS_NO_REPLY = 'no-reply'
+
 export class MailError extends Error {
   status?: number
 
@@ -62,24 +64,10 @@ export function adresseExpediteur(nom: string, alias: string, domaine: string): 
   return n ? `${n} <${a}>` : a
 }
 
-/**
- * Alias d'envoi dérivé du nom commercial : « Au Coin du Feu » → « aucoindufeu ».
- * Stable, sans accent ni espace, et jamais vide.
- */
-export function aliasDepuisNom(nom: string): string {
-  const base = nom
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '')
-    .slice(0, 40)
-  return base || 'bons'
-}
-
 export async function envoyerMail(cfg: MailerConfig, mail: Mail): Promise<{ id: string }> {
   if (!mail.to.length && !mail.cc?.length) throw new MailError('aucun destinataire')
 
-  const alias = estModeTest(cfg.domain) ? 'onboarding' : mail.fromAlias
+  const alias = estModeTest(cfg.domain) ? 'onboarding' : ALIAS_NO_REPLY
   const body = {
     from: adresseExpediteur(mail.fromName, alias, cfg.domain),
     to: mail.to,

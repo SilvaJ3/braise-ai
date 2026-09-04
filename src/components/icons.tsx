@@ -90,6 +90,14 @@ export function ChevronDownIcon({ size = 16 }: Props) {
   )
 }
 
+export function ChevronRightIcon({ size = 18 }: Props) {
+  return (
+    <svg {...base(size)}>
+      <polyline points="9 6 15 12 9 18" />
+    </svg>
+  )
+}
+
 export function StoreIcon({ size = 20 }: Props) {
   return (
     <svg {...base(size)}>

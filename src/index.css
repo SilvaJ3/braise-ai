@@ -460,3 +460,17 @@ form.stack {
   padding-top: 8px;
   font-weight: 600;
 }
+
+/* Menu Compte : liste de réglages, un tap -> détail */
+.settings-row {
+  padding: 14px 16px;
+  text-decoration: none;
+  color: var(--ink);
+}
+.settings-row:active {
+  background: var(--bg);
+}
+.settings-row svg {
+  color: var(--muted);
+  flex-shrink: 0;
+}
