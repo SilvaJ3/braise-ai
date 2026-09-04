@@ -14,6 +14,7 @@ import {
   STATUT_LABEL,
   totalDoc,
   urlPdfDepot,
+  useArchiverDepot,
   useDepot,
   useEnvoyerDepot,
   useProfilEntreprise,
@@ -39,6 +40,7 @@ export default function Depot() {
   const { data: profil } = useProfilEntreprise()
   const existant = useDepot(depotId)
   const envoyer = useEnvoyerDepot()
+  const archiver = useArchiverDepot()
 
   const [date, setDate] = useState(ymd())
   const [lignes, setLignes] = useState<LigneSaisie[]>([])
@@ -194,12 +196,23 @@ export default function Depot() {
       <div className="row">
         <h1 style={{ margin: 0 }}>Bon de dépôt</h1>
         <div className="spacer" />
+        {depot?.archived_at && <span className="badge">Archivé</span>}
         {depot && <span className="badge">{STATUT_LABEL[depot.statut]}</span>}
       </div>
       <p className="muted" style={{ marginTop: 4 }}>
         {saisie.boutique_nom || 'Boutique inconnue'}
         {depot?.numero ? ` · n° ${depot.numero}` : ''}
       </p>
+      {depot && (
+        <button
+          className="link"
+          style={{ marginBottom: 8 }}
+          disabled={archiver.isPending}
+          onClick={() => archiver.mutate({ id: depot.id, archiver: !depot.archived_at })}
+        >
+          {depot.archived_at ? 'Désarchiver ce bon' : 'Archiver ce bon'}
+        </button>
+      )}
 
       {depot?.statut === 'envoye' && (
         <div className="banner">

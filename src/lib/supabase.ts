@@ -190,6 +190,7 @@ export type Depot = {
   email_cc: string[]
   sent_at: string | null
   send_error: string | null
+  archived_at: string | null
   created_at: string
   updated_at: string
 }

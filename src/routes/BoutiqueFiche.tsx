@@ -4,7 +4,7 @@ import BoutiqueForm from '../components/BoutiqueForm'
 import Skeleton from '../components/Skeleton'
 import { useState } from 'react'
 import { useBoutiques, useDeleteBoutique, useUpdateBoutique } from '../lib/boutiques'
-import { fmtDateCourte, STATUT_LABEL, useDepots } from '../lib/depots'
+import { fmtDateCourte, STATUT_LABEL, useArchiverDepot, useDepots } from '../lib/depots'
 import { CANAL_LABEL } from '../lib/labels'
 
 export default function BoutiqueFiche() {
@@ -12,9 +12,11 @@ export default function BoutiqueFiche() {
   const navigate = useNavigate()
   const { data: boutiques = [], isLoading } = useBoutiques()
   const { data: depots = [] } = useDepots(id)
+  const archiver = useArchiverDepot()
   const update = useUpdateBoutique()
   const del = useDeleteBoutique()
   const [editing, setEditing] = useState(false)
+  const [voirArchives, setVoirArchives] = useState(false)
 
   const boutique = boutiques.find((b) => b.id === id)
 
@@ -72,27 +74,53 @@ export default function BoutiqueFiche() {
               + Nouveau
             </button>
           </div>
-          {depots.length === 0 && <p className="empty">Aucun bon pour cette boutique.</p>}
-          {depots.map((d) => (
-            <div
-              className="card"
-              key={d.id}
-              onClick={() => navigate(`/depots/${d.id}`)}
-              style={{ cursor: 'pointer' }}
-            >
-              <div className="row">
-                <strong>{d.numero ?? 'Brouillon'}</strong>
-                <span className="muted">· {fmtDateCourte(d.date_depot)}</span>
-                <div className="spacer" />
-                <span className="badge">{STATUT_LABEL[d.statut]}</span>
-              </div>
-              {d.send_error && d.statut !== 'envoye' && (
-                <p className="muted" style={{ margin: '6px 0 0', color: 'var(--accent)' }}>
-                  Envoi à relancer
-                </p>
-              )}
-            </div>
-          ))}
+          {(() => {
+            const actifs = depots.filter((d) => !d.archived_at)
+            const archives = depots.filter((d) => d.archived_at)
+            const visibles = voirArchives ? depots : actifs
+            return (
+              <>
+                {depots.length === 0 && <p className="empty">Aucun bon pour cette boutique.</p>}
+                {depots.length > 0 && actifs.length === 0 && !voirArchives && (
+                  <p className="empty">Aucun bon actif — {archives.length} archivé(s).</p>
+                )}
+                {visibles.map((d) => (
+                  <div
+                    className="card"
+                    key={d.id}
+                    style={{ opacity: d.archived_at ? 0.55 : 1 }}
+                  >
+                    <div className="row" onClick={() => navigate(`/depots/${d.id}`)} style={{ cursor: 'pointer' }}>
+                      <strong>{d.numero ?? 'Brouillon'}</strong>
+                      <span className="muted">· {fmtDateCourte(d.date_depot)}</span>
+                      <div className="spacer" />
+                      {d.archived_at && <span className="badge">Archivé</span>}
+                      <span className="badge">{STATUT_LABEL[d.statut]}</span>
+                    </div>
+                    {d.send_error && d.statut !== 'envoye' && (
+                      <p className="muted" style={{ margin: '6px 0 0', color: 'var(--accent)' }}>
+                        Envoi à relancer
+                      </p>
+                    )}
+                    <div className="row" style={{ marginTop: 8 }}>
+                      <div className="spacer" />
+                      <button
+                        className="link"
+                        onClick={() => archiver.mutate({ id: d.id, archiver: !d.archived_at })}
+                      >
+                        {d.archived_at ? 'Désarchiver' : 'Archiver'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {archives.length > 0 && (
+                  <button className="link" onClick={() => setVoirArchives((v) => !v)}>
+                    {voirArchives ? 'Masquer les archivés' : `Voir les archivés (${archives.length})`}
+                  </button>
+                )}
+              </>
+            )
+          })()}
         </>
       )}
     </>
