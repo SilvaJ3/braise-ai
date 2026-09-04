@@ -26,7 +26,7 @@ export {
 
 // Domaine d'expédition de l'app : purement informatif côté client (l'envoi réel est fait
 // par l'edge function, qui tient le secret du service de mail).
-export const MAIL_DOMAIN = 'braise.io'
+export const MAIL_DOMAIN = 'braaise.io'
 
 const DEPOTS_KEY = ['depots']
 const PROFIL_KEY = ['profil_entreprise']
