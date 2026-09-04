@@ -175,6 +175,21 @@ export function useDeleteDepot() {
   })
 }
 
+/** Archive ou désarchive un bon : masque/réaffiche dans la liste, sans toucher au contenu. */
+export function useArchiverDepot() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, archiver }: { id: string; archiver: boolean }) => {
+      const { error } = await supabase
+        .from('depots')
+        .update({ archived_at: archiver ? new Date().toISOString() : null })
+        .eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: DEPOTS_KEY }),
+  })
+}
+
 async function invoke<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke('depot', { body })
   if (error) throw new Error(await functionErrorMessage(error))
