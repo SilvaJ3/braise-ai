@@ -1,9 +1,9 @@
 // Envoi des mails par le service de l'application (Resend, API HTTP).
 //
-// Choix : l'expéditeur est une adresse fixe et unique pour toute l'app, `no-reply@braise.io`
+// Choix : l'expéditeur est une adresse fixe et unique pour toute l'app, `no-reply@braaise.io`
 // — pas celle de l'artisane, aucun réglage technique ne lui est demandé, et un nouveau
 // compte peut envoyer immédiatement. Son nom commercial reste affiché comme expéditeur
-// (« Au Coin du Feu <no-reply@braise.io> »), et `Reply-To` renvoie vers sa propre adresse
+// (« Au Coin du Feu <no-reply@braaise.io> »), et `Reply-To` renvoie vers sa propre adresse
 // pour que les réponses des boutiques arrivent bien chez elle.
 //
 // API HTTP plutôt que SMTP : pas de port sortant à ouvrir, erreurs explicites, et le même
@@ -25,7 +25,7 @@ export type Mail = {
 
 export type MailerConfig = {
   apiKey: string
-  /** Domaine vérifié chez Resend, ex. « braise.io ». */
+  /** Domaine vérifié chez Resend, ex. « braaise.io ». */
   domain: string
   timeoutMs?: number
 }
@@ -57,7 +57,7 @@ export function nomAffichable(nom: string): string {
   return nom.replace(/[\r\n"<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100)
 }
 
-/** "Au Coin du Feu" + "aucoindufeu" + "braise.io" → `Au Coin du Feu <aucoindufeu@braise.io>` */
+/** "Au Coin du Feu" + "aucoindufeu" + "braaise.io" → `Au Coin du Feu <aucoindufeu@braaise.io>` */
 export function adresseExpediteur(nom: string, alias: string, domaine: string): string {
   const a = `${alias}@${domaine}`
   const n = nomAffichable(nom)

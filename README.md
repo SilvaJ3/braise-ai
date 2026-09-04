@@ -55,7 +55,7 @@ Secrets attendus : `ANTHROPIC_API_KEY`, `VAPID_PRIVATE_KEY`, `RESEND_API_KEY`,
 Les mails partent du **service de l'application**, pas de la boîte de l'utilisateur : aucun
 réglage technique ne lui est demandé, et un nouveau compte peut envoyer immédiatement.
 
-- Expéditeur : `<nom commercial> <no-reply@braise.io>` — une seule adresse fixe pour tous
+- Expéditeur : `<nom commercial> <no-reply@braaise.io>` — une seule adresse fixe pour tous
   les comptes (« Au Coin du Feu » n'apparaît que dans le nom affiché).
 - `Reply-To` pointe sur l'adresse saisie dans **Compte → Mes coordonnées** : quand une
   boutique répond, le message arrive directement chez l'utilisateur.
@@ -70,13 +70,13 @@ Mise en place, une seule fois :
    de quoi valider toute la chaîne (PDF, pièce jointe, mise en forme) avant d'aller plus loin.
 3. **Pour de vrai** : acheter le domaine, l'ajouter dans Resend → *Domains*, poser les 3
    enregistrements DNS proposés (SPF, DKIM, suivi), attendre la vérification, puis passer
-   `MAIL_DOMAIN=braise.io`.
+   `MAIL_DOMAIN=braaise.io`.
 
 Tant que le domaine n'est pas vérifié, l'envoi échoue avec le message renvoyé par Resend
 (« domain is not verified »), affiché tel quel dans l'app. Changer de prestataire ne demande
 que de réécrire `envoyerMail` dans `_shared/mailer.ts`.
 
-**Variante possible plus tard** : faire suivre `alias@braise.io` vers la boîte de
+**Variante possible plus tard** : faire suivre `alias@braaise.io` vers la boîte de
 l'utilisateur (Cloudflare Email Routing, gratuit) pour que son adresse personnelle
 n'apparaisse plus du tout dans les mails. Le `Reply-To` deviendrait alors inutile.
 

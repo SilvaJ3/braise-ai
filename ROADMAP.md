@@ -146,9 +146,9 @@ tableau articles / qté / prix TTC, renvoi aux conditions générales du contrat
 - **PDF** généré côté serveur par un générateur maison (`_shared/pdf-lite.ts` : Helvetica,
   encodage WinAnsi, images JPEG, multi-pages). Pas de dépendance : le bundler Supabase refuse
   les CDN et `npm:pdf-lib` serait disproportionné. Sortie validée en test par relecture pdf.js.
-- **Mail** : envoyé par le **service de l'app** (Resend sur le domaine `braise.io`), pièce
+- **Mail** : envoyé par le **service de l'app** (Resend sur le domaine `braaise.io`), pièce
   jointe PDF, destinataire pré-rempli avec le contact de la boutique et modifiable, copie à
-  l'artisane. Expéditeur fixe `no-reply@braise.io` (même adresse pour tous les comptes),
+  l'artisane. Expéditeur fixe `no-reply@braaise.io` (même adresse pour tous les comptes),
   `Reply-To` vers son adresse pour que les réponses lui reviennent. Aucun réglage technique
   demandé à l'utilisateur — c'est la raison de ce choix plutôt qu'une connexion à sa propre
   boîte. Voir README → « Envoi des mails ».
@@ -292,7 +292,7 @@ non incluse ici.
 | **API Claude** (assistant : chat + bilan hebdo) | Non (à l'usage) | ~**2 à 10 €/mois** | Modèle **Sonnet** partout (chat + hebdo). Cron hebdo ≈ 0,20 €/mois. Chat ≈ 2-8 €/mois selon l'usage. Web search : 10 $ / 1000 recherches. |
 | **API Instagram / Meta** | **Oui (0 €)** | — | Graph API gratuite, pas d'abonnement. Coût = temps de dev uniquement. |
 | **Push notifications** | **Oui (0 €)** | — | Web Push (VAPID), pas de frais APNs/FCM. |
-| **Nom de domaine** (`braise.io`) | — | **~35-60 €/an** pour un `.io` (un `.be` ≈ 10 €/an, un `.app` ≈ 15 €/an) | Sert d'expéditeur aux bons de dépôt (`alias@braise.io`) et de vitrine. Le `.io` est l'extension la plus chère du lot — à arbitrer. |
+| **Nom de domaine** (`braaise.io`) | — | **~35-60 €/an** pour un `.io` (un `.be` ≈ 10 €/an, un `.app` ≈ 15 €/an) | Sert d'expéditeur aux bons de dépôt (`alias@braaise.io`) et de vitrine. Le `.io` est l'extension la plus chère du lot — à arbitrer. |
 | **Resend** (envoi des bons de dépôt) | **Oui (0 €)** — 3000 mails/mois, 100/jour | 20 $/mois au-delà | **Gratuit.** Quelques bons par mois, très loin du plafond. |
 | **Compte Apple Developer** | — | 99 $/an (~8 $/mois) | **Seulement si V8 natif.** Pas maintenant. |
 
