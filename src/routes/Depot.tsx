@@ -52,6 +52,11 @@ export default function Depot() {
   const [erreur, setErreur] = useState<string | null>(null)
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const charge = useRef(false)
+  // true seulement si l'écran a été ouvert directement sur un bon existant (venu de la fiche
+  // boutique). Un nouveau bon obtient un depotId après le premier enregistrement (Aperçu,
+  // Enregistrer…) : sans ce garde-fou, le rechargement qui suit écraserait destinataire/copie
+  // avec les valeurs vides de la ligne qu'on vient tout juste de créer.
+  const ouvertSurExistant = useRef(!!depotId)
 
   const boutique = useMemo(
     () => boutiques.find((b) => b.id === (boutiqueId ?? existant.data?.depot.boutique_id)),
@@ -62,7 +67,7 @@ export default function Depot() {
 
   // Chargement d'un bon existant (une seule fois, pour ne pas écraser la saisie en cours).
   useEffect(() => {
-    if (!existant.data || charge.current) return
+    if (!existant.data || charge.current || !ouvertSurExistant.current) return
     charge.current = true
     const { depot: d, lignes: ls } = existant.data
     setDate(d.date_depot)
