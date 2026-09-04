@@ -20,7 +20,7 @@ import {
   type Emetteur,
 } from '../_shared/depot-doc.ts'
 import { renderDepotPdf } from '../_shared/depot-pdf.ts'
-import { aliasDepuisNom, envoyerMail } from '../_shared/mailer.ts'
+import { envoyerMail } from '../_shared/mailer.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -61,36 +61,6 @@ async function loadEmetteur(userId: string): Promise<Emetteur> {
     .eq('user_id', userId)
     .maybeSingle()
   return { ...DEFAULT_EMETTEUR, ...data } as Emetteur
-}
-
-/**
- * Adresse d'expédition du compte, créée au premier envoi et jamais changée ensuite : un
- * destinataire qui a déjà reçu un bon doit retrouver le même expéditeur la fois suivante.
- * En cas d'homonymie entre deux comptes, on suffixe (-2, -3…).
- */
-async function aliasMail(userId: string, nom: string): Promise<string> {
-  const { data } = await admin
-    .from('profil_entreprise')
-    .select('alias_mail')
-    .eq('user_id', userId)
-    .maybeSingle()
-  if (data?.alias_mail) return data.alias_mail as string
-
-  const souhaite = aliasDepuisNom(nom)
-  for (let i = 1; i <= 20; i++) {
-    const candidat = i === 1 ? souhaite : `${souhaite}-${i}`
-    const { error } = await admin
-      .from('profil_entreprise')
-      .update({ alias_mail: candidat })
-      .eq('user_id', userId)
-    // 23505 = violation d'unicité : l'alias est déjà pris par un autre compte.
-    if (!error) return candidat
-    if (error.code !== '23505') throw new Error(error.message)
-  }
-  // Repli impossible à collisionner.
-  const secours = `bons-${userId.slice(0, 8)}`
-  await admin.from('profil_entreprise').update({ alias_mail: secours }).eq('user_id', userId)
-  return secours
 }
 
 type DepotRow = {
@@ -246,7 +216,6 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>): Pro
       { apiKey: RESEND_API_KEY, domain: MAIL_DOMAIN },
       {
         fromName: doc.emetteur.nom,
-        fromAlias: await aliasMail(userId, doc.emetteur.nom),
         // Les réponses des boutiques arrivent directement dans la boîte de l'utilisateur.
         replyTo: doc.emetteur.email || undefined,
         to,

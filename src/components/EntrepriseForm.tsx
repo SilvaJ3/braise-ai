@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { aliasDepuisNom, MAIL_DOMAIN, PROFIL_VIDE, useProfilEntreprise, useSaveProfilEntreprise } from '../lib/depots'
+import { MAIL_DOMAIN, PROFIL_VIDE, useProfilEntreprise, useSaveProfilEntreprise } from '../lib/depots'
 import type { ProfilEntrepriseDraft } from '../lib/supabase'
 
 // Ce bloc alimente l'en-tête et le pied des bons de dépôt : ce qui est saisi ici s'imprime
@@ -49,11 +49,11 @@ export default function EntrepriseForm() {
 
       <div className="card" style={{ background: 'var(--accent-soft)', border: 'none', padding: 12 }}>
         <p className="muted" style={{ margin: 0 }}>
-          Tes bons partent de{' '}
-          <strong>{`${aliasDepuisNom(d.nom || '')}@${MAIL_DOMAIN}`}</strong>, l'adresse de l'app.
+          Tes bons partent de <strong>{`no-reply@${MAIL_DOMAIN}`}</strong>, l'adresse de l'app,
+          affichés au nom de « {d.nom || 'ton enseigne'} ».
           {d.email
             ? ` Quand une boutique répond, le message arrive sur ${d.email}.`
-            : " Renseigne ton email ci-dessus pour recevoir les réponses des boutiques."}
+            : ' Renseigne ton email ci-dessus pour recevoir les réponses des boutiques.'}
         </p>
       </div>
 

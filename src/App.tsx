@@ -7,6 +7,10 @@ import Aujourdhui from './routes/Aujourdhui'
 import BoutiqueFiche from './routes/BoutiqueFiche'
 import Boutiques from './routes/Boutiques'
 import Compte from './routes/Compte'
+import CompteApparence from './routes/CompteApparence'
+import CompteCoordonnees from './routes/CompteCoordonnees'
+import CompteMotDePasse from './routes/CompteMotDePasse'
+import CompteNotifications from './routes/CompteNotifications'
 import Depot from './routes/Depot'
 import Login from './routes/Login'
 import Planning from './routes/Planning'
@@ -36,6 +40,10 @@ export default function App() {
         <Route path="/depots/:depotId" element={<Depot />} />
         <Route path="/assistant" element={<Assistant />} />
         <Route path="/compte" element={<Compte />} />
+        <Route path="/compte/coordonnees" element={<CompteCoordonnees />} />
+        <Route path="/compte/apparence" element={<CompteApparence />} />
+        <Route path="/compte/notifications" element={<CompteNotifications />} />
+        <Route path="/compte/mot-de-passe" element={<CompteMotDePasse />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <BottomNav />

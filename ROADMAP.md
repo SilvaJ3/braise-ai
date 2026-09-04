@@ -148,9 +148,10 @@ tableau articles / qté / prix TTC, renvoi aux conditions générales du contrat
   les CDN et `npm:pdf-lib` serait disproportionné. Sortie validée en test par relecture pdf.js.
 - **Mail** : envoyé par le **service de l'app** (Resend sur le domaine `braise.io`), pièce
   jointe PDF, destinataire pré-rempli avec le contact de la boutique et modifiable, copie à
-  l'artisane. Expéditeur `aucoindufeu@braise.io`, `Reply-To` vers son adresse pour que les
-  réponses lui reviennent. Aucun réglage technique demandé à l'utilisateur — c'est la raison
-  de ce choix plutôt qu'une connexion à sa propre boîte. Voir README → « Envoi des mails ».
+  l'artisane. Expéditeur fixe `no-reply@braise.io` (même adresse pour tous les comptes),
+  `Reply-To` vers son adresse pour que les réponses lui reviennent. Aucun réglage technique
+  demandé à l'utilisateur — c'est la raison de ce choix plutôt qu'une connexion à sa propre
+  boîte. Voir README → « Envoi des mails ».
 - **Archivage** : bucket Storage privé `depots`, chemin `<user_id>/<depot_id>.pdf`, relu par
   URL signée (1 h).
 - **Numérotation** : `AAAA-NNN`, attribuée à la signature, jamais réutilisée.

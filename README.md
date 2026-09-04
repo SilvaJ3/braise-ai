@@ -55,8 +55,8 @@ Secrets attendus : `ANTHROPIC_API_KEY`, `VAPID_PRIVATE_KEY`, `RESEND_API_KEY`,
 Les mails partent du **service de l'application**, pas de la boîte de l'utilisateur : aucun
 réglage technique ne lui est demandé, et un nouveau compte peut envoyer immédiatement.
 
-- Expéditeur : `<nom commercial> <alias@braise.io>`, l'alias étant dérivé du nom
-  (« Au Coin du Feu » → `aucoindufeu@braise.io`), attribué au premier envoi et jamais changé.
+- Expéditeur : `<nom commercial> <no-reply@braise.io>` — une seule adresse fixe pour tous
+  les comptes (« Au Coin du Feu » n'apparaît que dans le nom affiché).
 - `Reply-To` pointe sur l'adresse saisie dans **Compte → Mes coordonnées** : quand une
   boutique répond, le message arrive directement chez l'utilisateur.
 
