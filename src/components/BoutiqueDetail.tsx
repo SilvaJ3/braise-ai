@@ -1,6 +1,7 @@
 import { CANAL_LABEL } from '../lib/labels'
 import type { Boutique } from '../lib/supabase'
 import BoutiqueMap from './BoutiqueMap'
+import ItineraireButton from './ItineraireButton'
 
 // ponytail: onglet "Contacts" (log manuel) retiré de l'UI pour l'instant — peu
 // d'intérêt à l'usage réel. Table + hooks (useBoutiqueContacts, useLogContact,
@@ -27,6 +28,12 @@ export default function BoutiqueDetail({ boutique }: { boutique: Boutique }) {
       )}
 
       <BoutiqueMap boutique={boutique} />
+
+      {(boutique.adresse || (boutique.lat != null && boutique.lng != null)) && (
+        <div className="row" style={{ marginTop: 4 }}>
+          <ItineraireButton boutique={boutique} />
+        </div>
+      )}
     </div>
   )
 }
