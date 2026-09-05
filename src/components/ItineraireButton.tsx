@@ -12,7 +12,7 @@ function destinationBoutique(boutique: Boutique): string {
 }
 
 function ouvrirItineraire(destination: string, origin?: string) {
-  const params = new URLSearchParams({ api: '1', destination })
+  const params = new URLSearchParams({ api: '1', destination, travelmode: 'driving' })
   if (origin) params.set('origin', origin)
   window.open(`https://www.google.com/maps/dir/?${params.toString()}`, '_blank', 'noreferrer')
 }
