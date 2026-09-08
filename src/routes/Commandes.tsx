@@ -24,22 +24,19 @@ export default function Commandes() {
 
   return (
     <>
-      <h1>Commandes</h1>
-
-      <div className="subnav">
-        <a className={!voirArchivees ? 'active' : ''} onClick={() => setVoirArchivees(false)}>
-          En cours
-        </a>
-        <a className={voirArchivees ? 'active' : ''} onClick={() => setVoirArchivees(true)}>
-          Toutes
-        </a>
-      </div>
-
       {isLoading && <Skeleton rows={4} />}
       {error && <p className="muted">Erreur : {(error as Error).message}</p>}
 
       {!isLoading && !error && (
         <>
+          <div className="row" style={{ marginBottom: 8 }}>
+            <span className="muted">{shown.length} commande(s)</span>
+            <div className="spacer" />
+            <button className="link" onClick={() => setVoirArchivees((v) => !v)}>
+              {voirArchivees ? 'Masquer archivées' : 'Voir toutes'}
+            </button>
+          </div>
+
           {shown.length === 0 && <p className="empty">Aucune commande pour l'instant.</p>}
 
           {shown.map((c) => (

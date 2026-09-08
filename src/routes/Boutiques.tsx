@@ -1,14 +1,18 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import BoutiqueForm from '../components/BoutiqueForm'
 import Fab from '../components/Fab'
 import Skeleton from '../components/Skeleton'
 import { useBoutiques, useCreateBoutique, useLastContacts } from '../lib/boutiques'
 import { joursDepuis } from '../lib/dates'
+import Commandes from './Commandes'
 
 const RELANCE_SEUIL_JOURS = 21 // ~3 semaines sans contact (même seuil que l'edge function)
 
-export default function Boutiques() {
+type Tab = 'boutiques' | 'commandes'
+const TABS: Tab[] = ['boutiques', 'commandes']
+
+function BoutiquesTab() {
   const navigate = useNavigate()
   const { data: boutiques = [], isLoading, error } = useBoutiques()
   const { data: lastContacts = {} } = useLastContacts()
@@ -24,17 +28,6 @@ export default function Boutiques() {
 
   return (
     <>
-      <h1>Boutiques</h1>
-
-      <div className="subnav">
-        <a className={!showInactives ? 'active' : ''} onClick={() => setShowInactives(false)}>
-          Actives
-        </a>
-        <a className={showInactives ? 'active' : ''} onClick={() => setShowInactives(true)}>
-          Toutes
-        </a>
-      </div>
-
       {isLoading && <Skeleton rows={4} />}
       {error && <p className="muted">Erreur : {(error as Error).message}</p>}
 
@@ -48,6 +41,14 @@ export default function Boutiques() {
 
       {!isLoading && !error && !creating && (
         <>
+          <div className="row" style={{ marginBottom: 8 }}>
+            <span className="muted">{shown.length} boutique(s)</span>
+            <div className="spacer" />
+            <button className="link" onClick={() => setShowInactives((v) => !v)}>
+              {showInactives ? 'Masquer inactives' : 'Voir inactives'}
+            </button>
+          </div>
+
           {shown.length === 0 && <p className="empty">Aucune boutique pour l'instant.</p>}
 
           {shown.map((b) => {
@@ -82,6 +83,30 @@ export default function Boutiques() {
       )}
 
       {!creating && <Fab onClick={() => setCreating(true)} />}
+    </>
+  )
+}
+
+export default function Boutiques() {
+  const [params, setParams] = useSearchParams()
+  const tabParam = params.get('tab')
+  const tab: Tab = TABS.includes(tabParam as Tab) ? (tabParam as Tab) : 'boutiques'
+  const go = (t: Tab) => setParams(t === 'boutiques' ? {} : { tab: t }, { replace: true })
+
+  return (
+    <>
+      <h1>Boutiques</h1>
+      <div className="subnav">
+        <a className={tab === 'boutiques' ? 'active' : ''} onClick={() => go('boutiques')}>
+          Boutiques
+        </a>
+        <a className={tab === 'commandes' ? 'active' : ''} onClick={() => go('commandes')}>
+          Commandes
+        </a>
+      </div>
+
+      {tab === 'boutiques' && <BoutiquesTab />}
+      {tab === 'commandes' && <Commandes />}
     </>
   )
 }

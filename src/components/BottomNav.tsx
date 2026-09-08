@@ -1,14 +1,15 @@
 import { NavLink } from 'react-router-dom'
-import { CalendarIcon, FlameIcon, ListIcon, SparkleIcon, StoreIcon, SunIcon, UserIcon } from './icons'
+import { CalendarIcon, FlameIcon, SparkleIcon, StoreIcon, SunIcon, UserIcon } from './icons'
 
+// Boutiques regroupe Boutiques + Commandes (sous-onglets) ; Plus regroupe le compte et ses
+// réglages — pour ne pas empiler les entrées ici à chaque nouvelle fonctionnalité.
 const TABS = [
   { to: '/', label: "Aujourd'hui", Icon: SunIcon, end: true },
   { to: '/planning', label: 'Planning', Icon: CalendarIcon },
   { to: '/boutiques', label: 'Boutiques', Icon: StoreIcon },
-  { to: '/commandes', label: 'Commandes', Icon: ListIcon },
   { to: '/atelier', label: 'Atelier', Icon: FlameIcon },
   { to: '/assistant', label: 'Assistant', Icon: SparkleIcon },
-  { to: '/compte', label: 'Compte', Icon: UserIcon },
+  { to: '/compte', label: 'Plus', Icon: UserIcon },
 ]
 
 export default function BottomNav() {

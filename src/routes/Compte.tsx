@@ -16,7 +16,7 @@ export default function Compte() {
 
   return (
     <>
-      <h1>Compte</h1>
+      <h1>Plus</h1>
       <p className="muted">{session?.user.email}</p>
 
       <div className="card" style={{ padding: 0 }}>

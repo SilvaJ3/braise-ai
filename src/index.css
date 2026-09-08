@@ -253,6 +253,40 @@ mark {
   box-shadow: 0 6px 16px rgba(181, 69, 27, 0.4);
 }
 
+/* Liste de notifications : icône par catégorie, date, pastille tant que non traité */
+.notif-row {
+  display: flex;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+.notif-row:first-of-type {
+  padding-top: 0;
+}
+.notif-icon {
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.notif-body {
+  flex: 1;
+  min-width: 0;
+}
+.notif-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
 /* Cloche de notifications : fixe en haut, sur chaque écran */
 .bell-fab {
   position: fixed;

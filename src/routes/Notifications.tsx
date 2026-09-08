@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Skeleton from '../components/Skeleton'
-import { ChevronDownIcon } from '../components/icons'
+import { BellIcon, ChevronDownIcon, FlameIcon, SparkleIcon } from '../components/icons'
 import { useBesoinsMatiere, fmtQty } from '../lib/atelier'
 import { useGenerateIdeas, useMarkSuggestion, useSuggestions } from '../lib/assistant'
 import { useEntries } from '../lib/entries'
@@ -10,6 +10,38 @@ import { Highlight } from '../lib/highlight'
 import { STATUS_LABEL } from '../lib/labels'
 import { useDismissReminder, useDismissedReminders, useRappelsDus } from '../lib/notifications'
 import type { AssistantSuggestion } from '../lib/supabase'
+
+const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('fr-BE', { day: '2-digit', month: '2-digit' })
+
+/** Icône + date + pastille (tant que non traité) : même en-tête pour les trois catégories. */
+function NotifRow({
+  icon,
+  title,
+  date,
+  unread,
+  children,
+}: {
+  icon: ReactNode
+  title: ReactNode
+  date?: string
+  unread?: boolean
+  children: ReactNode
+}) {
+  return (
+    <div className="notif-row" style={{ opacity: unread === false ? 0.55 : 1 }}>
+      <div className="notif-icon">{icon}</div>
+      <div className="notif-body">
+        <div className="row">
+          <strong style={{ minWidth: 0 }}>{title}</strong>
+          <div className="spacer" />
+          {unread && <span className="notif-dot" />}
+          {date && <span className="muted">{date}</span>}
+        </div>
+        {children}
+      </div>
+    </div>
+  )
+}
 
 // Une idée générée par l'assistant est stockée en "titre — détail" : on affiche le titre
 // seul, le détail ne s'ouvre qu'au clic.
@@ -22,7 +54,7 @@ function splitIdea(s: AssistantSuggestion): { title: string; detail: string | nu
 function SuggestionBody({ s }: { s: AssistantSuggestion }) {
   const { title, detail } = splitIdea(s)
   const [open, setOpen] = useState(false)
-  if (!detail) return <div>{<Highlight text={title} />}</div>
+  if (!detail) return <p className="muted" style={{ margin: '2px 0 0' }}>{<Highlight text={title} />}</p>
   return (
     <div>
       <button type="button" className={`idea-toggle${open ? ' is-open' : ''}`} onClick={() => setOpen((o) => !o)}>
@@ -75,6 +107,8 @@ export default function Notifications() {
     markSuggestion.mutate({ id: s.id, statut: 'nouveau' })
   }
 
+  const rien = !entriesLoading && rappels.length === 0 && besoins.length === 0 && suggestions.length === 0 && Object.keys(done).length === 0
+
   return (
     <>
       <button className="link" onClick={() => navigate(-1)} style={{ marginBottom: 8 }}>
@@ -84,49 +118,63 @@ export default function Notifications() {
 
       {entriesLoading && <Skeleton rows={3} />}
 
-      {!entriesLoading && rappels.length > 0 && (
-        <>
-          <h2>Rappels</h2>
-          <div className="banner">
-            {rappels.map((e) => (
-              <div className="row" key={e.id} style={{ marginTop: 8 }}>
-                <span>{e.title}</span>
-                <span className="muted">· {STATUS_LABEL[e.status]}</span>
-                <div className="spacer" />
-                <button className="link" onClick={() => dismiss.mutate(e.id)}>
-                  Vu
-                </button>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      {besoins.length > 0 && (
-        <>
-          <h2>Atelier</h2>
-          <div
-            className="card"
-            style={{ cursor: 'pointer' }}
-            onClick={() => navigate('/atelier?tab=besoins')}
-          >
-            <div className="row">
-              <strong>{besoins.length} matière(s) à commander</strong>
+      {!entriesLoading &&
+        rappels.map((e) => (
+          <NotifRow key={e.id} icon={<BellIcon size={18} />} title={e.title} unread>
+            <div className="row" style={{ marginTop: 2 }}>
+              <span className="muted">{STATUS_LABEL[e.status]}</span>
               <div className="spacer" />
-              <span className="badge">→ Atelier</span>
+              <button className="link" onClick={() => dismiss.mutate(e.id)}>
+                Vu
+              </button>
             </div>
-            <p className="muted" style={{ margin: '6px 0 0' }}>
-              Calculé depuis les commandes en cours. {besoins[0].matiere.nom}
-              {besoins.length > 1 ? `, ${besoins.length - 1} autre(s)…` : ` — ${fmtQty(besoins[0].aCommander, besoins[0].matiere.unite)} à commander.`}
-            </p>
-          </div>
-        </>
-      )}
-      {besoinsLoading && <Skeleton rows={1} />}
+          </NotifRow>
+        ))}
 
-      <div className="row">
-        <h2 style={{ margin: 0 }}>L'assistant te propose</h2>
-        <div className="spacer" />
+      {besoinsLoading && <Skeleton rows={1} />}
+      {besoins.length > 0 && (
+        <NotifRow
+          icon={<FlameIcon size={18} />}
+          title={`${besoins.length} matière(s) à commander`}
+          unread
+        >
+          <p className="muted" style={{ margin: '2px 0 0', cursor: 'pointer' }} onClick={() => navigate('/atelier?tab=besoins')}>
+            {besoins[0].matiere.nom}
+            {besoins.length > 1 ? `, ${besoins.length - 1} autre(s)…` : ` — ${fmtQty(besoins[0].aCommander, besoins[0].matiere.unite)} à commander.`}
+            {' '}→ Atelier
+          </p>
+        </NotifRow>
+      )}
+
+      {suggestions.map((s) => (
+        <NotifRow key={s.id} icon={<SparkleIcon size={18} />} title={SUGGESTION_LABEL[s.type] ?? 'Suggestion'} date={fmtDate(s.created_at)} unread>
+          <SuggestionBody s={s} />
+          <div className="row" style={{ marginTop: 6 }}>
+            <div className="spacer" />
+            <button className="link" onClick={() => markDone(s)}>
+              OK
+            </button>
+          </div>
+        </NotifRow>
+      ))}
+      {Object.values(done)
+        .filter((s) => !suggestions.some((q) => q.id === s.id))
+        .map((s) => (
+          <NotifRow key={s.id} icon={<SparkleIcon size={18} />} title={SUGGESTION_LABEL[s.type] ?? 'Suggestion'} date={fmtDate(s.created_at)} unread={false}>
+            <SuggestionBody s={s} />
+            <div className="row" style={{ marginTop: 6 }}>
+              <span className="muted">✓ Traité</span>
+              <div className="spacer" />
+              <button className="link" onClick={() => restore(s)}>
+                Rétablir
+              </button>
+            </div>
+          </NotifRow>
+        ))}
+
+      {rien && <p className="empty">Rien pour l'instant.</p>}
+
+      <div className="row" style={{ marginTop: 16 }}>
         <button
           className="link"
           onClick={() => {
@@ -143,35 +191,6 @@ export default function Notifications() {
           {(generate.error as Error).message}
         </p>
       )}
-      {suggestions.length === 0 && Object.keys(done).length === 0 && !generate.isPending && (
-        <p className="empty">Rien pour l'instant. « Générer des idées » pour démarrer.</p>
-      )}
-      {suggestions.map((s) => (
-        <div className="card" key={s.id}>
-          <SuggestionBody s={s} />
-          <div className="row" style={{ marginTop: 8 }}>
-            <span className="muted">{SUGGESTION_LABEL[s.type] ?? 'Suggestion'}</span>
-            <div className="spacer" />
-            <button className="link" onClick={() => markDone(s)}>
-              OK
-            </button>
-          </div>
-        </div>
-      ))}
-      {Object.values(done)
-        .filter((s) => !suggestions.some((q) => q.id === s.id))
-        .map((s) => (
-          <div className="card" key={s.id} style={{ opacity: 0.55 }}>
-            <SuggestionBody s={s} />
-            <div className="row" style={{ marginTop: 8 }}>
-              <span className="muted">✓ Traité</span>
-              <div className="spacer" />
-              <button className="link" onClick={() => restore(s)}>
-                Rétablir
-              </button>
-            </div>
-          </div>
-        ))}
     </>
   )
 }
