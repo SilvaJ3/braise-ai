@@ -207,6 +207,35 @@ export type DepotLigneRow = {
   created_at: string
 }
 
+export type CommandeType = 'boutique' | 'personne'
+export type CommandeStatut = 'demande' | 'confirmee' | 'en_prod' | 'livree'
+
+export type Commande = {
+  id: string
+  user_id: string
+  type: CommandeType
+  boutique_id: string | null
+  client_nom: string | null
+  date_echeance: string
+  statut: CommandeStatut
+  notes: string | null
+  archived_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type CommandeLigneRow = {
+  id: string
+  user_id: string
+  commande_id: string
+  produit_id: string | null
+  designation: string
+  couleur: string | null
+  quantite: number
+  position: number
+  created_at: string
+}
+
 export type ChatMessage = {
   id: string
   user_id: string

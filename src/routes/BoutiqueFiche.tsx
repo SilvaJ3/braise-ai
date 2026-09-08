@@ -4,6 +4,7 @@ import BoutiqueForm from '../components/BoutiqueForm'
 import Skeleton from '../components/Skeleton'
 import { useState } from 'react'
 import { useBoutiques, useDeleteBoutique, useUpdateBoutique } from '../lib/boutiques'
+import { STATUT_LABEL as COMMANDE_STATUT_LABEL, useCommandes } from '../lib/commandes'
 import { fmtDateCourte, STATUT_LABEL, useArchiverDepot, useDepots } from '../lib/depots'
 import { CANAL_LABEL } from '../lib/labels'
 
@@ -12,6 +13,7 @@ export default function BoutiqueFiche() {
   const navigate = useNavigate()
   const { data: boutiques = [], isLoading } = useBoutiques()
   const { data: depots = [] } = useDepots(id)
+  const { data: commandes = [] } = useCommandes(id)
   const archiver = useArchiverDepot()
   const update = useUpdateBoutique()
   const del = useDeleteBoutique()
@@ -66,6 +68,30 @@ export default function BoutiqueFiche() {
           </div>
 
           <BoutiqueDetail boutique={boutique} />
+
+          <div className="row" style={{ marginTop: 16 }}>
+            <h2 style={{ margin: 0 }}>Commandes</h2>
+            <div className="spacer" />
+            <button className="link" onClick={() => navigate(`/boutiques/${boutique.id}/commande`)}>
+              + Nouvelle
+            </button>
+          </div>
+          {commandes.length === 0 && <p className="empty">Aucune commande pour cette boutique.</p>}
+          {commandes.map((c) => (
+            <div
+              className="card"
+              key={c.id}
+              onClick={() => navigate(`/commandes/${c.id}`)}
+              style={{ cursor: 'pointer', opacity: c.archived_at ? 0.55 : 1 }}
+            >
+              <div className="row">
+                <strong>Pour le {fmtDateCourte(c.date_echeance)}</strong>
+                <div className="spacer" />
+                {c.archived_at && <span className="badge">Archivée</span>}
+                <span className="badge">{COMMANDE_STATUT_LABEL[c.statut]}</span>
+              </div>
+            </div>
+          ))}
 
           <div className="row" style={{ marginTop: 16 }}>
             <h2 style={{ margin: 0 }}>Bons de dépôt</h2>

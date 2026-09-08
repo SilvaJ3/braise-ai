@@ -11,6 +11,8 @@ import CompteApparence from './routes/CompteApparence'
 import CompteCoordonnees from './routes/CompteCoordonnees'
 import CompteMotDePasse from './routes/CompteMotDePasse'
 import CompteNotifications from './routes/CompteNotifications'
+import Commande from './routes/Commande'
+import Commandes from './routes/Commandes'
 import Depot from './routes/Depot'
 import Login from './routes/Login'
 import Planning from './routes/Planning'
@@ -38,6 +40,10 @@ export default function App() {
         <Route path="/atelier" element={<Atelier />} />
         <Route path="/boutiques/:boutiqueId/depot" element={<Depot />} />
         <Route path="/depots/:depotId" element={<Depot />} />
+        <Route path="/commandes" element={<Commandes />} />
+        <Route path="/commandes/nouvelle" element={<Commande />} />
+        <Route path="/boutiques/:boutiqueId/commande" element={<Commande />} />
+        <Route path="/commandes/:commandeId" element={<Commande />} />
         <Route path="/assistant" element={<Assistant />} />
         <Route path="/compte" element={<Compte />} />
         <Route path="/compte/coordonnees" element={<CompteCoordonnees />} />
