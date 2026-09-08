@@ -118,59 +118,73 @@ export default function Notifications() {
 
       {entriesLoading && <Skeleton rows={3} />}
 
-      {!entriesLoading &&
-        rappels.map((e) => (
-          <NotifRow key={e.id} icon={<BellIcon size={18} />} title={e.title} unread>
-            <div className="row" style={{ marginTop: 2 }}>
-              <span className="muted">{STATUS_LABEL[e.status]}</span>
-              <div className="spacer" />
-              <button className="link" onClick={() => dismiss.mutate(e.id)}>
-                Vu
-              </button>
-            </div>
-          </NotifRow>
-        ))}
+      {!entriesLoading && rappels.length > 0 && (
+        <>
+          <h2>Rappels</h2>
+          <div className="card" style={{ padding: '0 14px' }}>
+            {rappels.map((e) => (
+              <NotifRow key={e.id} icon={<BellIcon size={18} />} title={e.title} unread>
+                <div className="row" style={{ marginTop: 2 }}>
+                  <span className="muted">{STATUS_LABEL[e.status]}</span>
+                  <div className="spacer" />
+                  <button className="link" onClick={() => dismiss.mutate(e.id)}>
+                    Vu
+                  </button>
+                </div>
+              </NotifRow>
+            ))}
+          </div>
+        </>
+      )}
 
       {besoinsLoading && <Skeleton rows={1} />}
       {besoins.length > 0 && (
-        <NotifRow
-          icon={<FlameIcon size={18} />}
-          title={`${besoins.length} matière(s) à commander`}
-          unread
-        >
-          <p className="muted" style={{ margin: '2px 0 0', cursor: 'pointer' }} onClick={() => navigate('/atelier?tab=besoins')}>
-            {besoins[0].matiere.nom}
-            {besoins.length > 1 ? `, ${besoins.length - 1} autre(s)…` : ` — ${fmtQty(besoins[0].aCommander, besoins[0].matiere.unite)} à commander.`}
-            {' '}→ Atelier
-          </p>
-        </NotifRow>
+        <>
+          <h2>Atelier</h2>
+          <div className="card" style={{ padding: '0 14px' }}>
+            <NotifRow icon={<FlameIcon size={18} />} title={`${besoins.length} matière(s) à commander`} unread>
+              <p className="muted" style={{ margin: '2px 0 0', cursor: 'pointer' }} onClick={() => navigate('/atelier?tab=besoins')}>
+                {besoins[0].matiere.nom}
+                {besoins.length > 1 ? `, ${besoins.length - 1} autre(s)…` : ` — ${fmtQty(besoins[0].aCommander, besoins[0].matiere.unite)} à commander.`}
+                {' '}→ Atelier
+              </p>
+            </NotifRow>
+          </div>
+        </>
       )}
 
-      {suggestions.map((s) => (
-        <NotifRow key={s.id} icon={<SparkleIcon size={18} />} title={SUGGESTION_LABEL[s.type] ?? 'Suggestion'} date={fmtDate(s.created_at)} unread>
-          <SuggestionBody s={s} />
-          <div className="row" style={{ marginTop: 6 }}>
-            <div className="spacer" />
-            <button className="link" onClick={() => markDone(s)}>
-              OK
-            </button>
+      {(suggestions.length > 0 || Object.keys(done).length > 0) && (
+        <>
+          <h2>L'assistant te propose</h2>
+          <div className="card" style={{ padding: '0 14px' }}>
+            {suggestions.map((s) => (
+              <NotifRow key={s.id} icon={<SparkleIcon size={18} />} title={SUGGESTION_LABEL[s.type] ?? 'Suggestion'} date={fmtDate(s.created_at)} unread>
+                <SuggestionBody s={s} />
+                <div className="row" style={{ marginTop: 6 }}>
+                  <div className="spacer" />
+                  <button className="link" onClick={() => markDone(s)}>
+                    OK
+                  </button>
+                </div>
+              </NotifRow>
+            ))}
+            {Object.values(done)
+              .filter((s) => !suggestions.some((q) => q.id === s.id))
+              .map((s) => (
+                <NotifRow key={s.id} icon={<SparkleIcon size={18} />} title={SUGGESTION_LABEL[s.type] ?? 'Suggestion'} date={fmtDate(s.created_at)} unread={false}>
+                  <SuggestionBody s={s} />
+                  <div className="row" style={{ marginTop: 6 }}>
+                    <span className="muted">✓ Traité</span>
+                    <div className="spacer" />
+                    <button className="link" onClick={() => restore(s)}>
+                      Rétablir
+                    </button>
+                  </div>
+                </NotifRow>
+              ))}
           </div>
-        </NotifRow>
-      ))}
-      {Object.values(done)
-        .filter((s) => !suggestions.some((q) => q.id === s.id))
-        .map((s) => (
-          <NotifRow key={s.id} icon={<SparkleIcon size={18} />} title={SUGGESTION_LABEL[s.type] ?? 'Suggestion'} date={fmtDate(s.created_at)} unread={false}>
-            <SuggestionBody s={s} />
-            <div className="row" style={{ marginTop: 6 }}>
-              <span className="muted">✓ Traité</span>
-              <div className="spacer" />
-              <button className="link" onClick={() => restore(s)}>
-                Rétablir
-              </button>
-            </div>
-          </NotifRow>
-        ))}
+        </>
+      )}
 
       {rien && <p className="empty">Rien pour l'instant.</p>}
 
