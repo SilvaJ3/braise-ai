@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useMemo, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { UNITE_LABEL, useMatieres } from '../lib/atelier'
 import {
   useCreateProduit,
   useDeleteProduit,
@@ -8,6 +9,7 @@ import {
   useSaveProfil,
   useUpdateProduit,
 } from '../lib/produits'
+import { useDeleteRecetteLigne, useRecettes, useSaveRecetteLigne } from '../lib/recettes'
 import type { Produit, ProduitDraft, Saison } from '../lib/supabase'
 
 const SAISONS: { v: Saison; label: string }[] = [
@@ -162,11 +164,79 @@ function ProduitForm({
   )
 }
 
+// Recette (BOM) d'un produit : quelle(s) matière(s), en quelle quantité, pour en fabriquer
+// une unité. Sert au calcul du besoin matière (Atelier → À commander) ; rien d'autre.
+function RecetteEditor({ produitId }: { produitId: string }) {
+  const { data: matieres = [] } = useMatieres()
+  const { data: recettes = [] } = useRecettes()
+  const save = useSaveRecetteLigne()
+  const del = useDeleteRecetteLigne()
+
+  const lignes = useMemo(() => recettes.filter((r) => r.produit_id === produitId), [recettes, produitId])
+  const matiereById = useMemo(() => new Map(matieres.map((m) => [m.id, m])), [matieres])
+  const dejaAjoutees = new Set(lignes.map((l) => l.matiere_id))
+  const disponibles = matieres.filter((m) => m.actif && !dejaAjoutees.has(m.id))
+
+  if (matieres.length === 0) {
+    return (
+      <p className="muted" style={{ margin: '8px 0 0' }}>
+        Ajoute des matières premières (Atelier) pour définir une recette.
+      </p>
+    )
+  }
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      {lignes.map((l) => {
+        const m = matiereById.get(l.matiere_id)
+        return (
+          <div className="row" key={l.id} style={{ marginTop: 6 }}>
+            <span style={{ flex: 1 }}>{m?.nom ?? '…'}</span>
+            <input
+              inputMode="decimal"
+              aria-label={`Quantité de ${m?.nom ?? ''}`}
+              value={String(l.quantite)}
+              onChange={(e) => {
+                const n = Number(e.target.value.replace(',', '.'))
+                if (Number.isFinite(n) && n > 0) save.mutate({ produit_id: produitId, matiere_id: l.matiere_id, quantite: n })
+              }}
+              style={{ width: 70, minHeight: 32, padding: '4px 8px', textAlign: 'right' }}
+            />
+            <span className="muted">{m ? UNITE_LABEL[m.unite] : ''}</span>
+            <button type="button" className="del" aria-label={`Retirer ${m?.nom ?? ''}`} onClick={() => del.mutate(l.id)}>
+              ×
+            </button>
+          </div>
+        )
+      })}
+      {disponibles.length > 0 && (
+        <select
+          aria-label="Ajouter une matière à la recette"
+          value=""
+          onChange={(e) => {
+            if (e.target.value) save.mutate({ produit_id: produitId, matiere_id: e.target.value, quantite: 1 })
+            e.target.value = ''
+          }}
+          style={{ marginTop: lignes.length ? 8 : 0 }}
+        >
+          <option value="">+ Ajouter une matière…</option>
+          {disponibles.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.nom}
+            </option>
+          ))}
+        </select>
+      )}
+    </div>
+  )
+}
+
 function ProduitsManager() {
   const { data: produits = [], isLoading } = useProduits()
   const del = useDeleteProduit()
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<Produit | null>(null)
+  const [recetteOuverte, setRecetteOuverte] = useState<string | null>(null)
 
   return (
     <>
@@ -206,6 +276,9 @@ function ProduitsManager() {
             <button className="link" onClick={() => setEditing(p)}>
               Modifier
             </button>
+            <button className="link" onClick={() => setRecetteOuverte((id) => (id === p.id ? null : p.id))}>
+              {recetteOuverte === p.id ? 'Fermer la recette' : 'Recette'}
+            </button>
             <div className="spacer" />
             <button
               className="link"
@@ -216,6 +289,7 @@ function ProduitsManager() {
               Supprimer
             </button>
           </div>
+          {recetteOuverte === p.id && <RecetteEditor produitId={p.id} />}
         </div>
       ))}
     </>

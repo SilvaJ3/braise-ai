@@ -234,6 +234,7 @@ export type CommandeLigneRow = {
   designation: string
   couleur: string | null
   quantite: number
+  deja_en_stock: boolean
   position: number
   created_at: string
 }

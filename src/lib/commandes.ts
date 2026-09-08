@@ -55,6 +55,19 @@ export function useCommande(id: string | undefined) {
   })
 }
 
+/** Toutes les lignes de commande de l'utilisateur, tous statuts confondus — sert au calcul
+ * du besoin en matière première (Atelier → À commander), pas à un écran dédié. */
+export function useToutesLignesCommande() {
+  return useQuery({
+    queryKey: [...COMMANDES_KEY, 'lignes-toutes'],
+    queryFn: async (): Promise<CommandeLigneRow[]> => {
+      const { data, error } = await supabase.from('commande_lignes').select('*')
+      if (error) throw error
+      return data as CommandeLigneRow[]
+    },
+  })
+}
+
 export type CommandeSaisie = {
   id?: string
   type: CommandeType
@@ -65,7 +78,13 @@ export type CommandeSaisie = {
   date_echeance: string
   statut: CommandeStatut
   notes: string | null
-  lignes: Array<{ produit_id: string | null; designation: string; couleur: string | null; quantite: number }>
+  lignes: Array<{
+    produit_id: string | null
+    designation: string
+    couleur: string | null
+    quantite: number
+    deja_en_stock: boolean
+  }>
 }
 
 /** Crée ou met à jour le brouillon et remplace ses lignes. Renvoie l'id de la commande. */
@@ -102,6 +121,7 @@ export async function saveCommande(saisie: CommandeSaisie): Promise<string> {
       designation: l.designation.trim().slice(0, 300),
       couleur: l.couleur?.trim() || null,
       quantite: l.quantite,
+      deja_en_stock: l.deja_en_stock,
       position: i,
     }))
   if (lignes.length) {
@@ -124,6 +144,19 @@ export function useChangerStatutCommande() {
   return useMutation({
     mutationFn: async ({ id, statut }: { id: string; statut: CommandeStatut }) => {
       const { error } = await supabase.from('commandes').update({ statut }).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: COMMANDES_KEY }),
+  })
+}
+
+/** Marque toute la commande comme couverte par du stock déjà fait (ou l'inverse) : ses
+ * lignes sortent (ou reviennent) dans le calcul du besoin en matière première. */
+export function useMarquerCommandeEnStock() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, enStock }: { id: string; enStock: boolean }) => {
+      const { error } = await supabase.from('commande_lignes').update({ deja_en_stock: enStock }).eq('commande_id', id)
       if (error) throw error
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: COMMANDES_KEY }),

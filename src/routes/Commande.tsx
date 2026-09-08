@@ -7,6 +7,7 @@ import {
   STATUT_ORDER,
   useArchiverCommande,
   useCommande,
+  useMarquerCommandeEnStock,
   type CommandeSaisie,
 } from '../lib/commandes'
 import { useBoutiques } from '../lib/boutiques'
@@ -30,6 +31,7 @@ export default function Commande() {
   const { data: produits = [] } = useProduits()
   const existant = useCommande(commandeId)
   const archiver = useArchiverCommande()
+  const marquerEnStock = useMarquerCommandeEnStock()
 
   const [type, setType] = useState<CommandeType>(boutiqueId ? 'boutique' : 'personne')
   const [clientNom, setClientNom] = useState('')
@@ -64,6 +66,7 @@ export default function Commande() {
         designation: l.designation,
         couleur: l.couleur,
         quantite: Number(l.quantite),
+        deja_en_stock: l.deja_en_stock,
       })),
     )
   }, [existant.data])
@@ -97,12 +100,28 @@ export default function Commande() {
   function ajouterArticle(valeur: string) {
     if (!valeur) return
     if (valeur === 'libre') {
-      setLignes((ls) => [...ls, { cle: cle(), produit_id: null, designation: '', couleur: null, quantite: 1 }])
+      setLignes((ls) => [
+        ...ls,
+        { cle: cle(), produit_id: null, designation: '', couleur: null, quantite: 1, deja_en_stock: false },
+      ])
       return
     }
     const p = produits.find((x) => x.id === valeur)
     if (!p) return
-    setLignes((ls) => [...ls, { cle: cle(), produit_id: p.id, designation: p.nom, couleur: null, quantite: 1 }])
+    setLignes((ls) => [
+      ...ls,
+      { cle: cle(), produit_id: p.id, designation: p.nom, couleur: null, quantite: 1, deja_en_stock: false },
+    ])
+  }
+
+  const touteEnStock = lignes.length > 0 && lignes.every((l) => l.deja_en_stock)
+
+  /** Bascule immédiate en base (pas besoin d'« Enregistrer ») + reflet local pour ne pas
+   * écraser la saisie en cours. */
+  async function marquerToutEnStock(enStock: boolean) {
+    if (!commandeId) return
+    await marquerEnStock.mutateAsync({ id: commandeId, enStock })
+    setLignes((ls) => ls.map((l) => ({ ...l, deja_en_stock: enStock })))
   }
 
   async function enregistrer() {
@@ -217,7 +236,15 @@ export default function Commande() {
         </select>
       </div>
 
-      <h2>Bougies commandées</h2>
+      <div className="row">
+        <h2 style={{ margin: 0 }}>Bougies commandées</h2>
+        <div className="spacer" />
+        {commandeId && lignes.length > 0 && (
+          <button className="link" disabled={marquerEnStock.isPending} onClick={() => marquerToutEnStock(!touteEnStock)}>
+            {touteEnStock ? 'Remettre en besoin de prod' : 'Déjà en stock (toute la commande)'}
+          </button>
+        )}
+      </div>
       <div className="card">
         {lignes.length === 0 && (
           <p className="empty" style={{ margin: '0 0 10px' }}>
@@ -226,7 +253,7 @@ export default function Commande() {
         )}
 
         {lignes.map((l, i) => (
-          <div className="depot-item" key={l.cle}>
+          <div className="depot-item" key={l.cle} style={{ opacity: l.deja_en_stock ? 0.6 : 1 }}>
             <div className="row">
               <input
                 value={l.designation}
@@ -237,6 +264,16 @@ export default function Commande() {
                 style={{ minHeight: 34, padding: '4px 8px', flex: 1 }}
               />
               <div className="spacer" />
+              <button
+                type="button"
+                className="link"
+                aria-label={l.deja_en_stock ? `${l.designation || 'Ligne'} : remettre en besoin de prod` : `${l.designation || 'Ligne'} : marquer déjà en stock`}
+                title={l.deja_en_stock ? 'Déjà en stock — remettre en besoin de prod' : 'Marquer déjà en stock'}
+                onClick={() => setLigne(i, { deja_en_stock: !l.deja_en_stock })}
+                style={{ padding: '0 6px' }}
+              >
+                {l.deja_en_stock ? '📦✓' : '📦'}
+              </button>
               <button
                 type="button"
                 className="del"
@@ -261,6 +298,7 @@ export default function Commande() {
                 onChange={(e) => setLigne(i, { quantite: nombre(e.target.value) })}
               />
             </div>
+            {l.deja_en_stock && <p className="muted" style={{ margin: '4px 0 0' }}>Déjà en stock — hors besoin matière</p>}
           </div>
         ))}
 

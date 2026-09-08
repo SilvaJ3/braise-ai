@@ -9,6 +9,7 @@ import {
   CATEGORIE_LABEL,
   fmtQty,
   sousSeuil,
+  useBesoinsMatiere,
   useCreateFournisseur,
   useCreateMatiere,
   useDeleteFournisseur,
@@ -21,8 +22,8 @@ import {
 import type { ImportEntity } from '../lib/importer'
 import type { Fournisseur, MatierePremiere } from '../lib/supabase'
 
-type Tab = 'matieres' | 'fournisseurs' | 'import'
-const TABS: Tab[] = ['matieres', 'fournisseurs', 'import']
+type Tab = 'matieres' | 'besoins' | 'fournisseurs' | 'import'
+const TABS: Tab[] = ['matieres', 'besoins', 'fournisseurs', 'import']
 
 // Message DB lisible (doublon de nom = index unique par utilisateur).
 function friendly(e: unknown): string {
@@ -136,6 +137,72 @@ function MatieresTab() {
       )}
 
       {!openForm && <Fab onClick={() => setCreating(true)} />}
+    </>
+  )
+}
+
+// Groupé par fournisseur pour préparer une commande d'un coup ; « sans fournisseur »
+// en dernier, à commander à la main faute d'un fournisseur renseigné sur la matière.
+function BesoinsTab() {
+  const { data: besoins, isLoading } = useBesoinsMatiere()
+
+  const groupes = useMemo(() => {
+    const m = new Map<string, { fournisseur: Fournisseur | null; lignes: typeof besoins }>()
+    for (const b of besoins) {
+      const key = b.fournisseur?.id ?? ''
+      const g = m.get(key) ?? { fournisseur: b.fournisseur, lignes: [] }
+      g.lignes.push(b)
+      m.set(key, g)
+    }
+    return [...m.values()].sort((a, b) => (a.fournisseur?.nom ?? '￿').localeCompare(b.fournisseur?.nom ?? '￿'))
+  }, [besoins])
+
+  if (isLoading) return <Skeleton rows={3} />
+
+  if (besoins.length === 0) {
+    return (
+      <p className="empty">
+        Rien à commander pour l'instant. Calculé depuis les commandes en cours et les recettes
+        des bougies (Compte → Mes bougies → Recette).
+      </p>
+    )
+  }
+
+  return (
+    <>
+      <p className="muted" style={{ marginTop: 0 }}>
+        Besoin en matière pour les commandes en cours (demande, confirmée, en prod), comparé au
+        stock actuel. Une ligne de commande marquée « déjà en stock » n'y compte pas.
+      </p>
+      {groupes.map((g) => (
+        <div className="card" key={g.fournisseur?.id ?? 'sans-fournisseur'}>
+          <strong>{g.fournisseur?.nom ?? 'Sans fournisseur'}</strong>
+          {g.lignes.map((b) => (
+            <div className="row" key={b.matiere.id} style={{ marginTop: 8 }}>
+              <span>{b.matiere.nom}</span>
+              <div className="spacer" />
+              <span className="muted">
+                {fmtQty(b.disponible, b.matiere.unite)} en stock · besoin {fmtQty(b.besoin, b.matiere.unite)}
+              </span>
+              <span className="badge">à commander {fmtQty(b.aCommander, b.matiere.unite)}</span>
+            </div>
+          ))}
+          {g.fournisseur && (
+            <div className="row" style={{ marginTop: 8 }}>
+              {g.fournisseur.email && (
+                <a className="muted" href={`mailto:${g.fournisseur.email}`}>
+                  {g.fournisseur.email}
+                </a>
+              )}
+              {g.fournisseur.telephone && (
+                <a className="muted" href={`tel:${g.fournisseur.telephone}`}>
+                  · {g.fournisseur.telephone}
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
     </>
   )
 }
@@ -254,6 +321,9 @@ export default function Atelier() {
         <a className={tab === 'matieres' ? 'active' : ''} onClick={() => go('matieres')}>
           Matières
         </a>
+        <a className={tab === 'besoins' ? 'active' : ''} onClick={() => go('besoins')}>
+          À commander
+        </a>
         <a className={tab === 'fournisseurs' ? 'active' : ''} onClick={() => go('fournisseurs')}>
           Fournisseurs
         </a>
@@ -263,6 +333,7 @@ export default function Atelier() {
       </div>
 
       {tab === 'matieres' && <MatieresTab />}
+      {tab === 'besoins' && <BesoinsTab />}
       {tab === 'fournisseurs' && <FournisseursTab />}
       {tab === 'import' && <ImportWizard key={initialEntity ?? 'default'} initialEntity={initialEntity} />}
     </>

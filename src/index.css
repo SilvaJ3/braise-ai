@@ -253,6 +253,43 @@ mark {
   box-shadow: 0 6px 16px rgba(181, 69, 27, 0.4);
 }
 
+/* Cloche de notifications : fixe en haut, sur chaque écran */
+.bell-fab {
+  position: fixed;
+  right: 16px;
+  top: max(12px, env(safe-area-inset-top));
+  z-index: 22;
+  width: 40px;
+  height: 40px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(43, 35, 32, 0.08);
+}
+.bell-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
 /* Skeletons */
 .skeleton {
   height: 14px;

@@ -1,4 +1,7 @@
+import { useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCommandes, useToutesLignesCommande } from './commandes'
+import { useRecettes } from './recettes'
 import {
   supabase,
   type Fournisseur,
@@ -133,4 +136,70 @@ export function fmtQty(n: number, unite: MatierePremiere['unite']): string {
 
 export function sousSeuil(m: MatierePremiere): boolean {
   return m.seuil_alerte != null && m.stock_actuel <= m.seuil_alerte
+}
+
+// --- Besoin en matière première pour les commandes en cours --------------------------------
+// Pas un inventaire : juste "il faut combien, chez qui la commander", calculé à la volée à
+// partir des commandes actives (demande/confirmée/en prod) et des recettes (BOM) des produits
+// commandés. Une ligne de commande marquée « déjà en stock » sort du calcul.
+
+export type BesoinMatiere = {
+  matiere: MatierePremiere
+  besoin: number
+  disponible: number
+  aCommander: number
+  fournisseur: Fournisseur | null
+  nbCommandes: number
+}
+
+export function useBesoinsMatiere() {
+  const { data: commandes = [], isLoading: l1 } = useCommandes()
+  const { data: lignes = [], isLoading: l2 } = useToutesLignesCommande()
+  const { data: recettes = [], isLoading: l3 } = useRecettes()
+  const { data: matieres = [], isLoading: l4 } = useMatieres()
+  const { data: fournisseurs = [], isLoading: l5 } = useFournisseurs()
+
+  const data = useMemo(() => {
+    const commandesActives = new Set(
+      commandes.filter((c) => !c.archived_at && c.statut !== 'livree').map((c) => c.id),
+    )
+    const recettesParProduit = new Map<string, { matiere_id: string; quantite: number }[]>()
+    for (const r of recettes) {
+      const arr = recettesParProduit.get(r.produit_id) ?? []
+      arr.push(r)
+      recettesParProduit.set(r.produit_id, arr)
+    }
+
+    const parMatiere = new Map<string, { qte: number; commandeIds: Set<string> }>()
+    for (const l of lignes) {
+      if (l.deja_en_stock || !l.produit_id || !commandesActives.has(l.commande_id)) continue
+      for (const r of recettesParProduit.get(l.produit_id) ?? []) {
+        const cur = parMatiere.get(r.matiere_id) ?? { qte: 0, commandeIds: new Set<string>() }
+        cur.qte += Number(l.quantite) * r.quantite
+        cur.commandeIds.add(l.commande_id)
+        parMatiere.set(r.matiere_id, cur)
+      }
+    }
+
+    const fournisseurById = new Map(fournisseurs.map((f) => [f.id, f]))
+    const besoins: BesoinMatiere[] = []
+    for (const [matiereId, { qte, commandeIds }] of parMatiere) {
+      const m = matieres.find((x) => x.id === matiereId)
+      if (!m) continue
+      const aCommander = Math.max(0, qte - m.stock_actuel)
+      if (aCommander <= 0) continue
+      besoins.push({
+        matiere: m,
+        besoin: qte,
+        disponible: m.stock_actuel,
+        aCommander,
+        fournisseur: m.fournisseur_id ? fournisseurById.get(m.fournisseur_id) ?? null : null,
+        nbCommandes: commandeIds.size,
+      })
+    }
+    besoins.sort((a, b) => a.matiere.nom.localeCompare(b.matiere.nom))
+    return besoins
+  }, [commandes, lignes, recettes, matieres, fournisseurs])
+
+  return { data, isLoading: l1 || l2 || l3 || l4 || l5 }
 }

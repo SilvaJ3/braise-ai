@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import BottomNav from './components/BottomNav'
+import NotificationBell from './components/NotificationBell'
 import { useAuth } from './lib/auth'
 import Assistant from './routes/Assistant'
 import Atelier from './routes/Atelier'
@@ -15,6 +16,7 @@ import Commande from './routes/Commande'
 import Commandes from './routes/Commandes'
 import Depot from './routes/Depot'
 import Login from './routes/Login'
+import Notifications from './routes/Notifications'
 import Planning from './routes/Planning'
 
 export default function App() {
@@ -32,8 +34,10 @@ export default function App() {
 
   return (
     <>
+      <NotificationBell />
       <Routes>
         <Route path="/" element={<Aujourdhui />} />
+        <Route path="/notifications" element={<Notifications />} />
         <Route path="/planning" element={<Planning />} />
         <Route path="/boutiques" element={<Boutiques />} />
         <Route path="/boutiques/:id" element={<BoutiqueFiche />} />
