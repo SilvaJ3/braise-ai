@@ -69,7 +69,7 @@ export default function Notifications() {
       {chargement && <Skeleton rows={3} />}
 
       {!chargement && (
-        <div className="card" style={{ padding: '0 14px' }}>
+        <div className="card">
           {rappels.length > 0 && (
             <CategorieRow to="/notifications/rappels" icon={<BellIcon size={18} />} titre="Rappels" apercu={rappels[0].title} nombre={rappels.length} />
           )}
