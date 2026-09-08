@@ -16,6 +16,7 @@ import Commande from './routes/Commande'
 import Depot from './routes/Depot'
 import Login from './routes/Login'
 import Notifications from './routes/Notifications'
+import NotificationsCategorie from './routes/NotificationsCategorie'
 import Planning from './routes/Planning'
 
 export default function App() {
@@ -37,6 +38,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Aujourdhui />} />
         <Route path="/notifications" element={<Notifications />} />
+        <Route path="/notifications/:categorie" element={<NotificationsCategorie />} />
         <Route path="/planning" element={<Planning />} />
         <Route path="/boutiques" element={<Boutiques />} />
         <Route path="/boutiques/:id" element={<BoutiqueFiche />} />

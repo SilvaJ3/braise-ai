@@ -1,0 +1,197 @@
+import { useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { ChevronDownIcon } from '../components/icons'
+import { useBesoinsMatiere, fmtQty } from '../lib/atelier'
+import { useGenerateIdeas, useMarkSuggestion, useSuggestions } from '../lib/assistant'
+import { logEvent } from '../lib/events'
+import { Highlight } from '../lib/highlight'
+import { STATUS_LABEL } from '../lib/labels'
+import { useDismissReminder, useDismissedReminders, useRappelsDus } from '../lib/notifications'
+import type { AssistantSuggestion } from '../lib/supabase'
+
+type Categorie = 'rappels' | 'atelier' | 'assistant'
+const TITRES: Record<Categorie, string> = {
+  rappels: 'Rappels',
+  atelier: 'Atelier',
+  assistant: "L'assistant te propose",
+}
+
+// Une idée générée par l'assistant est stockée en "titre — détail" : on affiche le titre
+// seul, le détail ne s'ouvre qu'au clic.
+function splitIdea(s: AssistantSuggestion): { title: string; detail: string | null } {
+  if (s.type !== 'idee_contenu') return { title: s.message, detail: null }
+  const i = s.message.indexOf(' — ')
+  return i === -1 ? { title: s.message, detail: null } : { title: s.message.slice(0, i), detail: s.message.slice(i + 3) }
+}
+
+function SuggestionBody({ s }: { s: AssistantSuggestion }) {
+  const { title, detail } = splitIdea(s)
+  const [open, setOpen] = useState(false)
+  if (!detail) return <div>{<Highlight text={title} />}</div>
+  return (
+    <div>
+      <button type="button" className={`idea-toggle${open ? ' is-open' : ''}`} onClick={() => setOpen((o) => !o)}>
+        <span style={{ flex: 1 }}>{<Highlight text={title} />}</span>
+        <ChevronDownIcon />
+      </button>
+      {open && (
+        <p className="idea-detail">
+          <Highlight text={detail} />
+        </p>
+      )}
+    </div>
+  )
+}
+
+const SUGGESTION_LABEL: Record<AssistantSuggestion['type'], string> = {
+  idee_contenu: 'Idée ajoutée au planning',
+  observation: 'Observation',
+  relance_boutique: 'Relance boutique',
+  alerte_stock: 'Stock à recommander',
+}
+
+function RappelsDetail() {
+  const rappels = useRappelsDus()
+  useDismissedReminders() // amorce le cache partagé avec la cloche
+  const dismiss = useDismissReminder()
+
+  if (rappels.length === 0) return <p className="empty">Plus aucun rappel en retard.</p>
+  return (
+    <>
+      {rappels.map((e) => (
+        <div className="card" key={e.id}>
+          <div className="row">
+            <span>{e.title}</span>
+            <span className="muted">· {STATUS_LABEL[e.status]}</span>
+            <div className="spacer" />
+            <button className="link" onClick={() => dismiss.mutate(e.id)}>
+              Vu
+            </button>
+          </div>
+        </div>
+      ))}
+    </>
+  )
+}
+
+function AtelierDetail() {
+  const navigate = useNavigate()
+  const { data: besoins = [] } = useBesoinsMatiere()
+
+  if (besoins.length === 0) return <p className="empty">Rien à commander pour l'instant.</p>
+  return (
+    <>
+      {besoins.map((b) => (
+        <div className="card" key={b.matiere.id}>
+          <div className="row">
+            <strong>{b.matiere.nom}</strong>
+            <div className="spacer" />
+            <span className="badge">à commander {fmtQty(b.aCommander, b.matiere.unite)}</span>
+          </div>
+          <p className="muted" style={{ margin: '6px 0 0' }}>
+            {fmtQty(b.disponible, b.matiere.unite)} en stock · besoin {fmtQty(b.besoin, b.matiere.unite)}
+            {b.fournisseur ? ` · ${b.fournisseur.nom}` : ' · sans fournisseur'}
+          </p>
+        </div>
+      ))}
+      <button className="link" onClick={() => navigate('/atelier?tab=besoins')}>
+        Voir dans Atelier →
+      </button>
+    </>
+  )
+}
+
+function AssistantDetail() {
+  const { data: suggestions = [] } = useSuggestions()
+  const markSuggestion = useMarkSuggestion()
+  const generate = useGenerateIdeas()
+  // Suggestions marquées "OK" pendant la session : restent visibles (grisées) avec un
+  // bouton Rétablir, disparaissent au prochain chargement.
+  const [done, setDone] = useState<Record<string, AssistantSuggestion>>({})
+
+  function markDone(s: AssistantSuggestion) {
+    logEvent('suggestion_done')
+    setDone((d) => ({ ...d, [s.id]: s }))
+    markSuggestion.mutate({ id: s.id, statut: 'traite' })
+  }
+
+  function restore(s: AssistantSuggestion) {
+    setDone((d) => {
+      const rest = { ...d }
+      delete rest[s.id]
+      return rest
+    })
+    markSuggestion.mutate({ id: s.id, statut: 'nouveau' })
+  }
+
+  return (
+    <>
+      <div className="row" style={{ marginBottom: 8 }}>
+        <div className="spacer" />
+        <button
+          className="link"
+          onClick={() => {
+            logEvent('generate_ideas')
+            generate.mutate()
+          }}
+          disabled={generate.isPending}
+        >
+          {generate.isPending ? 'Génération…' : 'Générer des idées'}
+        </button>
+      </div>
+      {generate.error && (
+        <p className="muted" style={{ color: 'var(--accent)' }}>
+          {(generate.error as Error).message}
+        </p>
+      )}
+      {suggestions.length === 0 && Object.keys(done).length === 0 && !generate.isPending && (
+        <p className="empty">Rien pour l'instant. « Générer des idées » pour démarrer.</p>
+      )}
+      {suggestions.map((s) => (
+        <div className="card" key={s.id}>
+          <SuggestionBody s={s} />
+          <div className="row" style={{ marginTop: 8 }}>
+            <span className="muted">{SUGGESTION_LABEL[s.type] ?? 'Suggestion'}</span>
+            <div className="spacer" />
+            <button className="link" onClick={() => markDone(s)}>
+              OK
+            </button>
+          </div>
+        </div>
+      ))}
+      {Object.values(done)
+        .filter((s) => !suggestions.some((q) => q.id === s.id))
+        .map((s) => (
+          <div className="card" key={s.id} style={{ opacity: 0.55 }}>
+            <SuggestionBody s={s} />
+            <div className="row" style={{ marginTop: 8 }}>
+              <span className="muted">✓ Traité</span>
+              <div className="spacer" />
+              <button className="link" onClick={() => restore(s)}>
+                Rétablir
+              </button>
+            </div>
+          </div>
+        ))}
+    </>
+  )
+}
+
+export default function NotificationsCategorie() {
+  const navigate = useNavigate()
+  const { categorie } = useParams<{ categorie: Categorie }>()
+  const cat: Categorie = categorie && categorie in TITRES ? categorie : 'rappels'
+
+  return (
+    <>
+      <button className="link" onClick={() => navigate('/notifications')} style={{ marginBottom: 8 }}>
+        ← Notifications
+      </button>
+      <h1>{TITRES[cat]}</h1>
+
+      {cat === 'rappels' && <RappelsDetail />}
+      {cat === 'atelier' && <AtelierDetail />}
+      {cat === 'assistant' && <AssistantDetail />}
+    </>
+  )
+}
