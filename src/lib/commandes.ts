@@ -60,6 +60,8 @@ export type CommandeSaisie = {
   type: CommandeType
   boutique_id: string | null
   client_nom: string | null
+  client_telephone: string | null
+  client_email: string | null
   date_echeance: string
   statut: CommandeStatut
   notes: string | null
@@ -72,6 +74,8 @@ export async function saveCommande(saisie: CommandeSaisie): Promise<string> {
     type: saisie.type,
     boutique_id: saisie.type === 'boutique' ? saisie.boutique_id : null,
     client_nom: saisie.type === 'personne' ? saisie.client_nom?.trim() || null : null,
+    client_telephone: saisie.type === 'personne' ? saisie.client_telephone?.trim() || null : null,
+    client_email: saisie.type === 'personne' ? saisie.client_email?.trim() || null : null,
     date_echeance: saisie.date_echeance,
     statut: saisie.statut,
     notes: saisie.notes?.trim() || null,

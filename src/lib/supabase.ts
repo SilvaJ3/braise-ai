@@ -216,6 +216,8 @@ export type Commande = {
   type: CommandeType
   boutique_id: string | null
   client_nom: string | null
+  client_telephone: string | null
+  client_email: string | null
   date_echeance: string
   statut: CommandeStatut
   notes: string | null

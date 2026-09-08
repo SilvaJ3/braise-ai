@@ -33,6 +33,8 @@ export default function Commande() {
 
   const [type, setType] = useState<CommandeType>(boutiqueId ? 'boutique' : 'personne')
   const [clientNom, setClientNom] = useState('')
+  const [clientTelephone, setClientTelephone] = useState('')
+  const [clientEmail, setClientEmail] = useState('')
   const [dateEcheance, setDateEcheance] = useState(ymd())
   const [statut, setStatut] = useState<CommandeSaisie['statut']>('demande')
   const [lignes, setLignes] = useState<LigneSaisie[]>([])
@@ -50,6 +52,8 @@ export default function Commande() {
     const { commande: c, lignes: ls } = existant.data
     setType(c.type)
     setClientNom(c.client_nom ?? '')
+    setClientTelephone(c.client_telephone ?? '')
+    setClientEmail(c.client_email ?? '')
     setDateEcheance(c.date_echeance)
     setStatut(c.statut)
     setNotes(c.notes ?? '')
@@ -74,6 +78,8 @@ export default function Commande() {
     type,
     boutique_id: type === 'boutique' ? boutique?.id ?? null : null,
     client_nom: type === 'personne' ? clientNom : null,
+    client_telephone: type === 'personne' ? clientTelephone : null,
+    client_email: type === 'personne' ? clientEmail : null,
     date_echeance: dateEcheance,
     statut,
     notes: notes || null,
@@ -163,6 +169,22 @@ export default function Commande() {
               placeholder="Prénom Nom"
               onChange={(e) => setClientNom(e.target.value)}
             />
+            <label htmlFor="client-tel">Téléphone</label>
+            <input
+              id="client-tel"
+              type="tel"
+              value={clientTelephone}
+              placeholder="04xx xx xx xx"
+              onChange={(e) => setClientTelephone(e.target.value)}
+            />
+            <label htmlFor="client-email">Email</label>
+            <input
+              id="client-email"
+              type="email"
+              value={clientEmail}
+              placeholder="prenom@exemple.be"
+              onChange={(e) => setClientEmail(e.target.value)}
+            />
           </>
         ) : (
           <>
@@ -206,17 +228,14 @@ export default function Commande() {
         {lignes.map((l, i) => (
           <div className="depot-item" key={l.cle}>
             <div className="row">
-              {l.produit_id ? (
-                <strong>{l.designation}</strong>
-              ) : (
-                <input
-                  value={l.designation}
-                  placeholder="Nom de la bougie"
-                  autoFocus
-                  onChange={(e) => setLigne(i, { designation: e.target.value })}
-                  style={{ minHeight: 34, padding: '4px 8px' }}
-                />
-              )}
+              <input
+                value={l.designation}
+                placeholder="Nom de la bougie"
+                aria-label="Nom de la bougie"
+                autoFocus={!l.produit_id}
+                onChange={(e) => setLigne(i, { designation: e.target.value })}
+                style={{ minHeight: 34, padding: '4px 8px', flex: 1 }}
+              />
               <div className="spacer" />
               <button
                 type="button"
@@ -233,6 +252,7 @@ export default function Commande() {
                 placeholder="Couleur"
                 value={l.couleur ?? ''}
                 onChange={(e) => setLigne(i, { couleur: e.target.value })}
+                style={{ width: 'auto', flex: 1, textAlign: 'left' }}
               />
               <input
                 inputMode="decimal"
