@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { AnimatePresence, motion, MotionConfig } from 'framer-motion'
+import { type ReactNode, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ChevronDownIcon } from '../components/icons'
+import { ChevronDownIcon, EyeIcon, FlameIcon, SparkleIcon, StoreIcon } from '../components/icons'
 import { useBesoinsMatiere, fmtQty } from '../lib/atelier'
 import { useGenerateIdeas, useMarkSuggestion, useSuggestions } from '../lib/assistant'
 import { useBoutiques } from '../lib/boutiques'
@@ -52,6 +53,44 @@ const SUGGESTION_LABEL: Record<AssistantSuggestion['type'], string> = {
   observation: 'Observation',
   relance_boutique: 'Relance boutique',
   alerte_stock: 'Stock à recommander',
+}
+
+// Chip + liseré de couleur par type, pour repérer la nature de la suggestion d'un coup d'œil.
+const SUGGESTION_ICON: Record<AssistantSuggestion['type'], (props: { size?: number }) => ReactNode> = {
+  idee_contenu: SparkleIcon,
+  observation: EyeIcon,
+  relance_boutique: StoreIcon,
+  alerte_stock: FlameIcon,
+}
+const SUGGESTION_TINT: Record<AssistantSuggestion['type'], string> = {
+  idee_contenu: 'suggestion-tile--idee',
+  observation: 'suggestion-tile--observation',
+  relance_boutique: 'suggestion-tile--relance',
+  alerte_stock: 'suggestion-tile--stock',
+}
+
+// Entrée avec léger rebond, sortie en envol : la tuile traitée part plutôt que de disparaître
+// sèchement. Respecte "reduced motion" via MotionConfig au niveau de la liste.
+function SuggestionTile({ s, done, children }: { s: AssistantSuggestion; done?: boolean; children: ReactNode }) {
+  const Icon = SUGGESTION_ICON[s.type] ?? SparkleIcon
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 18, scale: 0.94 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, x: 120, rotate: 8, transition: { duration: 0.32, ease: 'easeIn' } }}
+      transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+      className={`suggestion-tile ${SUGGESTION_TINT[s.type] ?? ''}${done ? ' is-done' : ''}`}
+    >
+      <div className="suggestion-chip">
+        <Icon size={14} />
+      </div>
+      <div className="suggestion-col">
+        <span className="suggestion-kicker">{done ? '✓ Traité' : (SUGGESTION_LABEL[s.type] ?? 'Suggestion')}</span>
+        {children}
+      </div>
+    </motion.div>
+  )
 }
 
 function RappelsDetail() {
@@ -177,32 +216,34 @@ function AssistantDetail() {
       {suggestions.length === 0 && Object.keys(done).length === 0 && !generate.isPending && (
         <p className="empty">Rien pour l'instant. « Générer des idées » pour démarrer.</p>
       )}
-      {suggestions.map((s) => (
-        <div className="card" key={s.id}>
-          <SuggestionBody s={s} />
-          <div className="row" style={{ marginTop: 8 }}>
-            <span className="muted">{SUGGESTION_LABEL[s.type] ?? 'Suggestion'}</span>
-            <div className="spacer" />
-            <button className="link" onClick={() => markDone(s)}>
-              OK
-            </button>
-          </div>
-        </div>
-      ))}
-      {Object.values(done)
-        .filter((s) => !suggestions.some((q) => q.id === s.id))
-        .map((s) => (
-          <div className="card" key={s.id} style={{ opacity: 0.55 }}>
-            <SuggestionBody s={s} />
-            <div className="row" style={{ marginTop: 8 }}>
-              <span className="muted">✓ Traité</span>
-              <div className="spacer" />
-              <button className="link" onClick={() => restore(s)}>
-                Rétablir
-              </button>
-            </div>
-          </div>
-        ))}
+      <MotionConfig reducedMotion="user">
+        <AnimatePresence initial={false}>
+          {suggestions.map((s) => (
+            <SuggestionTile s={s} key={s.id}>
+              <SuggestionBody s={s} />
+              <div className="row" style={{ marginTop: 8 }}>
+                <div className="spacer" />
+                <button className="link" onClick={() => markDone(s)}>
+                  OK
+                </button>
+              </div>
+            </SuggestionTile>
+          ))}
+          {Object.values(done)
+            .filter((s) => !suggestions.some((q) => q.id === s.id))
+            .map((s) => (
+              <SuggestionTile s={s} done key={s.id}>
+                <SuggestionBody s={s} />
+                <div className="row" style={{ marginTop: 8 }}>
+                  <div className="spacer" />
+                  <button className="link" onClick={() => restore(s)}>
+                    Rétablir
+                  </button>
+                </div>
+              </SuggestionTile>
+            ))}
+        </AnimatePresence>
+      </MotionConfig>
     </>
   )
 }

@@ -6,6 +6,10 @@
   --accent: #b5451b;
   --accent-soft: #fff3e9;
   --line: #e8ddd0;
+  --teal: #3f6b64;
+  --teal-soft: #e8f1ef;
+  --ochre: #9c701a;
+  --ochre-soft: #faf1de;
   --radius: 14px;
   --nav-h: 60px;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -471,6 +475,62 @@ form.stack {
   margin: 8px 0 0;
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+/* Tuile de suggestion (assistant) : chip coloré par type + rebond d'entrée / envol de sortie
+   pilotés par framer-motion dans NotificationsCategorie.tsx, cette partie ne fait que la mise
+   en forme statique. */
+.suggestion-tile {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 13px 14px;
+  margin-bottom: 12px;
+  display: flex;
+  gap: 10px;
+}
+.suggestion-tile--idee {
+  --tint: var(--accent);
+  --tint-soft: var(--accent-soft);
+}
+.suggestion-tile--relance {
+  --tint: var(--teal);
+  --tint-soft: var(--teal-soft);
+}
+.suggestion-tile--stock {
+  --tint: var(--ochre);
+  --tint-soft: var(--ochre-soft);
+}
+.suggestion-tile--observation {
+  --tint: var(--muted);
+  --tint-soft: #f2ede7;
+}
+.suggestion-tile.is-done {
+  opacity: 0.55;
+}
+.suggestion-chip {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--tint-soft);
+  color: var(--tint);
+}
+.suggestion-kicker {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--tint);
+  margin-bottom: 3px;
+}
+.suggestion-col {
+  flex: 1;
+  min-width: 0;
 }
 
 /* Import : ligne d'aperçu cliquable (case + résumé) */
