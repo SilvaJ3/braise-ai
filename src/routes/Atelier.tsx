@@ -19,11 +19,22 @@ import {
   useUpdateFournisseur,
   useUpdateMatiere,
 } from '../lib/atelier'
+import {
+  CF_STATUT_LABEL,
+  nextCfStatut,
+  useArchiverCommandeFournisseur,
+  useChangerStatutCommandeFournisseur,
+  useCommandeFournisseur,
+  useCommandesFournisseur,
+  useCreerCommandeFournisseurDepuisBesoin,
+  useDeleteCommandeFournisseur,
+} from '../lib/commandesFournisseur'
+import { fmtDateCourte } from '../lib/depots'
 import type { ImportEntity } from '../lib/importer'
 import type { Fournisseur, MatierePremiere } from '../lib/supabase'
 
-type Tab = 'matieres' | 'besoins' | 'fournisseurs' | 'import'
-const TABS: Tab[] = ['matieres', 'besoins', 'fournisseurs', 'import']
+type Tab = 'matieres' | 'besoins' | 'commandees' | 'fournisseurs' | 'import'
+const TABS: Tab[] = ['matieres', 'besoins', 'commandees', 'fournisseurs', 'import']
 
 // Message DB lisible (doublon de nom = index unique par utilisateur).
 function friendly(e: unknown): string {
@@ -145,6 +156,8 @@ function MatieresTab() {
 // en dernier, à commander à la main faute d'un fournisseur renseigné sur la matière.
 function BesoinsTab() {
   const { data: besoins, isLoading } = useBesoinsMatiere()
+  const creer = useCreerCommandeFournisseurDepuisBesoin()
+  const [commandee, setCommandee] = useState<string | null>(null)
 
   const groupes = useMemo(() => {
     const m = new Map<string, { fournisseur: Fournisseur | null; lignes: typeof besoins }>()
@@ -199,11 +212,134 @@ function BesoinsTab() {
                   · {g.fournisseur.telephone}
                 </a>
               )}
+              <div className="spacer" />
+              <button
+                className="link"
+                disabled={creer.isPending}
+                onClick={() => {
+                  const fournisseurId = g.fournisseur!.id
+                  creer.mutate(
+                    { fournisseurId, lignes: g.lignes.map((b) => ({ matiere_id: b.matiere.id, quantite: b.aCommander })) },
+                    { onSuccess: () => setCommandee(fournisseurId) },
+                  )
+                }}
+              >
+                {creer.isPending ? 'Création…' : 'Commander'}
+              </button>
             </div>
+          )}
+          {commandee === g.fournisseur?.id && (
+            <p className="muted" style={{ margin: '8px 0 0' }}>
+              ✓ Commande créée — suivi dans l'onglet « Commandées ».
+            </p>
           )}
         </div>
       ))}
+      {creer.error && (
+        <p className="muted" style={{ color: 'var(--accent)' }}>
+          {(creer.error as Error).message}
+        </p>
+      )}
     </>
+  )
+}
+
+function CommandeesTab() {
+  const { data: commandes = [], isLoading, error } = useCommandesFournisseur()
+  const { data: fournisseurs = [] } = useFournisseurs()
+  const { data: matieres = [] } = useMatieres()
+  const changerStatut = useChangerStatutCommandeFournisseur()
+  const archiver = useArchiverCommandeFournisseur()
+  const del = useDeleteCommandeFournisseur()
+  const [voirArchivees, setVoirArchivees] = useState(false)
+
+  const fournisseurNom = useMemo(() => new Map(fournisseurs.map((f) => [f.id, f.nom])), [fournisseurs])
+  const matiereParId = useMemo(() => new Map(matieres.map((m) => [m.id, m])), [matieres])
+  const shown = commandes.filter((c) => voirArchivees || !c.archived_at)
+
+  if (isLoading) return <Skeleton rows={3} />
+  if (error) return <p className="muted">Erreur : {(error as Error).message}</p>
+
+  return (
+    <>
+      <div className="row" style={{ marginBottom: 8 }}>
+        <span className="muted">{shown.length} commande(s)</span>
+        <div className="spacer" />
+        <button className="link" onClick={() => setVoirArchivees((v) => !v)}>
+          {voirArchivees ? 'Masquer archivées' : 'Voir archivées'}
+        </button>
+      </div>
+
+      {shown.length === 0 && (
+        <p className="empty">
+          Aucune commande fournisseur. Elles se créent depuis l'onglet « À commander ».
+        </p>
+      )}
+
+      {shown.map((c) => (
+        <div className="card" key={c.id} style={{ opacity: c.archived_at ? 0.55 : 1 }}>
+          <div className="row">
+            <strong>{fournisseurNom.get(c.fournisseur_id) ?? 'Fournisseur'}</strong>
+            <div className="spacer" />
+            {c.archived_at && <span className="badge">Archivée</span>}
+            <span className="badge">{CF_STATUT_LABEL[c.statut]}</span>
+          </div>
+          <p className="muted" style={{ margin: '6px 0 0' }}>
+            {c.date_reception
+              ? `Reçue le ${fmtDateCourte(c.date_reception)}`
+              : c.date_commande
+                ? `Commandée le ${fmtDateCourte(c.date_commande)}`
+                : 'Pas encore passée'}
+          </p>
+          <div style={{ margin: '8px 0 0' }}>
+            <MatiereLignes commandeId={c.id} matiereParId={matiereParId} />
+          </div>
+          <div className="row" style={{ marginTop: 8 }}>
+            {c.statut !== 'recue' && (
+              <button
+                className="link"
+                disabled={changerStatut.isPending}
+                onClick={() => changerStatut.mutate({ id: c.id, statut: nextCfStatut(c.statut) })}
+              >
+                Marquer {CF_STATUT_LABEL[nextCfStatut(c.statut)].toLowerCase()}
+              </button>
+            )}
+            <div className="spacer" />
+            {c.statut === 'recue' && !c.archived_at && (
+              <button className="link" onClick={() => archiver.mutate({ id: c.id, archiver: true })}>
+                Archiver
+              </button>
+            )}
+            <button
+              className="link"
+              onClick={() => {
+                if (confirm('Supprimer cette commande fournisseur ?')) del.mutate(c.id)
+              }}
+            >
+              Supprimer
+            </button>
+          </div>
+        </div>
+      ))}
+    </>
+  )
+}
+
+// Lignes chargées à part (par commande, un aller-retour de plus) plutôt que dans la liste
+// principale : la liste des commandes fournisseur reste courte en usage réel, pas besoin
+// d'optimiser en amont.
+function MatiereLignes({ commandeId, matiereParId }: { commandeId: string; matiereParId: Map<string, MatierePremiere> }) {
+  const { data } = useCommandeFournisseur(commandeId)
+  if (!data || data.lignes.length === 0) return null
+  return (
+    <p className="muted" style={{ margin: 0 }}>
+      {data.lignes
+        .map((l) => {
+          const m = matiereParId.get(l.matiere_id)
+          return m ? `${m.nom} (${fmtQty(l.quantite, m.unite)})` : '?'
+        })
+        .join(' · ')}
+    </p>
   )
 }
 
@@ -324,6 +460,9 @@ export default function Atelier() {
         <a className={tab === 'besoins' ? 'active' : ''} onClick={() => go('besoins')}>
           À commander
         </a>
+        <a className={tab === 'commandees' ? 'active' : ''} onClick={() => go('commandees')}>
+          Commandées
+        </a>
         <a className={tab === 'fournisseurs' ? 'active' : ''} onClick={() => go('fournisseurs')}>
           Fournisseurs
         </a>
@@ -334,6 +473,7 @@ export default function Atelier() {
 
       {tab === 'matieres' && <MatieresTab />}
       {tab === 'besoins' && <BesoinsTab />}
+      {tab === 'commandees' && <CommandeesTab />}
       {tab === 'fournisseurs' && <FournisseursTab />}
       {tab === 'import' && <ImportWizard key={initialEntity ?? 'default'} initialEntity={initialEntity} />}
     </>

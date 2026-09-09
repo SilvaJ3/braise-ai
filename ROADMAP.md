@@ -12,7 +12,7 @@ Référence produit : `specs/spec-app-au-coin-du-feu.md` et `specs/vision-assist
 | V1.5 — Notifications push PWA | Fait (+ date/heure/rappel par entrée, auto-planification, fix mise à jour du service worker) |
 | V7 — Couche IA assistant | Démarrée en avance : chat d'idées (historique persistant, réponse en arrière-plan + notification push), bilan hebdo (cron lundi, tous les comptes), voix de marque éditable, catalogue produits, retour « ça a marché ? », recherche web dans le chat, boutiques (V2) branchées sur `buildContext` + suggestion `relance_boutique`. Reste à brancher sur V3. |
 | V2 — CRM boutiques | Fait : tables `boutiques`/`boutique_contacts_log`, écran liste + fiche (mobile), lien `content_entries.boutique_id`, suggestion `relance_boutique` (calcul déterministe, seuil 21 j, cron hebdo). |
-| V3 — Atelier | **Entamée** : tables `fournisseurs`, `matieres_premieres`, `produit_recettes` (BOM, sans UI encore), écran « Atelier » (matières + fournisseurs), **import universel par IA** (Excel / CSV / PDF / photo → bougies, matières, fournisseurs, boutiques), suggestion `alerte_stock` + stock dans le contexte de l'assistant. Reste : recettes (UI), commandes boutique, calcul du besoin matière, commandes fournisseur. |
+| V3 — Atelier | **Fait** : tables `fournisseurs`, `matieres_premieres`, `produit_recettes` (BOM, UI dans Compte → Mes bougies → Recette), écran « Atelier » (Matières / À commander / Commandées / Fournisseurs / Importer), **import universel par IA**, `commandes`/`commande_lignes` (boutique et perso, statuts demande→confirmée→en prod→livrée), calcul du besoin matière en temps réel, `commandes_fournisseur`/`commande_fournisseur_lignes` (statuts à commander→commandée→reçue, réception qui incrémente le stock automatiquement), suggestion `alerte_stock` + stock dans le contexte de l'assistant. |
 | V4 — Bon de dépôt signé + envoi mail | **Fait** (voir plus bas). Le contrat cadre (13 articles) reste hors app : signé une fois par boutique, sur papier. |
 | V5, V6, V8 | Pas commencés |
 
@@ -118,21 +118,33 @@ bougies, matières premières, fournisseurs, boutiques.
 - **Limites connues** : pas d'édition cellule par cellule dans l'aperçu (on corrige après
   import via les fiches) ; pas d'import de recettes/BOM ni d'historique de contacts.
 
-## V3 — Catalogue + matières premières + fournisseurs + commandes
+## V3 — Catalogue + matières premières + fournisseurs + commandes (fait)
 
 Le gros morceau. Cœur métier : « il me faut X bougies pour telle boutique → il me faut Y
-matière première → il faut commander chez Z ».
+matière première → il faut commander chez Z ». Chaîne complète, bout en bout.
 
-- ✅ `produit_recettes` (BOM : matière + quantité par unité produit) — table créée, UI à faire.
+- ✅ `produit_recettes` (BOM : matière + quantité par unité produit), UI dans Compte → Mes
+  bougies → Recette.
 - ✅ `matieres_premieres` : stock actuel, seuil d'alerte, catégorie, unité, prix unitaire, fournisseur lié.
 - ✅ `fournisseurs` : délai de livraison, contact, site.
-- ✅ Écran Atelier (onglets Matières / Fournisseurs / Importer), bandeau « À recommander ».
-- `commandes_boutique` + `commande_lignes` : statut demande → confirmée → en prod → livrée.
-- **Calcul du besoin matière** : somme(qté produit commandé × qté matière par recette),
-  groupé par matière, comparé au `stock_actuel` → écart = quantité à commander par fournisseur.
-- `commandes_fournisseur` générées depuis cet écart (statut à commander → commandée → reçue).
+- ✅ Écran Atelier (onglets Matières / À commander / Commandées / Fournisseurs / Importer).
+- ✅ `commandes` + `commande_lignes` (type boutique ou personne) : statut demande → confirmée →
+  en prod → livrée. Une ligne peut être marquée « déjà en stock » (sort du calcul de besoin).
+- ✅ **Calcul du besoin matière** (`useBesoinsMatiere`, temps réel côté client) :
+  somme(qté commandée × qté matière par recette) sur les commandes actives, comparé au
+  `stock_actuel` → écart = quantité à commander, groupé par fournisseur.
+- ✅ `commandes_fournisseur` + `commande_fournisseur_lignes` : créées depuis Atelier → À
+  commander (bouton « Commander » par fournisseur, lignes pré-remplies depuis le besoin
+  calculé) ; statut à commander → commandée → reçue. Le passage à « reçue » incrémente
+  `stock_actuel` des matières automatiquement (trigger DB, un seul déclenchement par transition).
 - ✅ **Assistant** : suggestion `alerte_stock` (déterministe, stock ≤ seuil, une par matière,
   cron hebdo) + stock/seuils/fournisseurs dans `buildContext`.
+
+**Limite connue assumée** : la liste « À commander » ne sait pas qu'une commande fournisseur
+est déjà en cours pour une matière (elle reste affichée tant que le stock n'a pas bougé, donc
+tant que la commande n'est pas reçue) — pas de statut « déjà commandé » visible directement
+dans ce tableau. Le détail vit dans l'onglet Commandées. Pas de quantité reçue différente de
+la quantité commandée (reçu = commandé, ajustement de stock à la main sinon).
 
 ## V4 — Bon de dépôt signé + envoi par mail (fait)
 
