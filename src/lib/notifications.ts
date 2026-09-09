@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { useBesoinsMatiere } from './atelier'
 import { useSuggestions } from './assistant'
+import { useCommandes } from './commandes'
+import { ymd } from './dates'
 import { useEntries } from './entries'
 
 // "Vu" sur un rappel de planning en retard : mémorisé en local (par appareil), pas de
@@ -64,11 +66,24 @@ export function useRappelsDus() {
   }, [entries, dismissed])
 }
 
-/** Nombre total affiché sur la cloche : rappels + suggestions assistant + 1 si besoin
- * matière (un compte agrégé, pas le détail — le détail vit dans Atelier). */
+/** Commandes non livrées, non archivées, dont l'échéance est demain ou déjà dépassée. */
+export function useCommandesAAlerter() {
+  const { data: commandes = [] } = useCommandes()
+  return useMemo(() => {
+    const demain = ymd(new Date(Date.now() + 86_400_000))
+    return commandes
+      .filter((c) => !c.archived_at && c.statut !== 'livree' && c.date_echeance <= demain)
+      .sort((a, b) => a.date_echeance.localeCompare(b.date_echeance))
+  }, [commandes])
+}
+
+/** Nombre total affiché sur la cloche : rappels + commandes proches de l'échéance +
+ * suggestions assistant + 1 si besoin matière (un compte agrégé, pas le détail — le détail
+ * vit dans Atelier). */
 export function useNotificationsCount(): number {
   const rappels = useRappelsDus()
+  const commandes = useCommandesAAlerter()
   const { data: suggestions = [] } = useSuggestions()
   const { data: besoins = [] } = useBesoinsMatiere()
-  return rappels.length + suggestions.length + (besoins.length > 0 ? 1 : 0)
+  return rappels.length + commandes.length + suggestions.length + (besoins.length > 0 ? 1 : 0)
 }

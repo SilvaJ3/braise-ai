@@ -3,15 +3,19 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ChevronDownIcon } from '../components/icons'
 import { useBesoinsMatiere, fmtQty } from '../lib/atelier'
 import { useGenerateIdeas, useMarkSuggestion, useSuggestions } from '../lib/assistant'
+import { useBoutiques } from '../lib/boutiques'
+import { STATUT_LABEL as COMMANDE_STATUT_LABEL } from '../lib/commandes'
+import { fmtDateCourte } from '../lib/depots'
 import { logEvent } from '../lib/events'
 import { Highlight } from '../lib/highlight'
 import { STATUS_LABEL } from '../lib/labels'
-import { useDismissReminder, useDismissedReminders, useRappelsDus } from '../lib/notifications'
+import { useCommandesAAlerter, useDismissReminder, useDismissedReminders, useRappelsDus } from '../lib/notifications'
 import type { AssistantSuggestion } from '../lib/supabase'
 
-type Categorie = 'rappels' | 'atelier' | 'assistant'
+type Categorie = 'rappels' | 'commandes' | 'atelier' | 'assistant'
 const TITRES: Record<Categorie, string> = {
   rappels: 'Rappels',
+  commandes: 'Commandes',
   atelier: 'Atelier',
   assistant: "L'assistant te propose",
 }
@@ -68,6 +72,32 @@ function RappelsDetail() {
               Vu
             </button>
           </div>
+        </div>
+      ))}
+    </>
+  )
+}
+
+function CommandesDetail() {
+  const navigate = useNavigate()
+  const commandes = useCommandesAAlerter()
+  const { data: boutiques = [] } = useBoutiques()
+  const boutiqueNom = new Map(boutiques.map((b) => [b.id, b.nom]))
+
+  if (commandes.length === 0) return <p className="empty">Aucune échéance proche.</p>
+  return (
+    <>
+      {commandes.map((c) => (
+        <div className="card" key={c.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/commandes/${c.id}`)}>
+          <div className="row">
+            <strong>{c.type === 'boutique' ? boutiqueNom.get(c.boutique_id ?? '') ?? 'Boutique' : c.client_nom}</strong>
+            <div className="spacer" />
+            <span className="badge">{COMMANDE_STATUT_LABEL[c.statut]}</span>
+          </div>
+          <p className="muted" style={{ margin: '6px 0 0' }}>
+            Pour le {fmtDateCourte(c.date_echeance)}
+            {c.type === 'boutique' ? ' · Dépôt-vente' : ' · Commande personnelle'}
+          </p>
         </div>
       ))}
     </>
@@ -190,6 +220,7 @@ export default function NotificationsCategorie() {
       <h1>{TITRES[cat]}</h1>
 
       {cat === 'rappels' && <RappelsDetail />}
+      {cat === 'commandes' && <CommandesDetail />}
       {cat === 'atelier' && <AtelierDetail />}
       {cat === 'assistant' && <AssistantDetail />}
     </>
