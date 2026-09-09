@@ -239,6 +239,31 @@ export type CommandeLigneRow = {
   created_at: string
 }
 
+export type CommandeFournisseurStatut = 'a_commander' | 'commandee' | 'recue'
+
+export type CommandeFournisseur = {
+  id: string
+  user_id: string
+  fournisseur_id: string
+  statut: CommandeFournisseurStatut
+  date_commande: string | null
+  date_reception: string | null
+  notes: string | null
+  archived_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type CommandeFournisseurLigneRow = {
+  id: string
+  user_id: string
+  commande_fournisseur_id: string
+  matiere_id: string
+  quantite: number
+  position: number
+  created_at: string
+}
+
 export type ChatMessage = {
   id: string
   user_id: string

@@ -7,7 +7,7 @@ import {
   type CommandeType,
 } from './supabase'
 
-const COMMANDES_KEY = ['commandes']
+export const COMMANDES_KEY = ['commandes']
 
 export const STATUT_LABEL: Record<CommandeStatut, string> = {
   demande: 'Demande',
