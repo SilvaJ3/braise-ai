@@ -1,10 +1,12 @@
 import { useRef, useState } from 'react'
 import { useUpdateEntry } from '../lib/entries'
+import { INSTAGRAM_ENABLED } from '../lib/featureFlags'
 import { entryImageUrl, uploadEntryImage, useInstagramAccount, usePublishEntryNow } from '../lib/instagram'
 import type { ContentEntry } from '../lib/supabase'
 
 // Actions Instagram sur une entrée du planning : photo (requise) + publication immédiate.
-// N'affiche rien si l'entrée n'est pas sur Instagram.
+// N'affiche rien si l'entrée n'est pas sur Instagram, ou tant que la fonctionnalité est cachée
+// (proto : app Meta en mode dev, voir ROADMAP.md).
 export default function InstagramActions({ entry }: { entry: ContentEntry }) {
   const { data: account } = useInstagramAccount()
   const update = useUpdateEntry()
@@ -12,7 +14,7 @@ export default function InstagramActions({ entry }: { entry: ContentEntry }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
 
-  if (entry.platform !== 'instagram') return null
+  if (!INSTAGRAM_ENABLED || entry.platform !== 'instagram') return null
 
   async function onFile(f: File | null) {
     if (!f) return

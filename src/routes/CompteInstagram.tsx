@@ -1,4 +1,5 @@
-import { useSearchParams } from 'react-router-dom'
+import { Navigate, useSearchParams } from 'react-router-dom'
+import { INSTAGRAM_ENABLED } from '../lib/featureFlags'
 import { useConnectInstagram, useDisconnectInstagram, useInstagramAccount } from '../lib/instagram'
 
 export default function CompteInstagram() {
@@ -8,6 +9,10 @@ export default function CompteInstagram() {
   const [params] = useSearchParams()
   const erreur = params.get('erreur')
   const connecte = params.get('connecte') === '1'
+
+  // Caché tant que l'app Meta reste en mode dev (voir ROADMAP.md) — mais on laisse passer si
+  // l'utilisateur vient de se faire rediriger par le callback OAuth (?connecte / ?erreur).
+  if (!INSTAGRAM_ENABLED && !erreur && !connecte) return <Navigate to="/compte" replace />
 
   return (
     <>
