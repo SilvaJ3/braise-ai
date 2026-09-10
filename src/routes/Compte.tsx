@@ -8,6 +8,7 @@ const ENTREES = [
   { to: '/compte/coordonnees', label: 'Mes coordonnées', hint: "En-tête des bons de dépôt" },
   { to: '/compte/apparence', label: 'Apparence', hint: 'Couleurs de l’app' },
   { to: '/compte/notifications', label: 'Notifications', hint: 'Rappels et point hebdo' },
+  { to: '/compte/instagram', label: 'Instagram', hint: 'Publier depuis le planning' },
   { to: '/compte/mot-de-passe', label: 'Mot de passe', hint: 'Changer ton mot de passe' },
 ]
 

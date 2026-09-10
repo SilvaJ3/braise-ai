@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import EntryForm from '../components/EntryForm'
 import Fab from '../components/Fab'
+import InstagramActions from '../components/InstagramActions'
 import MonthCalendar from '../components/MonthCalendar'
 import Skeleton from '../components/Skeleton'
 import { GridIcon, ListIcon } from '../components/icons'
@@ -204,6 +205,8 @@ export default function Planning() {
                 {e.product && <span className="muted">· {e.product}</span>}
               </div>
               {e.notes && <p style={{ margin: '8px 0 0' }}>{e.notes}</p>}
+
+              <InstagramActions entry={e} />
 
               {e.status === 'publie' && !e.perf && (
                 <div className="row" style={{ marginTop: 10 }}>

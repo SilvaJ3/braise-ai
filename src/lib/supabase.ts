@@ -34,6 +34,10 @@ export type ContentEntry = {
   source: 'manuel' | 'assistant'
   perf: 'carton' | 'ok' | 'bof' | null
   boutique_id: string | null
+  image_path: string | null
+  publish_status: 'en_attente' | 'publie' | 'erreur' | null
+  publish_error: string | null
+  ig_media_id: string | null
   created_at: string
 }
 
@@ -102,8 +106,26 @@ export type BoutiqueContactLogDraft = Omit<
 
 export type ContentEntryDraft = Omit<
   ContentEntry,
-  'id' | 'user_id' | 'created_at' | 'source' | 'reminder_sent_at' | 'perf'
+  | 'id'
+  | 'user_id'
+  | 'created_at'
+  | 'source'
+  | 'reminder_sent_at'
+  | 'perf'
+  | 'publish_status'
+  | 'publish_error'
+  | 'ig_media_id'
 >
+
+// --- V2.5 (proto) : connexion Instagram ---
+
+export type InstagramAccount = {
+  user_id: string
+  ig_user_id: string
+  ig_username: string | null
+  token_expires_at: string
+  connected_at: string
+}
 
 // --- V3 : atelier (fournisseurs, matières premières, recettes) ---
 

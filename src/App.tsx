@@ -10,6 +10,7 @@ import Boutiques from './routes/Boutiques'
 import Compte from './routes/Compte'
 import CompteApparence from './routes/CompteApparence'
 import CompteCoordonnees from './routes/CompteCoordonnees'
+import CompteInstagram from './routes/CompteInstagram'
 import CompteMotDePasse from './routes/CompteMotDePasse'
 import CompteNotifications from './routes/CompteNotifications'
 import Commande from './routes/Commande'
@@ -53,6 +54,7 @@ export default function App() {
         <Route path="/compte/coordonnees" element={<CompteCoordonnees />} />
         <Route path="/compte/apparence" element={<CompteApparence />} />
         <Route path="/compte/notifications" element={<CompteNotifications />} />
+        <Route path="/compte/instagram" element={<CompteInstagram />} />
         <Route path="/compte/mot-de-passe" element={<CompteMotDePasse />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

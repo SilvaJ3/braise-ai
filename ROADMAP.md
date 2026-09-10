@@ -275,6 +275,30 @@ Question ouverte : brancher directement le compte Instagram d'Alexandra sur l'ap
 retour d'usage. Commencer par la tranche 1 (insights read-only) si le retour montre que le
 suivi manuel des perfs est une corvée.
 
+### V2.5 — Proto publication (fait, à tester en réel)
+
+Décision prise après le weekend marchés/dépôt-vente : la tranche 3 (publication) attaquée en
+premier, pas la 1 — objectif direct, lever le frein manuel du planning.
+
+- App Meta « Braise » créée, cas d'utilisation Instagram seul, flux **Instagram API with
+  Instagram Login** (pas de Page Facebook requise).
+- OAuth : `instagram-oauth` (start authentifié → URL d'autorisation ; callback Meta → échange
+  code → token longue durée ~60 j → `instagram_accounts`). État de transition via
+  `oauth_states` (uuid, 10 min, à usage unique).
+- Publication : `instagram-publish` — POST manuel (`entryId`, bouton « Publier maintenant »
+  dans le planning) ou cron `instagram-publish-due` (`*/10 * * * *`, entrées `planifie` +
+  `platform=instagram` + heure échue). Token renouvelé automatiquement si expiration < 10 j.
+- Image obligatoire : bucket Storage public `content-media` (`<user_id>/<entry_id>.<ext>`),
+  requis par l'API Instagram (image_url). Légende = `notes`, ou `title` à défaut.
+- UI : Compte → Instagram (connecter/déconnecter) ; sur chaque entrée Instagram du planning,
+  ajout photo + bouton publier + statut (`publish_status`/`publish_error`/`ig_media_id`).
+- **Pas encore fait** : stories/reels (image seule pour l'instant), lecture insights
+  (tranche 1, toujours utile ensuite pour le retour « ça a marché ? »), gestion du cas
+  « testeur retiré / app passée en App Review ».
+- **Prérequis avant premier essai réel** : compte Instagram Business/Creator d'Alexandra
+  ajouté comme testeur sur l'app Meta (sinon connexion refusée), secrets `META_APP_ID` /
+  `META_APP_SECRET` posés côté Supabase (fait).
+
 ---
 
 ## Audit de robustesse (septembre 2026) — ce qui a été durci

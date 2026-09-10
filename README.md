@@ -46,10 +46,34 @@ supabase functions deploy assistant
 supabase functions deploy push
 supabase functions deploy import
 supabase functions deploy depot
+supabase functions deploy instagram-oauth
+supabase functions deploy instagram-publish
 ```
 
 Secrets attendus : `ANTHROPIC_API_KEY`, `VAPID_PRIVATE_KEY`, `RESEND_API_KEY`,
-`MAIL_DOMAIN` (+ `SUPABASE_*` fournis automatiquement). Le secret de cron `assistant_cron_secret` vit dans Vault (voir migration 0003).
+`MAIL_DOMAIN`, `META_APP_ID`, `META_APP_SECRET` (+ `SUPABASE_*` fournis automatiquement).
+Le secret de cron `assistant_cron_secret` vit dans Vault (voir migration 0003).
+
+### Connexion Instagram (proto V2.5)
+
+Publication (immédiate ou planifiée) d'une entrée du planning directement sur Instagram, via
+« Instagram API with Instagram Login » (pas de Page Facebook requise).
+
+1. Créer une app sur [developer.facebook.com](https://developers.facebook.com) → cas
+   d'utilisation « Gérer les messages et les contenus sur Instagram » uniquement.
+2. Dans ce cas d'utilisation → **Personnaliser** → ajouter le compte Instagram
+   Business/Creator de l'utilisatrice comme **testeur**. Tant que l'app n'est pas passée en
+   revue (App Review), seuls les comptes testeurs peuvent se connecter et publier — suffisant
+   pour un compte unique.
+3. Redirect URI OAuth à déclarer côté Meta : `<SUPABASE_URL>/functions/v1/instagram-oauth`.
+4. `App ID` / `App Secret` → secrets Supabase `META_APP_ID` / `META_APP_SECRET`.
+5. Dans l'app : Compte → Instagram → Connecter.
+
+Le token (courte durée → longue durée, ~60 j) est renouvelé automatiquement à chaque
+publication s'il expire dans moins de 10 j (`_shared/instagram.ts`). Publication d'images
+uniquement (pas de story/reel) ; la légende reprend les notes de l'entrée, ou son titre à
+défaut. Le cron `instagram-publish-due` (toutes les 10 min) publie les entrées planifiées
+dont l'heure est passée.
 ### Envoi des mails (bons de dépôt)
 
 Les mails partent du **service de l'application**, pas de la boîte de l'utilisateur : aucun
