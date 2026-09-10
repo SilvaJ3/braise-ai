@@ -62,6 +62,14 @@ commercialisation n'est pas une décision prise.
 
 ---
 
+## Terrain
+
+- **Septembre 2026 — weekend 2 marchés + premier dépôt-vente réel.** Flux bon de dépôt
+  (signature → PDF → mail) testé et validé en conditions réelles (confirmé par Alexandra) :
+  premier vrai dépôt-vente signé en boutique, gérante juriste (master en droit) a validé la
+  conformité/légitimité de la signature électronique. Boutique très intéressée, fort potentiel
+  vu dans l'app. Marchés utilisés aussi pour pousser braaise.io / l'app auprès du public.
+
 ## Phase 0 — test d'usage (aucun code)
 
 Alexandra utilise V1 + V1.5 + assistant en réel. Suivi via la table `app_events` :
