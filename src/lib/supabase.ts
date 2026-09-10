@@ -184,6 +184,7 @@ export type Depot = {
   notes: string | null
   signataire_nom: string | null
   signature_image: string | null
+  photo_image: string | null
   signed_at: string | null
   pdf_path: string | null
   email_to: string[]

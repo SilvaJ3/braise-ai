@@ -27,6 +27,7 @@ const base: DepotDoc = {
   notes: null,
   signataire_nom: 'Marie Dupont',
   signature_image: JPEG_1PX,
+  photo_image: null,
 }
 
 /** Relit le PDF avec pdf.js : c'est le seul moyen de prouver qu'un vrai lecteur l'ouvre. */
@@ -100,5 +101,22 @@ describe('renderDepotPdf', () => {
   it('imprime la note quand elle existe', async () => {
     const { texte } = await readPdf(renderDepotPdf({ ...base, notes: 'Reprise des invendus fin octobre.' }))
     expect(texte).toContain('Reprise des invendus fin octobre.')
+  })
+
+  it('affiche le bloc photo quand une photo est fournie', async () => {
+    const { texte } = await readPdf(renderDepotPdf({ ...base, photo_image: JPEG_1PX }))
+    expect(texte).toContain('Photo du dépôt')
+    expect(texte).toContain('SIGNATURE :')
+  })
+
+  it("n'affiche pas de bloc photo sans photo", async () => {
+    const { texte } = await readPdf(renderDepotPdf(base))
+    expect(texte).not.toContain('Photo du dépôt')
+  })
+
+  it("n'échoue pas sur une photo illisible", async () => {
+    const { texte } = await readPdf(renderDepotPdf({ ...base, photo_image: 'pas-du-jpeg' }))
+    expect(texte).toContain('Photo du dépôt')
+    expect(texte).toContain('SIGNATURE :')
   })
 })

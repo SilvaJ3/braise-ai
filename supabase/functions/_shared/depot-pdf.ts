@@ -167,6 +167,26 @@ function blocSignature(doc: PdfDoc, d: DepotDoc, top: number): number {
   return boxH
 }
 
+/** Photo de l'état des articles au dépôt : cadre arrondi, image contenue dedans. Hauteur fixe
+ *  (200pt) pour que la pagination reste prévisible, quel que soit le ratio de la photo. */
+const PHOTO_H = 200
+
+function blocPhoto(doc: PdfDoc, d: DepotDoc, top: number): number {
+  if (!d.photo_image) return 0
+  const PAD = 10
+  const boxW = A4.width - 2 * M
+  doc.text(M, top, 'Photo du dépôt', { size: 9, font: FONT.sansBold, color: TEXTE })
+  const boxTop = top + 14
+  const boxH = PHOTO_H + 2 * PAD
+  doc.roundedRect(M, boxTop, boxW, boxH, 3, { stroke: CADRE, strokeWidth: 0.75 })
+  try {
+    doc.jpeg(decodeBase64(d.photo_image), M + PAD, boxTop + PAD, boxW - 2 * PAD, PHOTO_H)
+  } catch {
+    // Photo illisible : le cadre vide reste affiché plutôt que d'échouer tout le document.
+  }
+  return boxH + 14
+}
+
 export function renderDepotPdf(d: DepotDoc): Uint8Array {
   const doc = new PdfDoc()
   papierDeFond(doc)
@@ -230,12 +250,15 @@ export function renderDepotPdf(d: DepotDoc): Uint8Array {
     y += 12
   }
 
-  // Le bloc signature ne doit jamais être coupé : ~155 pt nécessaires (mention sur 2 lignes).
-  if (y + 155 > BAS_UTILE) {
+  // Photo et signature ne doivent jamais être coupées : ~155 pt pour la signature (mention sur
+  // 2 lignes), + la hauteur fixe du cadre photo si une photo a été prise.
+  const hPhoto = d.photo_image ? PHOTO_H + 2 * 10 + 14 : 0
+  if (y + hPhoto + 155 > BAS_UTILE) {
     doc.addPage()
     papierDeFond(doc)
     y = enTete(doc, d, true) + 10
   }
+  y += blocPhoto(doc, d, y)
   blocSignature(doc, d, y)
 
   // Pieds de page en dernier : le nombre total de pages n'est connu qu'ici.

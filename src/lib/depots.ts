@@ -202,12 +202,14 @@ export async function apercuDepot(
   depotId: string,
   signature: string | null,
   signataire: string,
+  photo: string | null,
 ): Promise<{ url: string; filename: string }> {
   const data = await invoke<{ pdf_base64: string; filename: string }>({
     mode: 'apercu',
     depot_id: depotId,
     signature_image: signature ?? '',
     signataire_nom: signataire,
+    photo_image: photo ?? '',
   })
   const bytes = Uint8Array.from(atob(data.pdf_base64), (c) => c.charCodeAt(0))
   const blob = new Blob([bytes], { type: 'application/pdf' })
@@ -223,6 +225,7 @@ export function useEnvoyerDepot() {
       signataire_nom: string
       email_to: string
       email_cc: string
+      photo_image?: string | null
     }) => invoke<{ numero: string; sent_to: string[] }>({ mode: 'envoyer', ...args }),
     onSuccess: () => qc.invalidateQueries({ queryKey: DEPOTS_KEY }),
   })
@@ -241,7 +244,13 @@ export const STATUT_LABEL: Record<Depot['statut'], string> = {
 }
 
 /** Reconstruit le document tel qu'il sera imprimé, pour l'affichage des totaux côté app. */
-export function docDepuisSaisie(saisie: DepotSaisie, profil: ProfilEntrepriseDraft, signature: string | null, signataire: string): DepotDoc {
+export function docDepuisSaisie(
+  saisie: DepotSaisie,
+  profil: ProfilEntrepriseDraft,
+  signature: string | null,
+  signataire: string,
+  photo: string | null = null,
+): DepotDoc {
   return {
     numero: null,
     date_depot: saisie.date_depot,
@@ -257,5 +266,6 @@ export function docDepuisSaisie(saisie: DepotSaisie, profil: ProfilEntrepriseDra
     notes: saisie.notes,
     signataire_nom: signataire || null,
     signature_image: signature,
+    photo_image: photo,
   }
 }

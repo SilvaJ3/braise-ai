@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import PhotoInput from '../components/PhotoInput'
 import SignaturePad from '../components/SignaturePad'
 import Skeleton from '../components/Skeleton'
 import { useBoutiques } from '../lib/boutiques'
@@ -49,6 +50,7 @@ export default function Depot() {
   const [copie, setCopie] = useState('')
   const [signature, setSignature] = useState<string | null>(null)
   const [signataire, setSignataire] = useState('')
+  const [photo, setPhoto] = useState<string | null>(null)
   const [apercu, setApercu] = useState<{ url: string; filename: string } | null>(null)
   const [busy, setBusy] = useState<'' | 'apercu' | 'envoi'>('')
   const [erreur, setErreur] = useState<string | null>(null)
@@ -114,7 +116,7 @@ export default function Depot() {
     lignes: lignes.map(({ cle: _cle, libre: _libre, ...l }) => l),
   }
 
-  const doc = docDepuisSaisie(saisie, profil ?? { nom: '', adresse: '', telephone: '', tva: '', email: '', mention_signature: '' }, signature, signataire)
+  const doc = docDepuisSaisie(saisie, profil ?? { nom: '', adresse: '', telephone: '', tva: '', email: '', mention_signature: '' }, signature, signataire, photo)
   const tousDestinataires = [...parseEmails(destinataires).valid, ...parseEmails(copie).valid]
   const problemes = problemesEnvoi(doc, tousDestinataires)
   const total = totalDoc(doc.lignes)
@@ -150,7 +152,7 @@ export default function Depot() {
     try {
       const id = await enregistrer()
       if (apercu) URL.revokeObjectURL(apercu.url)
-      setApercu(await apercuDepot(id, signature, signataire))
+      setApercu(await apercuDepot(id, signature, signataire, photo))
     } catch (e) {
       setErreur((e as Error).message)
     } finally {
@@ -169,6 +171,7 @@ export default function Depot() {
         signataire_nom: signataire,
         email_to: destinataires,
         email_cc: copie,
+        photo_image: photo,
       })
       logEvent('depot_envoye', { numero: r.numero, destinataires: r.sent_to.length })
       await existant.refetch()
@@ -366,6 +369,14 @@ export default function Depot() {
           {profil?.mention_signature}
         </p>
         <SignaturePad onChange={setSignature} disabled={verrouille} />
+      </div>
+
+      <h2>Photo du dépôt (optionnel)</h2>
+      <div className="card stack">
+        <p className="muted" style={{ margin: 0 }}>
+          Un cliché de l'état des articles chez la boutique, en complément de la liste et de la signature.
+        </p>
+        <PhotoInput valeur={photo} onChange={setPhoto} disabled={verrouille} />
       </div>
 
       <h2>Envoi</h2>

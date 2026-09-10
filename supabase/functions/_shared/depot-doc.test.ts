@@ -40,6 +40,7 @@ const doc = (over: Partial<DepotDoc> = {}): DepotDoc => ({
   notes: null,
   signataire_nom: 'Marie Dupont',
   signature_image: 'AAAA',
+  photo_image: null,
   ...over,
 })
 

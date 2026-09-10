@@ -35,6 +35,7 @@ const MAIL_DOMAIN = Deno.env.get('MAIL_DOMAIN')?.trim() || 'braaise.io'
 
 const BUCKET = 'depots'
 const MAX_SIGNATURE_CHARS = 400_000
+const MAX_PHOTO_CHARS = 2_000_000
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY)
 
@@ -75,6 +76,7 @@ type DepotRow = {
   notes: string | null
   signataire_nom: string | null
   signature_image: string | null
+  photo_image: string | null
   signed_at: string | null
   pdf_path: string | null
 }
@@ -82,7 +84,7 @@ type DepotRow = {
 async function loadDepot(userId: string, depotId: string): Promise<{ row: DepotRow; doc: DepotDoc } | null> {
   const { data: row } = await admin
     .from('depots')
-    .select('id, user_id, numero, date_depot, statut, boutique_nom, boutique_adresse, boutique_email, notes, signataire_nom, signature_image, signed_at, pdf_path')
+    .select('id, user_id, numero, date_depot, statut, boutique_nom, boutique_adresse, boutique_email, notes, signataire_nom, signature_image, photo_image, signed_at, pdf_path')
     .eq('id', depotId)
     .eq('user_id', userId)
     .maybeSingle()
@@ -110,6 +112,7 @@ async function loadDepot(userId: string, depotId: string): Promise<{ row: DepotR
     notes: row.notes,
     signataire_nom: row.signataire_nom,
     signature_image: row.signature_image,
+    photo_image: row.photo_image,
   }
   return { row: row as DepotRow, doc }
 }
@@ -146,6 +149,9 @@ async function handleApercu(userId: string, body: Record<string, unknown>): Prom
   if (typeof body.signature_image === 'string' && body.signature_image) {
     doc.signature_image = body.signature_image.slice(0, MAX_SIGNATURE_CHARS)
   }
+  if (typeof body.photo_image === 'string' && body.photo_image) {
+    doc.photo_image = body.photo_image.replace(/^data:[^;]+;base64,/, '').slice(0, MAX_PHOTO_CHARS)
+  }
   if (typeof body.signataire_nom === 'string') doc.signataire_nom = body.signataire_nom.slice(0, 200)
   if (!doc.lignes.length) return json({ error: 'ajoute au moins un article' }, 400)
   try {
@@ -168,6 +174,10 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>): Pro
   // (réessai d'envoi après un échec, sans refaire signer la boutique).
   if (typeof body.signature_image === 'string' && body.signature_image) {
     doc.signature_image = body.signature_image.replace(/^data:[^;]+;base64,/, '').slice(0, MAX_SIGNATURE_CHARS)
+  }
+  // Photo : idem, celle qui vient d'être prise prime ; sinon on réutilise celle déjà figée.
+  if (typeof body.photo_image === 'string' && body.photo_image) {
+    doc.photo_image = body.photo_image.replace(/^data:[^;]+;base64,/, '').slice(0, MAX_PHOTO_CHARS)
   }
   if (typeof body.signataire_nom === 'string' && body.signataire_nom.trim()) {
     doc.signataire_nom = body.signataire_nom.trim().slice(0, 200)
@@ -203,6 +213,7 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>): Pro
       statut: 'signe',
       signataire_nom: doc.signataire_nom,
       signature_image: doc.signature_image,
+      photo_image: doc.photo_image,
       signed_at: row.signed_at ?? new Date().toISOString(),
       pdf_path: upErr ? null : path,
       email_to: to,
