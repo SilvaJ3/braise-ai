@@ -280,6 +280,12 @@ suivi manuel des perfs est une corvée.
 Décision prise après le weekend marchés/dépôt-vente : la tranche 3 (publication) attaquée en
 premier, pas la 1 — objectif direct, lever le frein manuel du planning.
 
+**Décision App Review** : app Meta gardée en mode dev, **pas de soumission App Review**
+tant qu'il n'y a qu'Alexandra. Conséquence assumée : chaque nouvel utilisateur devra être
+ajouté à la main comme testeur sur le dashboard Meta (developer.facebook.com → cas
+d'utilisation Instagram → Personnaliser → Testeurs) avant de pouvoir se connecter — viable
+pour un compte, à revoir (soumettre l'App Review) si/quand la commercialisation démarre.
+
 - App Meta « Braise » créée, cas d'utilisation Instagram seul, flux **Instagram API with
   Instagram Login** (pas de Page Facebook requise).
 - OAuth : `instagram-oauth` (start authentifié → URL d'autorisation ; callback Meta → échange
