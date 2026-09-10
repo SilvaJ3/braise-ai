@@ -3,7 +3,7 @@
 
 -- Un compte Instagram connecté par utilisateur.
 create table public.instagram_accounts (
-  user_id uuid primary key references auth.users(id) on delete cascade default (select auth.uid()),
+  user_id uuid primary key references auth.users(id) on delete cascade default auth.uid(),
   ig_user_id text not null,
   ig_username text,
   access_token text not null,
