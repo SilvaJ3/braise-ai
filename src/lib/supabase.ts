@@ -265,6 +265,12 @@ export type CommandeFournisseurLigneRow = {
   created_at: string
 }
 
+export type Reglages = {
+  user_id: string
+  sync_produits_matieres: boolean
+  updated_at: string
+}
+
 export type ChatMessage = {
   id: string
   user_id: string

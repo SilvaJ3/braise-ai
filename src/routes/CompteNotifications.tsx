@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { disablePush, enablePush, pushStatus, sendTestPush, type PushStatus } from '../lib/push'
+import { useReglages, useSaveReglages } from '../lib/reglages'
 
 export default function CompteNotifications() {
   const navigate = useNavigate()
   const [push, setPush] = useState<PushStatus | null>(null)
   const [pushBusy, setPushBusy] = useState(false)
   const [pushMsg, setPushMsg] = useState<string | null>(null)
+  const { data: reglages, isLoading: reglagesLoading } = useReglages()
+  const saveReglages = useSaveReglages()
 
   useEffect(() => {
     pushStatus().then(setPush)
@@ -89,6 +92,32 @@ export default function CompteNotifications() {
           <p className="muted" style={{ color: 'var(--accent)' }}>
             {pushMsg}
           </p>
+        )}
+      </div>
+
+      <h1 style={{ marginTop: 28 }}>Atelier</h1>
+      <div className="card">
+        <p className="muted" style={{ marginTop: 0 }}>
+          Suivi du stock de matières premières et rappels de commande fournisseur. À désactiver
+          si tu ne renseignes pas tes matières premières (ex. pas de gestion de stock formelle) :
+          l'assistant ne proposera plus d'alerte stock ni de rappel de commande fournisseur.
+        </p>
+        {reglagesLoading || !reglages ? (
+          <p className="muted">…</p>
+        ) : (
+          <div className="row">
+            <span>Synchro produits ↔ matières premières</span>
+            <div className="spacer" />
+            <button
+              className="link"
+              disabled={saveReglages.isPending}
+              onClick={() =>
+                saveReglages.mutate({ sync_produits_matieres: !reglages.sync_produits_matieres })
+              }
+            >
+              {saveReglages.isPending ? '…' : reglages.sync_produits_matieres ? 'Activée ✅' : 'Désactivée'}
+            </button>
+          </div>
         )}
       </div>
     </>

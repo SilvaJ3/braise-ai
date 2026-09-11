@@ -538,7 +538,17 @@ async function detectRelancesBoutique(userId: string): Promise<number> {
 }
 
 // Suggestion alerte_stock : déterministe (stock <= seuil), une seule « nouveau » par matière.
+// Sautée si le compte a désactivé la synchro produits/matières (Compte → Notifications) :
+// profils sans gestion de stock formelle (illustratrices, etc.) qui ne veulent ni suivi
+// matière ni rappel de commande fournisseur.
 async function detectAlertesStock(userId: string): Promise<number> {
+  const { data: reglages } = await admin
+    .from('reglages')
+    .select('sync_produits_matieres')
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (reglages?.sync_produits_matieres === false) return 0
+
   const matieres = await loadMatieres(userId).catch(() => [] as MatiereRow[])
   const sous = matieres.filter((m) => m.seuil_alerte != null && m.stock_actuel <= m.seuil_alerte)
   if (!sous.length) return 0
