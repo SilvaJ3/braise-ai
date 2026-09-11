@@ -18,7 +18,7 @@ import {
 } from './depot-doc'
 
 const emetteur = {
-  nom: 'Au Coin du Feu',
+  nom: 'Braaise',
   adresse: 'Rue Cardinale Lavigerie 7, 1040 Etterbeek',
   telephone: '0471469685',
   tva: 'BE0797472335',
@@ -104,7 +104,7 @@ describe('adresses mail', () => {
 
 describe('mail', () => {
   it('objet avec numéro et date', () => {
-    expect(emailSubject(doc())).toBe('Bon de dépôt n° 2026-001 — Au Coin du Feu — 03/09/2026')
+    expect(emailSubject(doc())).toBe('Bon de dépôt n° 2026-001 — Braaise — 03/09/2026')
   })
   it('corps : articles, total, coordonnées', () => {
     const b = emailBody(doc({ notes: 'Livré en main propre.' }))
@@ -112,7 +112,7 @@ describe('mail', () => {
     expect(b).toContain('• Grande bougie — 3 × 35 €')
     expect(b).toContain('Total (prix de vente TTC) : 165 €')
     expect(b).toContain('Note : Livré en main propre.')
-    expect(b).toContain('Au Coin du Feu')
+    expect(b).toContain('Braaise')
   })
 })
 

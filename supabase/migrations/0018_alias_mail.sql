@@ -1,6 +1,6 @@
 -- Adresse d'expédition des bons de dépôt.
 -- Les mails partent du domaine de l'application (service mail propre à l'app), avec une
--- adresse par compte dérivée du nom commercial : « Au Coin du Feu » → aucoindufeu@braise.io.
+-- adresse par compte dérivée du nom commercial : « Braaise » → aucoindufeu@braise.io.
 -- L'utilisateur n'a donc aucun réglage technique à faire ; les réponses des boutiques lui
 -- reviennent via Reply-To (colonne `email` de profil_entreprise).
 
