@@ -83,7 +83,7 @@ async function handleTest(req: Request): Promise<Response> {
   const subs = await subsForUser(userData.user.id)
   if (!subs.length) return json({ error: 'aucun appareil abonné' }, 400)
   const sent = await sendToSubs(subs, {
-    title: 'Au Coin du Feu',
+    title: 'Braaise',
     body: 'Test — les notifications fonctionnent 🔔',
   })
   return json({ sent })

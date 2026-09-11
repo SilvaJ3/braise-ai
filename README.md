@@ -1,4 +1,4 @@
-# Au Coin du Feu
+# Braaise
 
 Assistant virtuel pour la gestion d'une activité artisanale de bougies.
 Mobile-first, PWA installable sur iPhone. Voir `specs/` pour la vision et la roadmap.
@@ -56,7 +56,7 @@ Les mails partent du **service de l'application**, pas de la boîte de l'utilisa
 réglage technique ne lui est demandé, et un nouveau compte peut envoyer immédiatement.
 
 - Expéditeur : `<nom commercial> <no-reply@braaise.io>` — une seule adresse fixe pour tous
-  les comptes (« Au Coin du Feu » n'apparaît que dans le nom affiché).
+  les comptes (« Braaise » n'apparaît que dans le nom affiché).
 - `Reply-To` pointe sur l'adresse saisie dans **Compte → Mes coordonnées** : quand une
   boutique répond, le message arrive directement chez l'utilisateur.
 

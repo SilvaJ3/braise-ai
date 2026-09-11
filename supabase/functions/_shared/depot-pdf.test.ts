@@ -4,7 +4,7 @@ import { renderDepotPdf } from './depot-pdf'
 import { JPEG_1PX } from './pdf-lite.test'
 
 const emetteur = {
-  nom: 'Au Coin du Feu',
+  nom: 'Braaise',
   adresse: 'Rue Cardinale Lavigerie 7, 1040 Etterbeek',
   telephone: '0471469685',
   tva: 'BE0797472335',
@@ -46,7 +46,7 @@ describe('renderDepotPdf', () => {
   it('produit un PDF relisible contenant les données du bon', async () => {
     const { pages, texte } = await readPdf(renderDepotPdf(base))
     expect(pages).toBe(1)
-    expect(texte).toContain('Au Coin du Feu')
+    expect(texte).toContain('Braaise')
     expect(texte).toContain('BE0797472335')
     expect(texte).toContain('Bon de dépôt')
     expect(texte).toContain('La Petite Boutique')

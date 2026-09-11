@@ -1,4 +1,4 @@
-// Assistant IA "Au Coin du Feu" — chat d'idées (réponse en arrière-plan + push) + bilan hebdo.
+// Assistant IA "Braaise" — chat d'idées (réponse en arrière-plan + push) + bilan hebdo.
 // Clé Anthropic uniquement côté serveur (secret Supabase ANTHROPIC_API_KEY).
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { anthropicMessages, textOf, type AnthropicResp } from '../_shared/anthropic.ts'

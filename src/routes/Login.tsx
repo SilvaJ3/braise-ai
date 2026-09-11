@@ -18,7 +18,7 @@ export default function Login() {
 
   return (
     <form className="stack" onSubmit={submit}>
-      <h1>Au Coin du Feu</h1>
+      <h1>Braaise</h1>
       <label htmlFor="email">Email</label>
       <input
         id="email"

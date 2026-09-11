@@ -11,7 +11,7 @@ import {
 
 const cfg = { apiKey: 're_test', domain: 'braaise.io' }
 const mail = {
-  fromName: 'Au Coin du Feu',
+  fromName: 'Braaise',
   replyTo: 'artisane@gmail.com',
   to: ['contact@laboutique.be'],
   subject: 'Bon de dépôt n° 2026-001',
@@ -28,8 +28,8 @@ const stubFetch = (impl: (url: string, init: RequestInit) => Response) => {
 
 describe('adresseExpediteur', () => {
   it('compose nom + adresse de l’app', () => {
-    expect(adresseExpediteur('Au Coin du Feu', ALIAS_NO_REPLY, 'braaise.io')).toBe(
-      'Au Coin du Feu <no-reply@braaise.io>',
+    expect(adresseExpediteur('Braaise', ALIAS_NO_REPLY, 'braaise.io')).toBe(
+      'Braaise <no-reply@braaise.io>',
     )
   })
   it('tombe sur l’adresse seule si le nom est vide', () => {
@@ -55,7 +55,7 @@ describe('envoyerMail', () => {
     expect(url).toBe('https://api.resend.com/emails')
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer re_test')
     const body = JSON.parse(init.body as string)
-    expect(body.from).toBe('Au Coin du Feu <no-reply@braaise.io>')
+    expect(body.from).toBe('Braaise <no-reply@braaise.io>')
     expect(body.reply_to).toBe('artisane@gmail.com')
     expect(body.cc).toEqual(['artisane@gmail.com'])
     expect(body.attachments).toEqual([{ filename: 'bon.pdf', content: 'QUJD' }])
@@ -97,6 +97,6 @@ describe('envoyerMail', () => {
     expect(estModeTest('braaise.io')).toBe(false)
     await envoyerMail({ apiKey: 're_test', domain: DOMAINE_TEST }, mail)
     const body = JSON.parse(spy.mock.calls[0][1].body as string)
-    expect(body.from).toBe('Au Coin du Feu <onboarding@resend.dev>')
+    expect(body.from).toBe('Braaise <onboarding@resend.dev>')
   })
 })

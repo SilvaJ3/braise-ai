@@ -16,9 +16,9 @@ export default defineConfig({
       },
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Au Coin du Feu',
-        short_name: 'Coin du Feu',
-        description: 'Planning réseaux sociaux + rappels',
+        name: 'Braaise',
+        short_name: 'Braaise',
+        description: 'Braaise — votre assistant personnel',
         lang: 'fr',
         theme_color: '#b5451b',
         background_color: '#fdf6ee',

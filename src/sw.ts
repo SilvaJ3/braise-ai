@@ -21,7 +21,7 @@ self.addEventListener('push', (event) => {
     data = { body: event.data?.text() }
   }
   event.waitUntil(
-    self.registration.showNotification(data.title ?? 'Au Coin du Feu', {
+    self.registration.showNotification(data.title ?? 'Braaise', {
       body: data.body ?? '',
       icon: '/pwa-192.png',
       badge: '/pwa-192.png',

@@ -1,4 +1,4 @@
-# Au Coin du Feu — Roadmap (ce qu'il reste à faire)
+# Braaise — Roadmap (ce qu'il reste à faire)
 
 Référence produit : `specs/spec-app-au-coin-du-feu.md` et `specs/vision-assistant-virtuel.md`
 (hors repo, dans `files.zip`). Test à appliquer à chaque feature avant de la coder :
@@ -51,7 +51,7 @@ d'emblée, coûteux à rétrofiter.
   produit a besoin d'un onboarding qui remplit `assistant_profil` à l'inscription.
 - Pas de flux d'inscription (désactivé volontairement). À rouvrir + écran onboarding le jour
   de la commercialisation.
-- Branding « Au Coin du Feu » figé (manifest, titre, icônes). Un produit multi-artisan
+- Branding « Braaise » figé (manifest, titre, icônes). Un produit multi-artisan
   demanderait un nom générique ou du white-label.
 - Push crons (`push-reminders`, `push-weekly-digest`) : vérifier qu'ils balaient bien tous
   les utilisateurs et pas un seul, au moment d'ouvrir à d'autres.
