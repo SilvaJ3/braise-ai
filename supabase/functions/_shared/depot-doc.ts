@@ -29,6 +29,8 @@ export type DepotDoc = {
   signataire_nom: string | null
   /** JPEG base64 (sans préfixe data:) */
   signature_image: string | null
+  /** Photo de l'état des articles au dépôt, JPEG base64 (sans préfixe data:). */
+  photo_image: string | null
 }
 
 const MOIS = [

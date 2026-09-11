@@ -66,30 +66,38 @@ export default function SignaturePad({
     }
   }, [hauteur, prepare])
 
-  const point = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const r = e.currentTarget.getBoundingClientRect()
-    return { x: e.clientX - r.left, y: e.clientY - r.top }
-  }
+  const point = (r: DOMRect, e: { clientX: number; clientY: number }) => ({
+    x: e.clientX - r.left,
+    y: e.clientY - r.top,
+  })
 
   function debut(e: React.PointerEvent<HTMLCanvasElement>) {
     if (disabled) return
     e.currentTarget.setPointerCapture(e.pointerId)
     dessine.current = true
-    dernier.current = point(e)
+    dernier.current = point(e.currentTarget.getBoundingClientRect(), e)
   }
 
   function bouge(e: React.PointerEvent<HTMLCanvasElement>) {
     if (!dessine.current || disabled) return
     const ctx = canvasRef.current?.getContext('2d')
-    const p = point(e)
     const d = dernier.current
     if (!ctx || !d) return
-    // Segment lissé par une quadratique passant par le milieu : évite les angles.
+    const r = e.currentTarget.getBoundingClientRect()
+    // getCoalescedEvents restitue tous les points captés entre deux repaints (pas juste le
+    // dernier) : indispensable sur mobile sinon un geste rapide donne un trait en pointillés.
+    const brut = e.nativeEvent as PointerEvent & { getCoalescedEvents?: () => PointerEvent[] }
+    const evenements = brut.getCoalescedEvents?.() ?? [brut]
     ctx.beginPath()
     ctx.moveTo(d.x, d.y)
-    ctx.quadraticCurveTo(d.x, d.y, (d.x + p.x) / 2, (d.y + p.y) / 2)
+    let dernierPoint = d
+    for (const ev of evenements) {
+      const p = point(r, ev)
+      ctx.lineTo(p.x, p.y)
+      dernierPoint = p
+    }
     ctx.stroke()
-    dernier.current = p
+    dernier.current = dernierPoint
     if (videRef.current) {
       videRef.current = false
       setVide(false)
