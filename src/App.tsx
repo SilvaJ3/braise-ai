@@ -15,6 +15,7 @@ import CompteNotifications from './routes/CompteNotifications'
 import Commande from './routes/Commande'
 import Depot from './routes/Depot'
 import Login from './routes/Login'
+import Marche from './routes/Marche'
 import Notifications from './routes/Notifications'
 import NotificationsCategorie from './routes/NotificationsCategorie'
 import Planning from './routes/Planning'
@@ -48,6 +49,7 @@ export default function App() {
         <Route path="/commandes/nouvelle" element={<Commande />} />
         <Route path="/boutiques/:boutiqueId/commande" element={<Commande />} />
         <Route path="/commandes/:commandeId" element={<Commande />} />
+        <Route path="/marches/:id" element={<Marche />} />
         <Route path="/assistant" element={<Assistant />} />
         <Route path="/compte" element={<Compte />} />
         <Route path="/compte/coordonnees" element={<CompteCoordonnees />} />

@@ -6,11 +6,12 @@ import Skeleton from '../components/Skeleton'
 import { useBoutiques, useCreateBoutique, useLastContacts } from '../lib/boutiques'
 import { joursDepuis } from '../lib/dates'
 import Commandes from './Commandes'
+import Marches from './Marches'
 
 const RELANCE_SEUIL_JOURS = 21 // ~3 semaines sans contact (même seuil que l'edge function)
 
-type Tab = 'boutiques' | 'commandes'
-const TABS: Tab[] = ['boutiques', 'commandes']
+type Tab = 'boutiques' | 'commandes' | 'marches'
+const TABS: Tab[] = ['boutiques', 'commandes', 'marches']
 
 function BoutiquesTab() {
   const navigate = useNavigate()
@@ -103,10 +104,14 @@ export default function Boutiques() {
         <a className={tab === 'commandes' ? 'active' : ''} onClick={() => go('commandes')}>
           Commandes
         </a>
+        <a className={tab === 'marches' ? 'active' : ''} onClick={() => go('marches')}>
+          Marché
+        </a>
       </div>
 
       {tab === 'boutiques' && <BoutiquesTab />}
       {tab === 'commandes' && <Commandes />}
+      {tab === 'marches' && <Marches />}
     </>
   )
 }

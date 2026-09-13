@@ -280,3 +280,35 @@ export type ChatMessage = {
   meta: { added?: number }
   created_at: string
 }
+
+// --- Marchés artisanaux ---
+
+export type MarcheStatut = 'ouvert' | 'cloture'
+
+export type Marche = {
+  id: string
+  user_id: string
+  nom: string
+  lieu: string
+  date_marche: string
+  statut: MarcheStatut
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type MarcheDraft = Omit<Marche, 'id' | 'user_id' | 'statut' | 'created_at' | 'updated_at'>
+
+export type MarcheLigneRow = {
+  id: string
+  user_id: string
+  marche_id: string
+  produit_id: string | null
+  designation: string
+  quantite: number
+  prix_unitaire: number
+  note: string | null
+  position: number
+  created_at: string
+  updated_at: string
+}
