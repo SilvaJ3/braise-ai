@@ -15,6 +15,7 @@ export default function Aujourdhui() {
   return (
     <>
       <h1>Aujourd'hui</h1>
+      <p>Gne Gne Gne Je t'aime Gne Gne Gne</p>
       <InstallHint />
       <Today />
       <Fab onClick={() => navigate('/planning', { state: { new: true } })} />
