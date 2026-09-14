@@ -12,6 +12,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 import {
   emailBody,
   emailSubject,
+  isEmail,
   numeroSuivant,
   parseEmails,
   pdfFilename,
@@ -117,6 +118,27 @@ async function loadDepot(userId: string, depotId: string): Promise<{ row: DepotR
   return { row: row as DepotRow, doc }
 }
 
+/**
+ * Adresses vers lesquelles l'utilisateur a le droit d'envoyer un bon : le contact figé du
+ * bon, sa propre adresse d'émetteur, et le carnet de ses boutiques. Empêche d'utiliser le
+ * domaine vérifié de l'app pour écrire à des destinataires arbitraires (phishing/spam).
+ */
+async function adressesAutorisees(userId: string, doc: DepotDoc): Promise<Set<string>> {
+  const set = new Set<string>()
+  const add = (e?: string | null) => {
+    if (e && isEmail(e)) set.add(e.trim().toLowerCase())
+  }
+  add(doc.boutique_email)
+  add(doc.emetteur.email)
+  const { data } = await admin
+    .from('boutiques')
+    .select('email')
+    .eq('user_id', userId)
+    .not('email', 'is', null)
+  for (const b of data ?? []) add(b.email as string)
+  return set
+}
+
 const toBase64 = (bytes: Uint8Array): string => {
   // btoa ne prend qu'une chaîne : on découpe pour ne pas dépasser la pile sur un gros PDF.
   let s = ''
@@ -187,6 +209,20 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>): Pro
   const cc = parseEmails(String(body.email_cc ?? '')).valid
   const problemes = problemesEnvoi(doc, [...to, ...cc])
   if (problemes.length) return json({ error: problemes.join(' ') }, 400)
+
+  // Le domaine d'envoi est celui, vérifié, de l'application : on n'envoie qu'aux contacts que
+  // l'utilisateur possède déjà (ses boutiques + sa propre adresse), jamais à un tiers saisi
+  // librement — sinon n'importe quel compte pourrait spammer depuis no-reply@<domaine>.
+  const autorisees = await adressesAutorisees(userId, doc)
+  const refuses = [...to, ...cc].filter((e) => !autorisees.has(e.trim().toLowerCase()))
+  if (refuses.length) {
+    return json(
+      {
+        error: `Destinataire non autorisé : ${refuses.join(', ')}. Tu ne peux envoyer qu'aux adresses de tes boutiques ou à ta propre adresse (Compte → Mes coordonnées).`,
+      },
+      403,
+    )
+  }
 
   if (!doc.numero) doc.numero = await attribuerNumero(userId, doc.date_depot)
 

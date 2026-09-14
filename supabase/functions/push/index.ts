@@ -13,6 +13,9 @@ const APP_URL = 'https://braise-ai.vercel.app'
 const VAPID_PUBLIC =
   'BLzRPJbag3rpK5ffOUdVkRfNZq3tua2RzadSjyNNb2u4iEUiCcbCiZnj3uPjOMFUKiUeSYGDSe1vkgWL7taGa7U'
 const VAPID_PRIVATE = Deno.env.get('VAPID_PRIVATE_KEY')?.replace(/["'\s]/g, '') || undefined
+// Contact VAPID exigé par la spec (mailto). Paramétrable via secret pour ne pas figer une
+// adresse personnelle dans le code.
+const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT')?.trim() || 'mailto:contact@braaise.io'
 
 const admin = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -22,7 +25,7 @@ const admin = createClient(
 let vapidReady = false
 try {
   if (VAPID_PRIVATE) {
-    webpush.setVapidDetails('mailto:silvabraga.junior@gmail.com', VAPID_PUBLIC, VAPID_PRIVATE)
+    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE)
     vapidReady = true
   }
 } catch (e) {

@@ -34,6 +34,8 @@ const MAX_TITLE_CHARS = 300 // titre d'idée (contrainte DB content_entries_titl
 const MAX_NOTE_CHARS = 4000
 const PENDING_STALE_MS = 5 * 60_000 // réponse « en cours » plus vieille que ça = plantée
 const WEEKLY_MIN_INTERVAL_MS = 10 * 60_000 // anti-spam du bouton « Générer des idées »
+const CHAT_WINDOW_MS = 60 * 60_000 // fenêtre du quota de chat
+const CHAT_MAX_PER_WINDOW = 40 // questions max par utilisateur et par heure (borne le coût LLM)
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -440,6 +442,19 @@ async function handleChat(req: Request): Promise<Response> {
   }
   const busy = (busyRows ?? []).find((r) => !stale.includes(r))
   if (busy) return json({ pending_id: busy.id, already: true })
+
+  // Quota par utilisateur : chaque tour peut coûter plusieurs appels LLM + recherches web.
+  // Sans plafond, un compte pourrait enchaîner les questions en boucle et faire grimper la
+  // facture sans limite. On borne le nombre de questions par heure glissante.
+  const { count: recentCount } = await admin
+    .from('chat_messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('role', 'user')
+    .gte('created_at', new Date(now - CHAT_WINDOW_MS).toISOString())
+  if ((recentCount ?? 0) >= CHAT_MAX_PER_WINDOW) {
+    return json({ error: 'Tu as posé beaucoup de questions coup sur coup. Réessaie dans un moment.' }, 429)
+  }
 
   await admin.from('chat_messages').insert({ user_id: userId, role: 'user', content: message })
   const { data: assistantRow, error: insErr } = await admin
