@@ -107,11 +107,12 @@ async function handleReminders(): Promise<Response> {
     .is('reminder_sent_at', null)
     .lte('reminder_at', nowIso)
     .neq('status', 'publie')
-    .select('id, user_id, title, scheduled_time, reminder_at')
+    .select('id, user_id, title, scheduled_time, reminder_at, reminder_attempts')
   if (error) return json({ error: error.message }, 500)
 
   let sent = 0
   let skipped = 0
+  let liberes = 0
   const cutoff = Date.now() - REMINDER_MAX_AGE_MS
   const subsCache = new Map<string, Sub[]>()
   for (const e of due ?? []) {
@@ -126,15 +127,36 @@ async function handleReminders(): Promise<Response> {
       subsCache.set(uid, subs)
     }
     const heure = (e.scheduled_time as string | null)?.slice(0, 5)
+
+    let envoyes = 0
     if (subs.length) {
-      sent += await sendToSubs(subs, {
+      envoyes = await sendToSubs(subs, {
         title: 'À préparer',
         body: heure ? `${e.title} — publication à ${heure}` : (e.title as string),
         url: `${APP_URL}/planning`,
       })
     }
+    sent += envoyes
+
+    // Un envoi qui n'aboutit pas ne doit PLUS consommer le rappel définitivement : avant, la
+    // réservation posait reminder_sent_at sans jamais revenir en arrière, donc un abonnement
+    // expiré ou un service en erreur faisait perdre le rappel en silence, sans trace ni rejeu.
+    // L'index des rappels dus écarte ceux qui ont déjà échoué trois fois.
+    await admin
+      .from('content_entries')
+      .update({
+        reminder_attempts: ((e.reminder_attempts as number | null) ?? 0) + 1,
+        reminder_sent_at: envoyes > 0 ? undefined : null,
+        reminder_error: envoyes > 0
+          ? null
+          : subs.length
+            ? 'aucun appareil n’a accepté la notification'
+            : 'aucun abonnement push actif',
+      })
+      .eq('id', e.id)
+    if (envoyes === 0) liberes++
   }
-  return json({ due: due?.length ?? 0, sent, skipped })
+  return json({ due: due?.length ?? 0, sent, skipped, liberes })
 }
 
 // Notification ciblée déclenchée par une autre edge function (ex: assistant quand une

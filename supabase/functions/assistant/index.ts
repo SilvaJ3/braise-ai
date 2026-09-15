@@ -33,6 +33,12 @@ const MAX_MESSAGE_CHARS = 4000 // question utilisateur
 const MAX_TITLE_CHARS = 300 // titre d'idée (contrainte DB content_entries_title_len)
 const MAX_NOTE_CHARS = 4000
 const PENDING_STALE_MS = 5 * 60_000 // réponse « en cours » plus vieille que ça = plantée
+// Budget de temps d'un tour de chat. Six tours d'outils x 100 s x 2 essais dépassaient
+// largement le temps mural d'une edge function : l'isolat était tué en plein travail et
+// laissait une réponse « pending » orpheline, que l'utilisatrice attendait 5 minutes.
+const CHAT_DEADLINE_MS = 100_000
+// Le chat ne dépasse pas MAX_MESSAGE_CHARS : au-delà, la requête n'est même pas lue.
+const MAX_BODY_BYTES = 64 * 1024
 const WEEKLY_MIN_INTERVAL_MS = 10 * 60_000 // anti-spam du bouton « Générer des idées »
 const CHAT_WINDOW_MS = 60 * 60_000 // fenêtre du quota de chat
 const CHAT_MAX_PER_WINDOW = 40 // questions max par utilisateur et par heure (borne le coût LLM)
@@ -179,12 +185,13 @@ function planningContext(entries: Entry[]): string {
 }
 
 async function loadPlanning(userId: string, limit: number): Promise<Entry[]> {
-  const { data } = await admin
+  const { data, error } = await admin
     .from('content_entries')
     .select('title, platform, type, date, status, notes')
     .eq('user_id', userId)
     .order('date', { ascending: true, nullsFirst: false })
     .limit(limit)
+  if (error) throw error
   return (data ?? []) as Entry[]
 }
 
@@ -221,22 +228,24 @@ function estDoublon(titre: string, existants: string[]): boolean {
 }
 
 async function loadProfil(userId: string): Promise<string> {
-  const { data } = await admin
+  const { data, error } = await admin
     .from('assistant_profil')
     .select('contenu')
     .eq('user_id', userId)
     .maybeSingle()
+  if (error) throw error
   const c = (data?.contenu ?? '').trim()
   return c || DEFAULT_PROFIL
 }
 
 async function loadProduits(userId: string): Promise<string> {
-  const { data } = await admin
+  const { data, error } = await admin
     .from('produits')
     .select('nom, senteur, description, prix_vente, saison')
     .eq('user_id', userId)
     .eq('actif', true)
     .order('nom')
+  if (error) throw error
   if (!data?.length) return ''
   const lines = data.map((p) => {
     const bits = [
@@ -252,7 +261,7 @@ async function loadProduits(userId: string): Promise<string> {
 }
 
 async function loadPerf(userId: string): Promise<string> {
-  const { data } = await admin
+  const { data, error } = await admin
     .from('content_entries')
     .select('title, perf, platform')
     .eq('user_id', userId)
@@ -260,6 +269,7 @@ async function loadPerf(userId: string): Promise<string> {
     .not('perf', 'is', null)
     .order('created_at', { ascending: false })
     .limit(20)
+  if (error) throw error
   if (!data?.length) return ''
   const label: Record<string, string> = {
     carton: 'a très bien marché',
@@ -275,19 +285,21 @@ async function loadPerf(userId: string): Promise<string> {
 type BoutiqueRow = { id: string; nom: string; canal_prefere: string | null }
 
 async function loadBoutiques(userId: string): Promise<string> {
-  const { data: boutiques } = await admin
+  const { data: boutiques, error: errBoutiques } = await admin
     .from('boutiques')
     .select('id, nom, canal_prefere')
     .eq('user_id', userId)
     .eq('actif', true)
     .order('nom')
+  if (errBoutiques) throw errBoutiques
   if (!boutiques?.length) return ''
 
-  const { data: contacts } = await admin
+  const { data: contacts, error: errContacts } = await admin
     .from('boutique_contacts_log')
     .select('boutique_id, date')
     .eq('user_id', userId)
     .order('date', { ascending: false })
+  if (errContacts) throw errContacts
   const lastByBoutique = new Map<string, string>()
   for (const c of contacts ?? []) {
     if (!lastByBoutique.has(c.boutique_id as string)) {
@@ -315,13 +327,14 @@ type MatiereRow = {
 }
 
 async function loadMatieres(userId: string): Promise<MatiereRow[]> {
-  const { data } = await admin
+  const { data, error } = await admin
     .from('matieres_premieres')
     .select('id, nom, unite, stock_actuel, seuil_alerte, fournisseur:fournisseurs(nom, delai_livraison_jours)')
     .eq('user_id', userId)
     .eq('actif', true)
     .order('nom')
     .limit(60)
+  if (error) throw error
   return ((data ?? []) as unknown[]).map((r) => {
     const row = r as Record<string, unknown>
     const f = Array.isArray(row.fournisseur) ? row.fournisseur[0] : row.fournisseur
@@ -358,16 +371,32 @@ function stockContext(matieres: MatiereRow[]): string {
   return `\n\nStock de matières premières :\n${lines.join('\n')}${alerte}`
 }
 
+// Chaque source est chargee independamment : si l'une echoue, on le DIT au modele au lieu de
+// lui presenter un contexte vide comme un fait. Avant, une erreur reseau produisait un contexte
+// sans planning, et le modele affirmait avec assurance qu'il n'y avait rien de prevu.
 async function buildContext(userId: string, planningLimit: number): Promise<string> {
+  const avertissement = (quoi: string) => (e: unknown) => {
+    console.error(`[contexte] ${quoi} illisible`, e)
+    return `\n\n⚠︎ ${quoi} momentanément illisible : ne rien affirmer sur ce point, et le signaler à Alexandra.`
+  }
+
   const [profil, produits, perf, planning, boutiques, matieres] = await Promise.all([
-    loadProfil(userId),
-    loadProduits(userId),
-    loadPerf(userId),
-    loadPlanning(userId, planningLimit),
-    loadBoutiques(userId),
-    loadMatieres(userId).catch(() => [] as MatiereRow[]),
+    loadProfil(userId).catch(avertissement('profil de marque')),
+    loadProduits(userId).catch(avertissement('catalogue produits')),
+    loadPerf(userId).catch(avertissement('retours de performance')),
+    loadPlanning(userId, planningLimit).catch(avertissement('planning')),
+    loadBoutiques(userId).catch(avertissement('boutiques')),
+    loadMatieres(userId).catch(() => {
+      console.error('[contexte] stock illisible')
+      return [] as MatiereRow[]
+    }),
   ])
-  return `${profil}${produits}${perf}${boutiques}${stockContext(matieres)}\n\nPlanning actuel d'Alexandra :\n${planningContext(planning)}`
+
+  const contextePlanning =
+    typeof planning === 'string' ? planning : `\n\nPlanning actuel d'Alexandra :\n${planningContext(planning)}`
+
+  const corps = [profil, produits, perf, boutiques].filter((x) => typeof x === 'string').join('')
+  return `${corps}${stockContext(matieres)}${contextePlanning}`
 }
 
 // --- Chat : réponse générée en arrière-plan, notifiée par push ------------------
@@ -383,7 +412,12 @@ async function runChatTurn(
   try {
     let added = 0
     let reply = ''
+    const echeance = Date.now() + CHAT_DEADLINE_MS
     for (let step = 0; step < 6; step++) {
+      if (Date.now() > echeance) {
+        console.error('[chat] budget de temps épuisé au tour', step)
+        break
+      }
       const resp = await anthropic({
         max_tokens: 2000,
         system,
@@ -441,11 +475,14 @@ async function runChatTurn(
   }
 }
 
-async function handleChat(req: Request): Promise<Response> {
-  const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '')
-  const { data: userData, error } = await admin.auth.getUser(token)
-  if (error || !userData.user) return json({ error: 'non authentifié' }, 401)
-  const userId = userData.user.id
+async function handleChat(req: Request, userIdPret?: string): Promise<Response> {
+  let userId = userIdPret
+  if (!userId) {
+    const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '')
+    const { data: userData, error } = await admin.auth.getUser(token)
+    if (error || !userData.user) return json({ error: 'non authentifié' }, 401)
+    userId = userData.user.id
+  }
 
   const body = await req.json().catch(() => ({}))
   const message = typeof body.message === 'string' ? body.message.trim() : ''
@@ -476,15 +513,18 @@ async function handleChat(req: Request): Promise<Response> {
   if (busy) return json({ pending_id: busy.id, already: true })
 
   // Quota par utilisateur : chaque tour peut coûter plusieurs appels LLM + recherches web.
-  // Sans plafond, un compte pourrait enchaîner les questions en boucle et faire grimper la
-  // facture sans limite. On borne le nombre de questions par heure glissante.
-  const { count: recentCount } = await admin
-    .from('chat_messages')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('role', 'user')
-    .gte('created_at', new Date(now - CHAT_WINDOW_MS).toISOString())
-  if ((recentCount ?? 0) >= CHAT_MAX_PER_WINDOW) {
+  // Le compteur vit dans `rate_limits` (service_role uniquement) : contrairement à l'ancien
+  // décompte sur `chat_messages`, le client ne peut pas l'effacer pour se redonner du crédit.
+  const { data: quotaOk, error: quotaErr } = await admin.rpc('consommer_quota', {
+    p_user: userId,
+    p_kind: 'chat',
+    p_max: CHAT_MAX_PER_WINDOW,
+    p_fenetre_sec: Math.floor(CHAT_WINDOW_MS / 1000),
+  })
+  if (quotaErr) {
+    // Un quota indisponible ne doit pas bloquer l'usage : on journalise et on laisse passer.
+    console.error('[quota chat]', quotaErr)
+  } else if (quotaOk === false) {
     return json({ error: 'Tu as posé beaucoup de questions coup sur coup. Réessaie dans un moment.' }, 429)
   }
 
@@ -704,11 +744,13 @@ Rends ton travail via l'outil rendre_bilan. N'écris pas de texte en dehors de l
   return { ideas_inserted: inserted, ideas_ecartees: ecartees, observations: observations.length, relances, alertes_stock }
 }
 
-async function handleWeekly(req: Request): Promise<Response> {
+async function handleWeekly(req: Request, cronVerifie = false): Promise<Response> {
   const cronSecret = req.headers.get('x-cron-secret')
-  if (cronSecret) {
-    const { data: ok } = await admin.rpc('verify_cron_secret', { candidate: cronSecret })
-    if (!ok) return json({ error: 'non autorisé' }, 401)
+  if (cronSecret || cronVerifie) {
+    if (!cronVerifie) {
+      const { data: ok } = await admin.rpc('verify_cron_secret', { candidate: cronSecret })
+      if (!ok) return json({ error: 'non autorisé' }, 401)
+    }
     // ponytail: boucle en série, OK jusqu'à ~50 comptes ; au-delà, fan-out (1 invocation/user).
     const { data: list } = await admin.auth.admin.listUsers()
     const users = (list?.users ?? []).slice(0, 50)
@@ -728,16 +770,19 @@ async function handleWeekly(req: Request): Promise<Response> {
   if (!userData.user) return json({ error: 'non autorisé' }, 401)
   const userId = userData.user.id
 
-  // Anti-spam : un bilan manuel au plus toutes les 10 min (chaque run coûte un appel LLM
-  // et ajoute des idées au planning).
-  const since = new Date(Date.now() - WEEKLY_MIN_INTERVAL_MS).toISOString()
-  const { count } = await admin
-    .from('assistant_suggestions')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('type', 'idee_contenu')
-    .gte('created_at', since)
-  if ((count ?? 0) > 0) {
+  // Anti-spam : un bilan manuel au plus toutes les 10 min. Le compteur porte sur les LANCEMENTS
+  // et non sur les idées produites : depuis que le filtre anti-doublon écarte les idées déjà
+  // connues, un run pouvait ne rien insérer et laisser l'ancien compteur à zéro — donc un appel
+  // LLM complet à chaque clic.
+  const { data: quotaOk, error: quotaErr } = await admin.rpc('consommer_quota', {
+    p_user: userId,
+    p_kind: 'bilan',
+    p_max: 1,
+    p_fenetre_sec: Math.floor(WEEKLY_MIN_INTERVAL_MS / 1000),
+  })
+  if (quotaErr) {
+    console.error('[quota bilan]', quotaErr)
+  } else if (quotaOk === false) {
     return json({ error: "Des idées viennent d'être générées. Réessaie dans quelques minutes." }, 429)
   }
   return json(await runWeeklyForUser(userId))
@@ -755,10 +800,29 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'POST uniquement' }, 405)
   if (!ANTHROPIC_KEY) return json({ error: 'ANTHROPIC_API_KEY non configurée' }, 500)
 
+  // Bornage et authentification AVANT de lire le corps. La fonction est joignable sans clé
+  // (verify_jwt = false) : sans ces deux contrôles, un appelant anonyme pouvait faire
+  // bufferiser et analyser un JSON volumineux en boucle, sans jamais s'authentifier.
+  const taille = Number(req.headers.get('content-length') ?? 0)
+  if (taille > MAX_BODY_BYTES) return json({ error: 'requête trop volumineuse' }, 413)
+
+  const cronSecret = req.headers.get('x-cron-secret')
+  if (cronSecret) {
+    const { data: ok } = await admin.rpc('verify_cron_secret', { candidate: cronSecret })
+    if (!ok) return json({ error: 'non autorisé' }, 401)
+    return await handleWeekly(req, true)
+  }
+
+  const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '')
+  if (!token) return json({ error: 'non autorisé' }, 401)
+  const { data: userData, error: errAuth } = await admin.auth.getUser(token)
+  if (errAuth || !userData?.user) return json({ error: 'non autorisé' }, 401)
+  const userId = userData.user.id
+
   try {
-    const body = await req.clone().json().catch(() => ({}))
+    const body = await req.json().catch(() => ({}))
     const mode = body.mode ?? 'chat'
-    if (mode === 'chat') return await handleChat(req)
+    if (mode === 'chat') return await handleChat(req, userId)
     if (mode === 'weekly') return await handleWeekly(req)
     return json({ error: `mode inconnu: ${mode}` }, 400)
   } catch (e) {

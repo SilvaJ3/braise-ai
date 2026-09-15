@@ -31,6 +31,10 @@ const CORS = {
 const MODEL = 'claude-sonnet-5'
 const MAX_SHEETS = 6
 
+// Nombre d'imports analysés par l'IA et par heure, pour un même compte.
+// L'import est le poste de coût LLM le plus élevé du projet (jusqu'à 16 000 jetons de sortie).
+const IMPORT_MAX_PAR_HEURE = 20
+
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY')
@@ -183,6 +187,20 @@ async function handle(req: Request): Promise<Response> {
   const meta = { kind, sheets: ex.kind === 'text' ? ex.sheets : [] }
 
   if (ANTHROPIC_KEY) {
+    // Quota par utilisateur : l'import est le poste de coût LLM le plus élevé du projet —
+    // jusqu'à 16 000 jetons de sortie pour un fichier de 6 Mo, jusqu'à ~4 minutes de calcul
+    // facturé, et rien ne le bornait : un compte pouvait le relancer en boucle.
+    const { data: quotaOk, error: quotaErr } = await admin.rpc('consommer_quota', {
+      p_user: userData.user.id,
+      p_kind: 'import',
+      p_max: IMPORT_MAX_PAR_HEURE,
+      p_fenetre_sec: 3600,
+    })
+    if (quotaErr) console.error('[quota import]', quotaErr)
+    else if (quotaOk === false) {
+      return json({ error: "Tu as importé beaucoup de fichiers coup sur coup. Réessaie dans un moment." }, 429)
+    }
+
     try {
       const result = await parseWithClaude(entity, ex)
       return json({ ...result, meta })

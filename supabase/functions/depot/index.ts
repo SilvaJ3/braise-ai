@@ -13,7 +13,6 @@ import {
   emailBody,
   emailSubject,
   isEmail,
-  numeroSuivant,
   parseEmails,
   pdfFilename,
   problemesEnvoi,
@@ -149,17 +148,21 @@ const toBase64 = (bytes: Uint8Array): string => {
   return btoa(s)
 }
 
-/** Numéro AAAA-NNN, calculé sur les bons déjà numérotés de l'année. */
-async function attribuerNumero(userId: string, dateDepot: string): Promise<string> {
+/**
+ * Numéro AAAA-NNN, attribué par la base de façon atomique.
+ *
+ * Avant : un count(*) des bons de l'année suivi d'une écriture. Deux signatures concurrentes
+ * lisaient le même compte et obtenaient le même numéro, et supprimer un bon faisait RECULER le
+ * compteur — un numéro déjà émis sur un document signé pouvait donc être réattribué à un autre.
+ * Le compteur vit maintenant dans public.depot_numeros, incrémenté par une seule instruction.
+ */
+async function attribuerNumero(_userId: string, dateDepot: string): Promise<string> {
   const annee = Number(dateDepot.slice(0, 4))
-  const { count } = await admin
-    .from('depots')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .not('numero', 'is', null)
-    .gte('date_depot', `${annee}-01-01`)
-    .lte('date_depot', `${annee}-12-31`)
-  return numeroSuivant(annee, count ?? 0)
+  const { data, error } = await admin.rpc('depot_numero_suivant', { p_annee: annee })
+  if (error || !data) {
+    throw new Error(`attribution du numéro impossible : ${error?.message ?? 'réponse vide'}`)
+  }
+  return data as string
 }
 
 async function handleApercu(userId: string, body: Record<string, unknown>): Promise<Response> {
