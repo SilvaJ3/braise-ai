@@ -188,6 +188,38 @@ async function loadPlanning(userId: string, limit: number): Promise<Entry[]> {
   return (data ?? []) as Entry[]
 }
 
+// --- Anti-répétition ---------------------------------------------------------
+// Le run hebdo reproposait les mêmes 4 idées chaque semaine (22 doublons sur 28
+// entrées en 5 runs). Le prompt demande d'éviter les répétitions, mais un prompt
+// ne garantit rien : ces deux fonctions filtrent avant l'insertion.
+
+const normaliserTitre = (s: string): string =>
+  s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+
+/** Vrai si `titre` reprend une idée déjà au planning (identique ou reformulée). */
+function estDoublon(titre: string, existants: string[]): boolean {
+  const t = normaliserTitre(titre)
+  if (!t) return true
+  const motsT = new Set(t.split(' '))
+  for (const e of existants) {
+    const n = normaliserTitre(e)
+    if (!n) continue
+    if (n === t) return true
+    const motsE = new Set(n.split(' '))
+    let communs = 0
+    for (const m of motsT) if (motsE.has(m)) communs++
+    const union = new Set([...motsT, ...motsE]).size
+    // au-delà de 60 % de mots partagés, c'est la même idée reformulée
+    if (union > 0 && communs / union >= 0.6) return true
+  }
+  return false
+}
+
 async function loadProfil(userId: string): Promise<string> {
   const { data } = await admin
     .from('assistant_profil')
@@ -595,17 +627,29 @@ async function detectAlertesStock(userId: string): Promise<number> {
 
 async function runWeeklyForUser(
   userId: string,
-): Promise<{ ideas_inserted: number; observations: number; relances: number; alertes_stock: number }> {
+): Promise<{ ideas_inserted: number; ideas_ecartees: number; observations: number; relances: number; alertes_stock: number }> {
   const today = new Date().toISOString().slice(0, 10)
   const context = await buildContext(userId, 80)
+  // Titres déjà au planning : le prompt les interdit explicitement, et le filtre
+  // ci-dessous les rejette si le modèle passe outre.
+  const titresConnus = (await loadPlanning(userId, 300)).map((e) => e.title).filter(Boolean)
 
   const system = `${context}
 
 Nous sommes le ${today}.
 
+INTERDIT ABSOLU : ne repropose aucune des idées déjà présentes dans le planning ci-dessus,
+même reformulée, même avec un autre angle, une autre plateforme ou un autre format. Liste
+des titres à ne PAS réutiliser :
+${titresConnus.map((t) => `- ${t}`).join('\n')}
+
 Prépare :
-1. 4 idées de publications concrètes pour les 2 prochaines semaines (varie les plateformes et les types ; appuie-toi sur le catalogue et les retours si disponibles).
-2. 1 à 3 observations utiles sur son planning (trous, idées qui stagnent, plateforme délaissée, saisonnalité).
+1. 4 idées de publications concrètes pour les 2 prochaines semaines, toutes NOUVELLES.
+   Choisis ce qu'Alexandra est seule à pouvoir montrer — son atelier, ses matières, ses
+   clients, la saison — plutôt qu'un format que tout le monde publie. Ne propose que des
+   produits réellement en stock.
+2. 1 à 3 observations utiles sur son planning (trous, idées qui stagnent, plateforme
+   délaissée, saisonnalité).
 
 Rends ton travail via l'outil rendre_bilan. N'écris pas de texte en dehors de l'outil.`
 
@@ -628,9 +672,18 @@ Rends ton travail via l'outil rendre_bilan. N'écris pas de texte en dehors de l
   }
 
   let inserted = 0
-  for (const idea of (parsed.ideas ?? []).slice(0, 6)) {
+  let ecartees = 0
+  for (const idea of parsed.ideas ?? []) {
+    const titre = typeof idea.title === 'string' ? idea.title.trim() : ''
+    if (!titre) continue
+    if (estDoublon(titre, titresConnus)) {
+      ecartees++
+      continue
+    }
     const id = await insertEntry(userId, idea)
     if (!id) continue
+    // évite aussi qu'une même idée revienne deux fois dans le même bilan
+    titresConnus.push(titre)
     inserted++
     await admin.from('assistant_suggestions').insert({
       user_id: userId,
@@ -648,7 +701,7 @@ Rends ton travail via l'outil rendre_bilan. N'écris pas de texte en dehors de l
   const relances = await detectRelancesBoutique(userId)
   const alertes_stock = await detectAlertesStock(userId)
 
-  return { ideas_inserted: inserted, observations: observations.length, relances, alertes_stock }
+  return { ideas_inserted: inserted, ideas_ecartees: ecartees, observations: observations.length, relances, alertes_stock }
 }
 
 async function handleWeekly(req: Request): Promise<Response> {
