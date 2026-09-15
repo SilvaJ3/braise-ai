@@ -1,6 +1,6 @@
 import { AnimatePresence, motion, MotionConfig } from 'framer-motion'
 import { type ReactNode, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ChevronDownIcon, EyeIcon, FlameIcon, SparkleIcon, StoreIcon } from '../components/icons'
 import { useBesoinsMatiere, fmtQty } from '../lib/atelier'
 import { useGenerateIdeas, useMarkSuggestion, useSuggestions } from '../lib/assistant'
@@ -11,6 +11,7 @@ import { logEvent } from '../lib/events'
 import { Highlight } from '../lib/highlight'
 import { STATUS_LABEL } from '../lib/labels'
 import { useCommandesAAlerter, useDismissReminder, useDismissedReminders, useRappelsDus } from '../lib/notifications'
+import { useSuiviMatiere } from '../lib/reglages'
 import type { AssistantSuggestion } from '../lib/supabase'
 
 type Categorie = 'rappels' | 'commandes' | 'atelier' | 'assistant'
@@ -118,7 +119,6 @@ function RappelsDetail() {
 }
 
 function CommandesDetail() {
-  const navigate = useNavigate()
   const commandes = useCommandesAAlerter()
   const { data: boutiques = [] } = useBoutiques()
   const boutiqueNom = new Map(boutiques.map((b) => [b.id, b.nom]))
@@ -127,17 +127,18 @@ function CommandesDetail() {
   return (
     <>
       {commandes.map((c) => (
-        <div className="card" key={c.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/commandes/${c.id}`)}>
-          <div className="row">
+        // Carte = lien pleine largeur, plutôt qu'un div onClick non focalisable.
+        <Link className="card" key={c.id} to={`/commandes/${c.id}`}>
+          <span className="row">
             <strong>{c.type === 'boutique' ? boutiqueNom.get(c.boutique_id ?? '') ?? 'Boutique' : c.client_nom}</strong>
-            <div className="spacer" />
+            <span className="spacer" />
             <span className="badge">{COMMANDE_STATUT_LABEL[c.statut]}</span>
-          </div>
-          <p className="muted" style={{ margin: '6px 0 0' }}>
+          </span>
+          <span className="muted" style={{ display: 'block', margin: '6px 0 0' }}>
             Pour le {fmtDateCourte(c.date_echeance)}
             {c.type === 'boutique' ? ' · Dépôt-vente' : ' · Commande personnelle'}
-          </p>
-        </div>
+          </span>
+        </Link>
       ))}
     </>
   )
@@ -145,8 +146,14 @@ function CommandesDetail() {
 
 function AtelierDetail() {
   const navigate = useNavigate()
+  const suivi = useSuiviMatiere()
   const { data: besoins = [] } = useBesoinsMatiere()
 
+  // Le réglage Compte → Notifications promet que cette catégorie disparaît : on la neutralise
+  // aussi ici, l'écran restant atteignable par son URL.
+  if (!suivi) {
+    return <p className="empty">Suivi des matières désactivé (Compte → Notifications).</p>
+  }
   if (besoins.length === 0) return <p className="empty">Rien à commander pour l'instant.</p>
   return (
     <>

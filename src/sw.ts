@@ -1,11 +1,23 @@
 /// <reference lib="webworker" />
-import { precacheAndRoute } from 'workbox-precaching'
+import { createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching'
+import { NavigationRoute, registerRoute } from 'workbox-routing'
 
 declare const self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: Array<{ url: string; revision: string | null }>
 }
 
 precacheAndRoute(self.__WB_MANIFEST)
+
+// Repli de navigation. La stratégie est injectManifest : vite-plugin-pwa n'ajoute pas de
+// navigateFallback, donc sans cette route, ouvrir une route cliente (/atelier, /planning, un
+// lien de notification) hors ligne échouait en erreur réseau alors que index.html est pourtant
+// préchargé. On sert le shell de l'app, sauf pour l'API et Supabase, qui doivent échouer
+// franchement s'ils ne sont pas joignables.
+registerRoute(
+  new NavigationRoute(createHandlerBoundToURL('index.html'), {
+    denylist: [/^\/api/, /supabase/],
+  }),
+)
 self.skipWaiting()
 self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim())

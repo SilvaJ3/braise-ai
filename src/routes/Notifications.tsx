@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import Skeleton from '../components/Skeleton'
 import { BellIcon, CalendarIcon, ChevronRightIcon, FlameIcon, SparkleIcon } from '../components/icons'
 import { useBesoinsMatiere } from '../lib/atelier'
@@ -8,6 +8,7 @@ import { useBoutiques } from '../lib/boutiques'
 import { useEntries } from '../lib/entries'
 import { fmtDateCourte } from '../lib/depots'
 import { useCommandesAAlerter, useRappelsDus } from '../lib/notifications'
+import { useSuiviMatiere } from '../lib/reglages'
 
 function nomCommande(c: { type: string; boutique_id: string | null; client_nom: string | null }, boutiqueNom: Map<string, string>): string {
   return c.type === 'boutique' ? boutiqueNom.get(c.boutique_id ?? '') ?? 'Boutique' : c.client_nom ?? 'Personne'
@@ -35,23 +36,23 @@ function CategorieRow({
   apercu: string
   nombre: number
 }) {
-  const navigate = useNavigate()
+  // Lien (et non div onClick) : la ligne est focalisable au clavier et annoncée comme un lien.
   return (
-    <div className="notif-row" style={{ cursor: 'pointer' }} onClick={() => navigate(to)}>
-      <div className="notif-icon">{icon}</div>
-      <div className="notif-body">
-        <div className="row">
+    <Link className="notif-row" to={to}>
+      <span className="notif-icon">{icon}</span>
+      <span className="notif-body">
+        <span className="row">
           <strong>{titre}</strong>
-          <div className="spacer" />
+          <span className="spacer" />
           <span className="notif-dot" />
           <ChevronRightIcon size={16} />
-        </div>
-        <p className="muted" style={{ margin: '2px 0 0' }}>
+        </span>
+        <span className="muted" style={{ display: 'block', margin: '2px 0 0' }}>
           {apercu}
           {nombre > 1 ? ` (${nombre})` : ''}
-        </p>
-      </div>
-    </div>
+        </span>
+      </span>
+    </Link>
   )
 }
 
@@ -62,11 +63,14 @@ export default function Notifications() {
   const commandes = useCommandesAAlerter()
   const { data: boutiques = [] } = useBoutiques()
   const { data: suggestions = [] } = useSuggestions()
+  const suiviMatiere = useSuiviMatiere()
   const { data: besoins = [], isLoading: besoinsLoading } = useBesoinsMatiere()
 
   const boutiqueNom = new Map(boutiques.map((b) => [b.id, b.nom]))
+  // Sans suivi des matières (Compte → Notifications), la catégorie Atelier n'existe pas.
+  const besoinsAffiches = suiviMatiere ? besoins : []
   const chargement = entriesLoading || besoinsLoading
-  const rien = !chargement && rappels.length === 0 && commandes.length === 0 && besoins.length === 0 && suggestions.length === 0
+  const rien = !chargement && rappels.length === 0 && commandes.length === 0 && besoinsAffiches.length === 0 && suggestions.length === 0
 
   return (
     <>
@@ -91,13 +95,13 @@ export default function Notifications() {
               nombre={commandes.length}
             />
           )}
-          {besoins.length > 0 && (
+          {besoinsAffiches.length > 0 && (
             <CategorieRow
               to="/notifications/atelier"
               icon={<FlameIcon size={18} />}
               titre="Atelier"
-              apercu={`${besoins[0].matiere.nom} à commander`}
-              nombre={besoins.length}
+              apercu={`${besoinsAffiches[0].matiere.nom} à commander`}
+              nombre={besoinsAffiches.length}
             />
           )}
           {suggestions.length > 0 && (

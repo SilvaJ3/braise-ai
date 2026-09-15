@@ -32,6 +32,11 @@ export function applyColors(c: ThemeColors) {
   const s = document.documentElement.style
   s.setProperty('--accent', c.primary)
   s.setProperty('--accent-soft', c.secondary)
+  // La couleur de la barre système (et de l'écran de démarrage PWA) suit le choix de Compte →
+  // Apparence : la balise meta de index.html est figée sur la couleur par défaut, sinon.
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute('content', c.primary)
 }
 
 export function saveColors(c: ThemeColors) {

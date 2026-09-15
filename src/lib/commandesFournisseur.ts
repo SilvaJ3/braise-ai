@@ -81,6 +81,10 @@ export function useCreerCommandeFournisseurDepuisBesoin() {
       if (e2) throw e2
       return id
     },
+    // La liste « À commander » (Atelier) ne dépend que du stock et des besoins calculés, pas des
+    // commandes fournisseur : la création n'a donc rien à invalider de ce côté. C'est l'écran
+    // Atelier qui grise la ligne du fournisseur déjà commandé (une commande en cours = besoin
+    // couvert), pour empêcher de passer deux fois la même commande.
     onSuccess: () => qc.invalidateQueries({ queryKey: COMMANDES_FOURNISSEUR_KEY }),
   })
 }

@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCommandes, useToutesLignesCommande } from './commandes'
 import { useRecettes } from './recettes'
+import { useSuiviMatiere } from './reglages'
 import {
   supabase,
   type Fournisseur,
@@ -202,4 +203,43 @@ export function useBesoinsMatiere() {
   }, [commandes, lignes, recettes, matieres, fournisseurs])
 
   return { data, isLoading: l1 || l2 || l3 || l4 || l5 }
+}
+
+/**
+ * « Y a-t-il quelque chose à commander ? » — pour la cloche, montée sur tous les écrans
+ * protégés. Elle ne peut pas se payer useBesoinsMatiere (5 requêtes, dont les lignes de
+ * commande complètes) : on se contente d'un comptage côté serveur (head: true, aucune ligne
+ * rapatriée) sur les lignes des commandes en cours, et on garde le résultat une minute.
+ *
+ * Le comptage est volontairement large : une ligne de commande en cours sur un produit suffit.
+ * Sans recette renseignée, ou si le stock couvre le besoin, le besoin réel reste vide — la
+ * cloche peut donc annoncer de l'atelier un peu trop tôt, jamais passer un besoin sous silence.
+ * Le détail exact vit dans Atelier → À commander. Le réglage Compte → Notifications
+ * (sync_produits_matieres) coupe aussi cette pastille, comme le promet l'écran.
+ */
+export function useBesoinMatiereSignale(): boolean {
+  const suivi = useSuiviMatiere()
+  // Les commandes en cours sont déjà chargées par la cloche (useCommandesAAlerter) : pas de
+  // requête en plus, et donc aucun identifiant à deviner.
+  const { data: commandes = [] } = useCommandes()
+  const idsEnCours = useMemo(
+    () => commandes.filter((c) => !c.archived_at && c.statut !== 'livree').map((c) => c.id),
+    [commandes],
+  )
+  const { data: nbLignes = 0 } = useQuery({
+    queryKey: ['atelier', 'lignes_commandes_en_cours', idsEnCours],
+    enabled: suivi && idsEnCours.length > 0,
+    staleTime: 60_000,
+    queryFn: async (): Promise<number> => {
+      const { count, error } = await supabase
+        .from('commande_lignes')
+        .select('id', { count: 'exact', head: true })
+        .in('commande_id', idsEnCours)
+        .eq('deja_en_stock', false)
+        .not('produit_id', 'is', null)
+      if (error) throw error
+      return count ?? 0
+    },
+  })
+  return nbLignes > 0
 }

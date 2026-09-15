@@ -32,3 +32,11 @@ export function useSaveReglages() {
     onSuccess: () => qc.invalidateQueries({ queryKey: REGLAGES_KEY }),
   })
 }
+
+/** Le suivi des matières premières (bannière « À recommander », onglet « À commander »,
+ * pastille de la cloche) est-il activé ? Défaut : oui — comportement historique, y compris
+ * tant que le réglage n'est pas encore chargé. Lu par l'app, pas seulement par l'assistant. */
+export function useSuiviMatiere(): boolean {
+  const { data } = useReglages()
+  return data?.sync_produits_matieres ?? true
+}

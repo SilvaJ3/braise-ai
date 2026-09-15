@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import BoutiqueDetail from '../components/BoutiqueDetail'
 import BoutiqueForm from '../components/BoutiqueForm'
 import Skeleton from '../components/Skeleton'
@@ -78,19 +78,20 @@ export default function BoutiqueFiche() {
           </div>
           {commandes.length === 0 && <p className="empty">Aucune commande pour cette boutique.</p>}
           {commandes.map((c) => (
-            <div
+            // Même correction que la liste des commandes : carte = lien, pas un div onClick.
+            <Link
               className="card"
               key={c.id}
-              onClick={() => navigate(`/commandes/${c.id}`)}
-              style={{ cursor: 'pointer', opacity: c.archived_at ? 0.55 : 1 }}
+              to={`/commandes/${c.id}`}
+              style={{ opacity: c.archived_at ? 0.55 : 1 }}
             >
-              <div className="row">
+              <span className="row">
                 <strong>Pour le {fmtDateCourte(c.date_echeance)}</strong>
-                <div className="spacer" />
+                <span className="spacer" />
                 {c.archived_at && <span className="badge">Archivée</span>}
                 <span className="badge">{COMMANDE_STATUT_LABEL[c.statut]}</span>
-              </div>
-            </div>
+              </span>
+            </Link>
           ))}
 
           <div className="row" style={{ marginTop: 16 }}>
@@ -116,13 +117,15 @@ export default function BoutiqueFiche() {
                     key={d.id}
                     style={{ opacity: d.archived_at ? 0.55 : 1 }}
                   >
-                    <div className="row" onClick={() => navigate(`/depots/${d.id}`)} style={{ cursor: 'pointer' }}>
+                    {/* La ligne ouvre le bon ; le bouton d'archivage reste en dehors du lien
+                        (un lien ne peut pas contenir un autre élément interactif). */}
+                    <Link className="row" to={`/depots/${d.id}`}>
                       <strong>{d.numero ?? 'Brouillon'}</strong>
                       <span className="muted">· {fmtDateCourte(d.date_depot)}</span>
-                      <div className="spacer" />
+                      <span className="spacer" />
                       {d.archived_at && <span className="badge">Archivé</span>}
                       <span className="badge">{STATUT_LABEL[d.statut]}</span>
-                    </div>
+                    </Link>
                     {d.send_error && d.statut !== 'envoye' && (
                       <p className="muted" style={{ margin: '6px 0 0', color: 'var(--accent)' }}>
                         Envoi à relancer

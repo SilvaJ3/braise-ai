@@ -46,13 +46,25 @@ export default function Assistant() {
     <>
       <h1>Assistant</h1>
 
-      <div className="subnav">
-        <a className={tab === 'chat' ? 'active' : ''} onClick={() => setTab('chat')}>
+      <div className="subnav" role="tablist" aria-label="Sections de l'assistant">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'chat'}
+          className={tab === 'chat' ? 'active' : ''}
+          onClick={() => setTab('chat')}
+        >
           Discussion
-        </a>
-        <a className={tab === 'reglages' ? 'active' : ''} onClick={() => setTab('reglages')}>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'reglages'}
+          className={tab === 'reglages' ? 'active' : ''}
+          onClick={() => setTab('reglages')}
+        >
           Ce qu'il sait
-        </a>
+        </button>
       </div>
 
       {tab === 'reglages' && <Reglages />}

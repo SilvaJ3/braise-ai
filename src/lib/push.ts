@@ -40,12 +40,25 @@ export async function enablePush(): Promise<void> {
     })
   }
   const json = sub.toJSON()
-  const { error } = await supabase
-    .from('push_subscriptions')
-    .upsert(
-      { endpoint: sub.endpoint, p256dh: json.keys?.p256dh ?? '', auth: json.keys?.auth ?? '' },
-      { onConflict: 'endpoint', ignoreDuplicates: true },
-    )
+  // L'unicité de push_subscriptions est passée de `endpoint` (globale) à `(user_id, endpoint)` :
+  // le conflit doit être déclaré sur ces deux colonnes, sinon Postgres refuse l'ON CONFLICT
+  // (« aucune contrainte unique correspondante »). user_id est posé explicitement (la colonne a
+  // un défaut auth.uid()) pour que l'insertion reste valable même hors session au moment du
+  // calcul.
+  const { data: auth } = await supabase.auth.getSession()
+  const userId = auth.session?.user.id
+  if (!userId) throw new Error('Session expirée : reconnecte-toi pour activer les notifications.')
+  // Pas de politique RLS UPDATE sur la table : on reste en « ignore duplicates » (ON CONFLICT
+  // DO NOTHING), qui ne demande que l'insertion. Un abonnement déjà présent n'est pas réécrit.
+  const { error } = await supabase.from('push_subscriptions').upsert(
+    {
+      user_id: userId,
+      endpoint: sub.endpoint,
+      p256dh: json.keys?.p256dh ?? '',
+      auth: json.keys?.auth ?? '',
+    },
+    { onConflict: 'user_id,endpoint', ignoreDuplicates: true },
+  )
   if (error) throw error
 }
 

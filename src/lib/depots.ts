@@ -72,15 +72,29 @@ export function useSaveProfilEntreprise() {
 
 // --- Bons de dépôt ---------------------------------------------------------------------------
 
+/** Colonnes suffisantes pour la liste des bons (BoutiqueFiche). signature_image (jusqu'à
+ * ~400 000 caractères) et photo_image (~2 000 000) ne sont jamais affichées dans une liste :
+ * les rapatrier pour chaque bon coûtait plus que tout le reste de l'écran. Le bon complet
+ * reste chargé par useDepot, pour l'écran d'un bon donné. */
+export type DepotListe = Pick<
+  Depot,
+  'id' | 'boutique_id' | 'numero' | 'date_depot' | 'statut' | 'archived_at' | 'send_error'
+>
+
+const DEPOTS_LISTE_COLONNES = 'id, boutique_id, numero, date_depot, statut, archived_at, send_error'
+
 export function useDepots(boutiqueId?: string) {
   return useQuery({
     queryKey: [...DEPOTS_KEY, boutiqueId ?? 'tous'],
-    queryFn: async (): Promise<Depot[]> => {
-      let q = supabase.from('depots').select('*').order('date_depot', { ascending: false })
+    queryFn: async (): Promise<DepotListe[]> => {
+      let q = supabase
+        .from('depots')
+        .select(DEPOTS_LISTE_COLONNES)
+        .order('date_depot', { ascending: false })
       if (boutiqueId) q = q.eq('boutique_id', boutiqueId)
       const { data, error } = await q
       if (error) throw error
-      return data as Depot[]
+      return data as DepotListe[]
     },
   })
 }
@@ -136,23 +150,23 @@ export async function saveDepot(saisie: DepotSaisie): Promise<string> {
     id = data.id as string
   }
 
-  // Les lignes sont peu nombreuses : on les remplace en bloc plutôt que de faire du diff.
-  const { error: delErr } = await supabase.from('depot_lignes').delete().eq('depot_id', id)
-  if (delErr) throw delErr
+  // Remplacement en bloc, mais DANS UNE SEULE transaction côté base : un delete suivi d'un
+  // insert séparé laissait le bon sans aucune ligne si l'insert échouait (réseau mobile, RLS,
+  // timeout) — la pièce signée perdait son contenu sans que rien ne le signale.
   const lignes = saisie.lignes
     .filter((l) => l.designation.trim() && l.quantite > 0)
     .map((l, i) => ({
-      depot_id: id as string,
       produit_id: l.produit_id,
       designation: l.designation.trim().slice(0, 300),
       quantite: l.quantite,
       prix_unitaire: l.prix_unitaire,
       position: i,
     }))
-  if (lignes.length) {
-    const { error } = await supabase.from('depot_lignes').insert(lignes)
-    if (error) throw error
-  }
+  const { error } = await supabase.rpc('enregistrer_depot_lignes', {
+    p_depot: id as string,
+    p_lignes: lignes,
+  })
+  if (error) throw error
   return id as string
 }
 

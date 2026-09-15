@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import EntryForm from '../components/EntryForm'
 import Fab from '../components/Fab'
 import MonthCalendar from '../components/MonthCalendar'
@@ -62,6 +62,7 @@ function fmtDate(d: string | null) {
 
 export default function Planning() {
   const location = useLocation()
+  const navigate = useNavigate()
   const { data: entries = [], isLoading, error } = useEntries()
   const create = useCreateEntry()
   const update = useUpdateEntry()
@@ -78,9 +79,12 @@ export default function Planning() {
   useEffect(() => {
     if ((location.state as { new?: boolean } | null)?.new) {
       setCreating(true)
-      window.history.replaceState({}, '')
+      // On efface l'état via l'API du routeur : un window.history.replaceState({}, '') écraserait
+      // l'état interne de react-router (sa clé `idx`), et les navigations suivantes de l'app
+      // repartiraient d'un historique incohérent.
+      navigate(location.pathname + location.search, { replace: true, state: null })
     }
-  }, [location.state])
+  }, [location.state, location.pathname, location.search, navigate])
 
   const shown = useMemo(() => {
     return entries.filter((e) => {
@@ -97,15 +101,21 @@ export default function Planning() {
     <>
       <h1>Planning</h1>
 
-      <div className="subnav">
-        <a
+      <div className="subnav" role="tablist" aria-label="Affichage du planning">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === 'calendrier'}
           className={view === 'calendrier' ? 'active' : ''}
           onClick={() => setView('calendrier')}
         >
           <GridIcon />
           Calendrier
-        </a>
-        <a
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === 'liste'}
           className={view === 'liste' ? 'active' : ''}
           onClick={() => {
             setView('liste')
@@ -114,7 +124,7 @@ export default function Planning() {
         >
           <ListIcon />
           Liste
-        </a>
+        </button>
       </div>
 
       {isLoading && <Skeleton rows={5} />}
@@ -153,15 +163,17 @@ export default function Planning() {
           )}
 
           {view === 'liste' && (
-            <div className="subnav">
+            <div className="subnav" role="group" aria-label="Filtrer par statut">
               {FILTERS.map((f) => (
-                <a
+                <button
                   key={f.key}
+                  type="button"
+                  aria-pressed={filter === f.key}
                   className={filter === f.key ? 'active' : ''}
                   onClick={() => setFilter(f.key)}
                 >
                   {f.label}
-                </a>
+                </button>
               ))}
             </div>
           )}

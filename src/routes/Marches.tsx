@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import Fab from '../components/Fab'
 import MarcheForm from '../components/MarcheForm'
 import Skeleton from '../components/Skeleton'
@@ -104,16 +104,18 @@ export default function Marches() {
           {marches.length === 0 && <p className="empty">Aucun marché pour l'instant.</p>}
 
           {marches.map((m) => (
-            <div className="card" key={m.id} onClick={() => navigate(`/marches/${m.id}`)} style={{ cursor: 'pointer' }}>
-              <div className="row">
+            // Carte = lien pleine largeur : focusable, activable au clavier et annoncée comme
+            // lien, ce qu'un div onClick n'était pas.
+            <Link className="card" key={m.id} to={`/marches/${m.id}`}>
+              <span className="row">
                 <strong>{m.nom}</strong>
-                <div className="spacer" />
+                <span className="spacer" />
                 <span className="badge">{STATUT_LABEL[m.statut]}</span>
-              </div>
-              <p className="muted" style={{ margin: '6px 0 0' }}>
+              </span>
+              <span className="muted" style={{ display: 'block', margin: '6px 0 0' }}>
                 {m.lieu} · {new Date(m.date_marche + 'T00:00:00').toLocaleDateString('fr-BE')}
-              </p>
-            </div>
+              </span>
+            </Link>
           ))}
 
           <MeilleuresVentes />

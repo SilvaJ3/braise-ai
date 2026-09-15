@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import Fab from '../components/Fab'
 import Skeleton from '../components/Skeleton'
 import { useBoutiques } from '../lib/boutiques'
@@ -40,23 +40,24 @@ export default function Commandes() {
           {shown.length === 0 && <p className="empty">Aucune commande pour l'instant.</p>}
 
           {shown.map((c) => (
-            <div
+            // Lien pleine largeur (focusable, clavier, lecteur d'écran) plutôt qu'un div onClick.
+            <Link
               className="card"
               key={c.id}
-              onClick={() => navigate(`/commandes/${c.id}`)}
-              style={{ cursor: 'pointer', opacity: c.archived_at ? 0.55 : 1 }}
+              to={`/commandes/${c.id}`}
+              style={{ opacity: c.archived_at ? 0.55 : 1 }}
             >
-              <div className="row">
+              <span className="row">
                 <strong>{c.type === 'boutique' ? boutiqueNom.get(c.boutique_id ?? '') ?? 'Boutique' : c.client_nom}</strong>
-                <div className="spacer" />
+                <span className="spacer" />
                 {c.archived_at && <span className="badge">Archivée</span>}
                 <span className="badge">{STATUT_LABEL[c.statut]}</span>
-              </div>
-              <p className="muted" style={{ margin: '6px 0 0' }}>
+              </span>
+              <span className="muted" style={{ display: 'block', margin: '6px 0 0' }}>
                 Pour le {fmtDateCourte(c.date_echeance)}
                 {c.type === 'boutique' ? ' · Dépôt-vente' : ' · Commande personnelle'}
-              </p>
-            </div>
+              </span>
+            </Link>
           ))}
         </>
       )}

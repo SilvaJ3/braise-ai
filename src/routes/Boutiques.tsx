@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import BoutiqueForm from '../components/BoutiqueForm'
 import Fab from '../components/Fab'
 import Skeleton from '../components/Skeleton'
@@ -14,7 +14,6 @@ type Tab = 'boutiques' | 'commandes' | 'marches'
 const TABS: Tab[] = ['boutiques', 'commandes', 'marches']
 
 function BoutiquesTab() {
-  const navigate = useNavigate()
   const { data: boutiques = [], isLoading, error } = useBoutiques()
   const { data: lastContacts = {} } = useLastContacts()
   const create = useCreateBoutique()
@@ -58,26 +57,23 @@ function BoutiquesTab() {
             const relance = jours !== null && jours >= RELANCE_SEUIL_JOURS
 
             return (
-              <div
-                className="card"
-                key={b.id}
-                onClick={() => navigate(`/boutiques/${b.id}`)}
-                style={{ cursor: 'pointer' }}
-              >
-                <div className="row">
+              // Lien pleine largeur plutôt qu'un div onClick : la carte est focalisable et
+              // annoncée comme un lien par les lecteurs d'écran.
+              <Link className="card" key={b.id} to={`/boutiques/${b.id}`}>
+                <span className="row">
                   <strong>{b.nom}</strong>
-                  <div className="spacer" />
+                  <span className="spacer" />
                   {!b.actif && <span className="badge">inactive</span>}
                   {relance && (
                     <span className="badge" title="Pas de contact récent">
                       🔔 relance
                     </span>
                   )}
-                </div>
-                <p className="muted" style={{ margin: '6px 0 0' }}>
+                </span>
+                <span className="muted" style={{ display: 'block', margin: '6px 0 0' }}>
                   {last ? `Dernier contact : il y a ${jours} j` : 'Aucun contact enregistré'}
-                </p>
-              </div>
+                </span>
+              </Link>
             )
           })}
         </>
@@ -97,16 +93,34 @@ export default function Boutiques() {
   return (
     <>
       <h1>Boutiques</h1>
-      <div className="subnav">
-        <a className={tab === 'boutiques' ? 'active' : ''} onClick={() => go('boutiques')}>
+      <div className="subnav" role="tablist" aria-label="Sections des boutiques">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'boutiques'}
+          className={tab === 'boutiques' ? 'active' : ''}
+          onClick={() => go('boutiques')}
+        >
           Boutiques
-        </a>
-        <a className={tab === 'commandes' ? 'active' : ''} onClick={() => go('commandes')}>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'commandes'}
+          className={tab === 'commandes' ? 'active' : ''}
+          onClick={() => go('commandes')}
+        >
           Commandes
-        </a>
-        <a className={tab === 'marches' ? 'active' : ''} onClick={() => go('marches')}>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'marches'}
+          className={tab === 'marches' ? 'active' : ''}
+          onClick={() => go('marches')}
+        >
           Marché
-        </a>
+        </button>
       </div>
 
       {tab === 'boutiques' && <BoutiquesTab />}

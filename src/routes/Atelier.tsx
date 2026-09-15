@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import Fab from '../components/Fab'
 import FournisseurForm from '../components/FournisseurForm'
 import ImportWizard from '../components/ImportWizard'
@@ -31,10 +31,18 @@ import {
 } from '../lib/commandesFournisseur'
 import { fmtDateCourte } from '../lib/depots'
 import type { ImportEntity } from '../lib/importer'
+import { useSuiviMatiere } from '../lib/reglages'
 import type { Fournisseur, MatierePremiere } from '../lib/supabase'
 
 type Tab = 'matieres' | 'besoins' | 'commandees' | 'fournisseurs' | 'import'
 const TABS: Tab[] = ['matieres', 'besoins', 'commandees', 'fournisseurs', 'import']
+const TAB_LABEL: Record<Tab, string> = {
+  matieres: 'Matières',
+  besoins: 'À commander',
+  commandees: 'Commandées',
+  fournisseurs: 'Fournisseurs',
+  import: 'Importer',
+}
 
 // Message DB lisible (doublon de nom = index unique par utilisateur).
 function friendly(e: unknown): string {
@@ -46,6 +54,7 @@ function friendly(e: unknown): string {
 function MatieresTab() {
   const { data: matieres = [], isLoading, error } = useMatieres()
   const { data: fournisseurs = [] } = useFournisseurs()
+  const suivi = useSuiviMatiere()
   const create = useCreateMatiere()
   const update = useUpdateMatiere()
   const del = useDeleteMatiere()
@@ -85,7 +94,7 @@ function MatieresTab() {
 
       {!isLoading && !error && !openForm && (
         <>
-          {alertes.length > 0 && (
+          {suivi && alertes.length > 0 && (
             <div className="banner">
               <strong>À recommander</strong>
               {alertes.map((m) => (
@@ -156,8 +165,21 @@ function MatieresTab() {
 // en dernier, à commander à la main faute d'un fournisseur renseigné sur la matière.
 function BesoinsTab() {
   const { data: besoins, isLoading } = useBesoinsMatiere()
+  const { data: commandesFournisseur = [] } = useCommandesFournisseur()
   const creer = useCreerCommandeFournisseurDepuisBesoin()
   const [commandee, setCommandee] = useState<string | null>(null)
+
+  // Un fournisseur a-t-il déjà une commande en cours (créée, pas encore reçue) ? Sans ce
+  // garde-fou la liste « À commander » ne bougeait pas après une commande — elle ne dépend que
+  // du stock — et le bouton restait actif : on pouvait passer deux fois la même commande.
+  const commandeEnCours = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const c of commandesFournisseur) {
+      if (c.archived_at || c.statut === 'recue') continue
+      if (!m.has(c.fournisseur_id)) m.set(c.fournisseur_id, c.id)
+    }
+    return m
+  }, [commandesFournisseur])
 
   const groupes = useMemo(() => {
     const m = new Map<string, { fournisseur: Fournisseur | null; lignes: typeof besoins }>()
@@ -213,19 +235,25 @@ function BesoinsTab() {
                 </a>
               )}
               <div className="spacer" />
-              <button
-                className="link"
-                disabled={creer.isPending}
-                onClick={() => {
-                  const fournisseurId = g.fournisseur!.id
-                  creer.mutate(
-                    { fournisseurId, lignes: g.lignes.map((b) => ({ matiere_id: b.matiere.id, quantite: b.aCommander })) },
-                    { onSuccess: () => setCommandee(fournisseurId) },
-                  )
-                }}
-              >
-                {creer.isPending ? 'Création…' : 'Commander'}
-              </button>
+              {commandeEnCours.has(g.fournisseur.id) ? (
+                <Link className="muted" to="/atelier?tab=commandees">
+                  Commande en cours — voir le suivi
+                </Link>
+              ) : (
+                <button
+                  className="link"
+                  disabled={creer.isPending}
+                  onClick={() => {
+                    const fournisseurId = g.fournisseur!.id
+                    creer.mutate(
+                      { fournisseurId, lignes: g.lignes.map((b) => ({ matiere_id: b.matiere.id, quantite: b.aCommander })) },
+                      { onSuccess: () => setCommandee(fournisseurId) },
+                    )
+                  }}
+                >
+                  {creer.isPending ? 'Création…' : 'Commander'}
+                </button>
+              )}
             </div>
           )}
           {commandee === g.fournisseur?.id && (
@@ -439,8 +467,12 @@ function FournisseursTab() {
 
 export default function Atelier() {
   const [params, setParams] = useSearchParams()
+  const suivi = useSuiviMatiere()
+  // Sans suivi de stock (Compte → Notifications), « À commander » n'a rien à calculer : on
+  // masque l'onglet plutôt que d'afficher une liste vide, comme le promet le réglage.
+  const onglets = useMemo(() => (suivi ? TABS : TABS.filter((t) => t !== 'besoins')), [suivi])
   const tabParam = params.get('tab')
-  const tab: Tab = TABS.includes(tabParam as Tab) ? (tabParam as Tab) : 'matieres'
+  const tab: Tab = onglets.includes(tabParam as Tab) ? (tabParam as Tab) : 'matieres'
   const entityParam = params.get('entity')
   const initialEntity = (['produits', 'matieres_premieres', 'fournisseurs', 'boutiques'] as ImportEntity[]).includes(
     entityParam as ImportEntity,
@@ -453,22 +485,19 @@ export default function Atelier() {
   return (
     <>
       <h1>Atelier</h1>
-      <div className="subnav">
-        <a className={tab === 'matieres' ? 'active' : ''} onClick={() => go('matieres')}>
-          Matières
-        </a>
-        <a className={tab === 'besoins' ? 'active' : ''} onClick={() => go('besoins')}>
-          À commander
-        </a>
-        <a className={tab === 'commandees' ? 'active' : ''} onClick={() => go('commandees')}>
-          Commandées
-        </a>
-        <a className={tab === 'fournisseurs' ? 'active' : ''} onClick={() => go('fournisseurs')}>
-          Fournisseurs
-        </a>
-        <a className={tab === 'import' ? 'active' : ''} onClick={() => go('import')}>
-          Importer
-        </a>
+      <div className="subnav" role="tablist" aria-label="Sections de l'atelier">
+        {onglets.map((t) => (
+          <button
+            key={t}
+            type="button"
+            role="tab"
+            aria-selected={tab === t}
+            className={tab === t ? 'active' : ''}
+            onClick={() => go(t)}
+          >
+            {TAB_LABEL[t]}
+          </button>
+        ))}
       </div>
 
       {tab === 'matieres' && <MatieresTab />}

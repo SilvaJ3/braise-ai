@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import {
   supabase,
   type Boutique,
@@ -57,6 +57,17 @@ export function useDeleteBoutique() {
 
 const contactsKey = (boutiqueId: string) => ['boutique_contacts_log', boutiqueId]
 
+// « Dernier contact » par boutique (affiché dans la liste des boutiques) : cette vue se calcule
+// sur toute la table et sa clé ne nomme pas la boutique — l'oublier laissait la liste en retard
+// d'un cran après l'ajout ou la suppression d'un contact.
+const LAST_CONTACTS_KEY = ['boutique_contacts_log', 'last_by_boutique']
+
+/** Un contact ajouté ou supprimé change aussi la date du dernier contact de la boutique. */
+function invaliderContacts(qc: QueryClient, boutiqueId: string) {
+  qc.invalidateQueries({ queryKey: contactsKey(boutiqueId) })
+  qc.invalidateQueries({ queryKey: LAST_CONTACTS_KEY })
+}
+
 export function useBoutiqueContacts(boutiqueId: string | null) {
   return useQuery({
     queryKey: contactsKey(boutiqueId ?? ''),
@@ -80,8 +91,7 @@ export function useLogContact() {
       const { error } = await supabase.from('boutique_contacts_log').insert(draft)
       if (error) throw error
     },
-    onSuccess: (_data, draft) =>
-      qc.invalidateQueries({ queryKey: contactsKey(draft.boutique_id) }),
+    onSuccess: (_data, draft) => invaliderContacts(qc, draft.boutique_id),
   })
 }
 
@@ -92,15 +102,14 @@ export function useDeleteContact() {
       const { error } = await supabase.from('boutique_contacts_log').delete().eq('id', id)
       if (error) throw error
     },
-    onSuccess: (_data, { boutiqueId }) =>
-      qc.invalidateQueries({ queryKey: contactsKey(boutiqueId) }),
+    onSuccess: (_data, { boutiqueId }) => invaliderContacts(qc, boutiqueId),
   })
 }
 
 // Dernier contact par boutique, pour l'affichage liste ("pas de contact depuis X").
 export function useLastContacts() {
   return useQuery({
-    queryKey: ['boutique_contacts_log', 'last_by_boutique'],
+    queryKey: LAST_CONTACTS_KEY,
     queryFn: async (): Promise<Record<string, string>> => {
       const { data, error } = await supabase
         .from('boutique_contacts_log')

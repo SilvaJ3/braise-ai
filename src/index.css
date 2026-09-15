@@ -2,13 +2,18 @@
   --bg: #fdf6ee;
   --card: #ffffff;
   --ink: #2b2320;
-  --muted: #8a7d73;
+  /* #8a7d73 ne donnait que 3,72:1 sur --bg (et 3,99:1 sur blanc) : sous le minimum WCAG AA
+     de 4,5:1 pour du texte à 0,88rem (labels, textes secondaires, sous-titres). #726459
+     donne 5,70:1 sur blanc et 5,32:1 sur --bg. */
+  --muted: #726459;
   --accent: #b5451b;
   --accent-soft: #fff3e9;
   --line: #e8ddd0;
   --teal: #3f6b64;
   --teal-soft: #e8f1ef;
-  --ochre: #9c701a;
+  /* Assombri pour la même raison que --muted : en --tint sur la tuile blanche de suggestion,
+     #9c701a tombait à 4,42:1 (sous 4,5:1) ; #8f6415 donne 5,25:1. */
+  --ochre: #8f6415;
   --ochre-soft: #faf1de;
   --radius: 14px;
   --nav-h: 60px;
@@ -111,6 +116,14 @@ textarea {
   resize: vertical;
 }
 
+/* Une case à cocher hériterait de width: 100 % et min-height: 46px (règle input ci-dessus) :
+   elle s'étirerait et repousserait son libellé sur la ligne suivante. */
+input[type='checkbox'] {
+  width: auto;
+  min-height: 0;
+  flex-shrink: 0;
+}
+
 label {
   display: block;
   font-size: 0.82rem;
@@ -126,6 +139,21 @@ label {
   padding: 14px 16px;
   margin-bottom: 10px;
   box-shadow: 0 1px 2px rgba(43, 35, 32, 0.04);
+}
+
+/* Carte ou ligne cliquable = un vrai lien : focalisable et activable au clavier, annoncé
+   comme lien par les lecteurs d'écran — un <div onClick> n'est ni l'un ni l'autre. Même
+   habillage que le bloc d'origine, sans le soulignement. */
+a.card {
+  display: block;
+  color: var(--ink);
+  text-decoration: none;
+}
+a.row,
+a.notif-row {
+  display: flex;
+  color: var(--ink);
+  text-decoration: none;
 }
 
 .row {
@@ -180,7 +208,12 @@ mark {
 .subnav::-webkit-scrollbar {
   display: none;
 }
-.subnav a {
+/* Onglet = un vrai <button> ou <Link> (focalisable, activable au clavier, annoncé comme tel) :
+   on neutralise le style de bouton pour ne garder que la pastille. */
+.subnav a,
+.subnav button {
+  font: inherit;
+  font-size: 0.9rem;
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -189,18 +222,22 @@ mark {
   color: var(--muted);
   padding: 7px 13px;
   border-radius: 999px;
-  font-size: 0.9rem;
   cursor: pointer;
   border: 1px solid transparent;
+  background: none;
+  min-height: 0;
 }
-.subnav a.active {
+.subnav a.active,
+.subnav button.active {
   background: var(--accent);
   color: #fff;
 }
-.subnav a:not(.active) {
+.subnav a:not(.active),
+.subnav button:not(.active) {
   border-color: var(--line);
 }
-.subnav a svg {
+.subnav a svg,
+.subnav button svg {
   flex-shrink: 0;
 }
 
@@ -521,7 +558,9 @@ form.stack {
 }
 .suggestion-kicker {
   display: block;
-  font-size: 0.68rem;
+  /* 0,68rem était sous le plancher de lisibilité, en plus d'être en --tint sur fond blanc
+     (--ochre n'y atteignait que 4,42:1). */
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;

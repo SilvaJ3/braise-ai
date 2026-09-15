@@ -23,15 +23,9 @@ import {
 } from '../lib/depots'
 import { logEvent } from '../lib/events'
 import { useProduits } from '../lib/produits'
+import { cle, nombre } from '../lib/saisie'
 
 type LigneSaisie = DepotSaisie['lignes'][number] & { cle: string; libre: boolean }
-
-const cle = () => Math.random().toString(36).slice(2)
-
-const nombre = (v: string): number => {
-  const n = Number(v.replace(',', '.'))
-  return Number.isFinite(n) && n >= 0 ? n : 0
-}
 
 export default function Depot() {
   const { boutiqueId, depotId } = useParams()
@@ -117,7 +111,14 @@ export default function Depot() {
   }
 
   const doc = docDepuisSaisie(saisie, profil ?? { nom: '', adresse: '', telephone: '', tva: '', email: '', mention_signature: '' }, signature, signataire, photo)
-  const tousDestinataires = [...parseEmails(destinataires).valid, ...parseEmails(copie).valid]
+  // Les adresses rejetées par parseEmails (faute de frappe) étaient écartées en silence : le bon
+  // partait signé sans ce destinataire, alors qu'il croyait l'avoir prévenu. On les remonte à
+  // l'écran, et on bloque l'envoi tant qu'il en reste (comme le voulait le garde-fou
+  // « Une adresse mail est invalide », qui ne pouvait jamais se déclencher).
+  const destinatairesEcrits = parseEmails(destinataires)
+  const copieEcrite = parseEmails(copie)
+  const tousDestinataires = [...destinatairesEcrits.valid, ...copieEcrite.valid]
+  const adressesRejetees = [...destinatairesEcrits.invalid, ...copieEcrite.invalid]
   const problemes = problemesEnvoi(doc, tousDestinataires)
   const total = totalDoc(doc.lignes)
 
@@ -402,6 +403,12 @@ export default function Depot() {
         <p className="muted" style={{ margin: 0 }}>
           Plusieurs adresses : sépare-les par une virgule.
         </p>
+        {adressesRejetees.length > 0 && (
+          <p style={{ margin: 0, color: 'var(--accent)' }}>
+            {adressesRejetees.length} adresse(s) ignorée(s) car invalide(s) :{' '}
+            {adressesRejetees.join(', ')} — corrige ou retire pour pouvoir envoyer.
+          </p>
+        )}
       </div>
 
       {erreur && (
@@ -422,7 +429,7 @@ export default function Depot() {
         <div className="row" style={{ marginTop: 12, marginBottom: 24 }}>
           <button
             className="primary"
-            disabled={busy !== '' || problemes.length > 0}
+            disabled={busy !== '' || problemes.length > 0 || adressesRejetees.length > 0}
             onClick={signerEtEnvoyer}
           >
             {busy === 'envoi' ? 'Envoi…' : 'Signer et envoyer'}

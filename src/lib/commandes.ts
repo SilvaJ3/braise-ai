@@ -110,13 +110,11 @@ export async function saveCommande(saisie: CommandeSaisie): Promise<string> {
     id = data.id as string
   }
 
-  // Les lignes sont peu nombreuses : on les remplace en bloc plutôt que de faire du diff.
-  const { error: delErr } = await supabase.from('commande_lignes').delete().eq('commande_id', id)
-  if (delErr) throw delErr
+  // Remplacement en bloc, mais DANS UNE SEULE transaction côté base (voir depots.ts) :
+  // auparavant un insert en échec laissait la commande sans lignes.
   const lignes = saisie.lignes
     .filter((l) => l.designation.trim() && l.quantite > 0)
     .map((l, i) => ({
-      commande_id: id as string,
       produit_id: l.produit_id,
       designation: l.designation.trim().slice(0, 300),
       couleur: l.couleur?.trim() || null,
@@ -124,10 +122,11 @@ export async function saveCommande(saisie: CommandeSaisie): Promise<string> {
       deja_en_stock: l.deja_en_stock,
       position: i,
     }))
-  if (lignes.length) {
-    const { error } = await supabase.from('commande_lignes').insert(lignes)
-    if (error) throw error
-  }
+  const { error } = await supabase.rpc('enregistrer_commande_lignes', {
+    p_commande: id as string,
+    p_lignes: lignes,
+  })
+  if (error) throw error
   return id as string
 }
 

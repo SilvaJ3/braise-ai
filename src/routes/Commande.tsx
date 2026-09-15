@@ -13,16 +13,10 @@ import {
 import { useBoutiques } from '../lib/boutiques'
 import { ymd } from '../lib/dates'
 import { useProduits } from '../lib/produits'
+import { cle, nombre } from '../lib/saisie'
 import type { CommandeType } from '../lib/supabase'
 
 type LigneSaisie = CommandeSaisie['lignes'][number] & { cle: string }
-
-const cle = () => Math.random().toString(36).slice(2)
-
-const nombre = (v: string): number => {
-  const n = Number(v.replace(',', '.'))
-  return Number.isFinite(n) && n >= 0 ? n : 0
-}
 
 export default function Commande() {
   const { boutiqueId, commandeId } = useParams()
@@ -34,6 +28,7 @@ export default function Commande() {
   const marquerEnStock = useMarquerCommandeEnStock()
 
   const [type, setType] = useState<CommandeType>(boutiqueId ? 'boutique' : 'personne')
+  const [boutiqueChoisie, setBoutiqueChoisie] = useState('')
   const [clientNom, setClientNom] = useState('')
   const [clientTelephone, setClientTelephone] = useState('')
   const [clientEmail, setClientEmail] = useState('')
@@ -53,6 +48,7 @@ export default function Commande() {
     charge.current = true
     const { commande: c, lignes: ls } = existant.data
     setType(c.type)
+    setBoutiqueChoisie(c.boutique_id ?? '')
     setClientNom(c.client_nom ?? '')
     setClientTelephone(c.client_telephone ?? '')
     setClientEmail(c.client_email ?? '')
@@ -71,9 +67,18 @@ export default function Commande() {
     )
   }, [existant.data])
 
+  // Boutique de la commande : imposée par la route (venu de la fiche boutique), reprise de la
+  // commande ouverte, ou choisie dans la liste pour une nouvelle commande.
+  const boutiqueIdCible = boutiqueId ?? commande?.boutique_id ?? boutiqueChoisie
   const boutique = useMemo(
-    () => boutiques.find((b) => b.id === (boutiqueId ?? commande?.boutique_id)),
-    [boutiques, boutiqueId, commande],
+    () => boutiques.find((b) => b.id === boutiqueIdCible),
+    [boutiques, boutiqueIdCible],
+  )
+  // On ne peut déposer en vente que chez une boutique active ; celle déjà choisie reste listée
+  // même si elle a été désactivée entre-temps, sinon la valeur du champ n'existerait plus.
+  const boutiquesChoisissables = useMemo(
+    () => boutiques.filter((b) => b.actif || b.id === boutiqueChoisie),
+    [boutiques, boutiqueChoisie],
   )
 
   const saisie: CommandeSaisie = {
@@ -211,9 +216,26 @@ export default function Commande() {
             {boutiqueId ? (
               <strong>{boutique?.nom ?? '…'}</strong>
             ) : (
-              <select id="boutique" value={boutique?.id ?? ''} disabled>
-                <option value="">Choisis une boutique depuis sa fiche</option>
-              </select>
+              <>
+                <select
+                  id="boutique"
+                  value={boutiqueChoisie}
+                  onChange={(e) => setBoutiqueChoisie(e.target.value)}
+                >
+                  <option value="">Choisis une boutique…</option>
+                  {boutiquesChoisissables.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.nom}
+                      {b.actif ? '' : ' (inactive)'}
+                    </option>
+                  ))}
+                </select>
+                {boutiquesChoisissables.length === 0 && (
+                  <p className="muted" style={{ margin: 0 }}>
+                    Aucune boutique active. Crée-la d'abord depuis l'onglet Boutiques.
+                  </p>
+                )}
+              </>
             )}
           </>
         )}

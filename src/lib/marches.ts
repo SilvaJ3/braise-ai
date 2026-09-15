@@ -92,29 +92,14 @@ export function useDeleteMarche() {
 export function useVendreProduit() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ marcheId, produit, existante }: { marcheId: string; produit: Produit; existante?: MarcheLigneRow }) => {
-      if (existante) {
-        const { error } = await supabase
-          .from('marche_lignes')
-          .update({ quantite: Number(existante.quantite) + 1 })
-          .eq('id', existante.id)
-        if (error) throw error
-        return
-      }
-      const { data: maxPos } = await supabase
-        .from('marche_lignes')
-        .select('position')
-        .eq('marche_id', marcheId)
-        .order('position', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      const { error } = await supabase.from('marche_lignes').insert({
-        marche_id: marcheId,
-        produit_id: produit.id,
-        designation: produit.nom,
-        quantite: 1,
-        prix_unitaire: Number(produit.prix_vente ?? 0),
-        position: (maxPos?.position ?? -1) + 1,
+    mutationFn: async ({ marcheId, produit }: { marcheId: string; produit: Produit; existante?: MarcheLigneRow }) => {
+      // Enregistré par la base, en une instruction : l'ancien calcul « quantite + 1 » depuis
+      // les données du cache perdait une vente dès que deux taps arrivaient avant le refetch.
+      const { error } = await supabase.rpc('vendre_produit_marche', {
+        p_marche: marcheId,
+        p_produit: produit.id,
+        p_designation: produit.nom,
+        p_prix: Number(produit.prix_vente ?? 0),
       })
       if (error) throw error
     },
@@ -147,14 +132,17 @@ export function useAjusterLigne() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ ligne, delta }: { ligne: MarcheLigneRow; delta: number }) => {
-      const q = Number(ligne.quantite) + delta
-      if (q <= 0) {
-        const { error } = await supabase.from('marche_lignes').delete().eq('id', ligne.id)
-        if (error) throw error
-        return
-      }
-      const { error } = await supabase.from('marche_lignes').update({ quantite: q }).eq('id', ligne.id)
+      // L'incrément est calculé par la base : deux taps rapprochés ne s'écrasent plus.
+      const { data, error } = await supabase.rpc('ajuster_quantite_marche', {
+        p_ligne: ligne.id,
+        p_delta: delta,
+      })
       if (error) throw error
+      // La ligne tombe à zéro : on la retire du registre, comme avant.
+      if (Number(data) === 0) {
+        const { error: delErr } = await supabase.from('marche_lignes').delete().eq('id', ligne.id)
+        if (delErr) throw delErr
+      }
     },
     onSuccess: (_d, { ligne }) =>
       qc.invalidateQueries({ queryKey: [...MARCHES_KEY, 'un', ligne.marche_id] }).then(() => qc.invalidateQueries({ queryKey: VENTES_KEY })),

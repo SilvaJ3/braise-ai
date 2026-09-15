@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo } from 'react'
-import { useBesoinsMatiere } from './atelier'
-import { useSuggestions } from './assistant'
+import { useEffect, useMemo, useState } from 'react'
+import { useBesoinMatiereSignale } from './atelier'
 import { useCommandes } from './commandes'
 import { ymd } from './dates'
 import { useEntries } from './entries'
+import { supabase } from './supabase'
 
 // "Vu" sur un rappel de planning en retard : mémorisé en local (par appareil), pas de
 // colonne DB. Passé par le cache react-query (plutôt qu'un useState par écran) pour que la
@@ -52,18 +52,37 @@ export function useDismissReminder() {
   })
 }
 
+/** Horloge « toutes les minutes ». Les rappels sont filtrés sur l'heure courante : sans ce
+ * tick, un rappel qui arrive à échéance pendant que l'app reste ouverte n'apparaîtrait jamais
+ * (le rendu ne serait jamais relancé). On relit aussi l'heure au retour sur l'onglet, parce que
+ * les minuteurs des navigateurs mobiles sont gelés en arrière-plan. */
+function useNowMinute(): number {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const tick = () => setNow(Date.now())
+    const id = setInterval(tick, 60_000)
+    window.addEventListener('focus', tick)
+    document.addEventListener('visibilitychange', tick)
+    return () => {
+      clearInterval(id)
+      window.removeEventListener('focus', tick)
+      document.removeEventListener('visibilitychange', tick)
+    }
+  }, [])
+  return now
+}
+
 /** Rappels de planning en retard, non "vus". */
 export function useRappelsDus() {
   const { data: entries = [] } = useEntries()
   const { data: dismissed = [] } = useDismissedReminders()
-  const now = Date.now()
+  const now = useNowMinute()
   return useMemo(() => {
     const vu = new Set(dismissed)
     return entries.filter(
       (e) => e.status !== 'publie' && e.reminder_at != null && new Date(e.reminder_at).getTime() <= now && !vu.has(e.id),
     )
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries, dismissed])
+  }, [entries, dismissed, now])
 }
 
 /** Commandes non livrées, non archivées, dont l'échéance est demain ou déjà dépassée. */
@@ -77,13 +96,34 @@ export function useCommandesAAlerter() {
   }, [commandes])
 }
 
+/** Nombre de suggestions non traitées. La cloche n'affiche qu'un nombre : on le demande au
+ * serveur (head: true → aucune ligne rapatriée) plutôt que de charger les messages, et on le
+ * garde une minute. */
+function useSuggestionsCount(): number {
+  const { data = 0 } = useQuery({
+    queryKey: ['assistant_suggestions', 'count'],
+    staleTime: 60_000,
+    queryFn: async (): Promise<number> => {
+      const { count, error } = await supabase
+        .from('assistant_suggestions')
+        .select('id', { count: 'exact', head: true })
+        .eq('statut', 'nouveau')
+      if (error) throw error
+      return count ?? 0
+    },
+  })
+  return data
+}
+
 /** Nombre total affiché sur la cloche : rappels + commandes proches de l'échéance +
  * suggestions assistant + 1 si besoin matière (un compte agrégé, pas le détail — le détail
- * vit dans Atelier). */
+ * vit dans Atelier et dans Notifications). Ne monte volontairement pas useBesoinsMatiere :
+ * la cloche est présente sur tous les écrans protégés, elle se contente d'un comptage
+ * (voir useBesoinMatiereSignale). */
 export function useNotificationsCount(): number {
   const rappels = useRappelsDus()
   const commandes = useCommandesAAlerter()
-  const { data: suggestions = [] } = useSuggestions()
-  const { data: besoins = [] } = useBesoinsMatiere()
-  return rappels.length + commandes.length + suggestions.length + (besoins.length > 0 ? 1 : 0)
+  const suggestions = useSuggestionsCount()
+  const besoinMatiere = useBesoinMatiereSignale()
+  return rappels.length + commandes.length + suggestions + (besoinMatiere ? 1 : 0)
 }
