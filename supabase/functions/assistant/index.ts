@@ -2,6 +2,25 @@
 // Clé Anthropic uniquement côté serveur (secret Supabase ANTHROPIC_API_KEY).
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { anthropicMessages, textOf, type AnthropicResp } from '../_shared/anthropic.ts'
+import {
+  avertissementContexte,
+  boutiquesContext,
+  dernierContactParBoutique,
+  fmtQty,
+  joursDepuis,
+  messageRelanceBoutique,
+  perfContext,
+  planningContext,
+  produitsContext,
+  profilContext,
+  stockContext,
+  type BoutiqueRow,
+  type ContactRow,
+  type Entry,
+  type MatiereRow,
+  type ProduitRow,
+  type ProfilCompte,
+} from '../_shared/contexte-assistant.ts'
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void }
 
@@ -18,13 +37,7 @@ const MODEL = 'claude-sonnet-5'
 // Run hebdo : effort bas pour tenir dans la limite edge function
 const WEEKLY_MODEL = 'claude-sonnet-5'
 
-const DEFAULT_PROFIL = `Tu assistes Alexandra, artisane qui fabrique des bougies à la main en Belgique.
-Elle vend en direct sur les réseaux sociaux (Instagram, Facebook, TikTok) et en dépôt-vente
-à des boutiques (B2B). Elle gère tout seule et manque de temps. Ton rôle : l'inspirer, lui
-proposer des idées de contenu concrètes et actionnables, et l'accompagner dans son planning.
-Sois chaleureux, direct, jamais corporate. Réponds en français.`
-
-const TOOL_RULE = `Quand Alexandra te demande d'ajouter une ou des idées à son planning (ou dit oui à ta
+const TOOL_RULE = `Quand la personne te demande d'ajouter une ou des idées à son planning (ou dit oui à ta
 proposition de le faire), utilise l'outil ajouter_idees_au_planning. N'invente pas de dates
 si elle n'en donne pas : laisse date vide (l'entrée reste une simple idée).`
 
@@ -88,7 +101,7 @@ async function insertEntry(userId: string, idea: IdeaInput): Promise<string | nu
 const ADD_TOOL = {
   name: 'ajouter_idees_au_planning',
   description:
-    "Ajoute une ou plusieurs idées de publication dans le planning d'Alexandra (statut 'idée').",
+    "Ajoute une ou plusieurs idées de publication dans le planning (statut 'idée').",
   input_schema: {
     type: 'object',
     properties: {
@@ -165,25 +178,6 @@ async function sendPush(userId: string, title: string, body: string): Promise<vo
   }
 }
 
-type Entry = {
-  title: string
-  platform: string | null
-  type: string | null
-  date: string | null
-  status: string
-  notes: string | null
-}
-
-function planningContext(entries: Entry[]): string {
-  if (!entries.length) return 'Aucune entrée dans le planning pour le moment.'
-  return entries
-    .map((e) => {
-      const bits = [e.date ?? 'sans date', e.status, e.platform ?? '—', e.type ?? '—']
-      return `- ${e.title} (${bits.join(', ')})${e.notes ? ` — ${e.notes}` : ''}`
-    })
-    .join('\n')
-}
-
 async function loadPlanning(userId: string, limit: number): Promise<Entry[]> {
   const { data, error } = await admin
     .from('content_entries')
@@ -227,15 +221,16 @@ function estDoublon(titre: string, existants: string[]): boolean {
   return false
 }
 
-async function loadProfil(userId: string): Promise<string> {
+// Le profil n'a plus de valeur de repli codée en dur : la ligne de `assistant_profil` est la
+// seule source, et un profil vide produit une consigne de prudence (voir profilContext).
+async function loadProfil(userId: string): Promise<ProfilCompte | null> {
   const { data, error } = await admin
     .from('assistant_profil')
-    .select('contenu')
+    .select('metier, nom_commercial, ville, pays, contenu')
     .eq('user_id', userId)
     .maybeSingle()
   if (error) throw error
-  const c = (data?.contenu ?? '').trim()
-  return c || DEFAULT_PROFIL
+  return (data as ProfilCompte | null) ?? null
 }
 
 async function loadProduits(userId: string): Promise<string> {
@@ -246,18 +241,7 @@ async function loadProduits(userId: string): Promise<string> {
     .eq('actif', true)
     .order('nom')
   if (error) throw error
-  if (!data?.length) return ''
-  const lines = data.map((p) => {
-    const bits = [
-      p.senteur,
-      p.prix_vente != null ? `${p.prix_vente} €` : null,
-      p.saison && p.saison !== 'toute_annee' ? p.saison : null,
-    ]
-      .filter(Boolean)
-      .join(', ')
-    return `- ${p.nom}${bits ? ` (${bits})` : ''}${p.description ? ` — ${p.description}` : ''}`
-  })
-  return `\n\nCatalogue de bougies d'Alexandra :\n${lines.join('\n')}`
+  return produitsContext((data ?? []) as ProduitRow[])
 }
 
 async function loadPerf(userId: string): Promise<string> {
@@ -270,19 +254,8 @@ async function loadPerf(userId: string): Promise<string> {
     .order('created_at', { ascending: false })
     .limit(20)
   if (error) throw error
-  if (!data?.length) return ''
-  const label: Record<string, string> = {
-    carton: 'a très bien marché',
-    ok: 'correct',
-    bof: 'a peu marché',
-  }
-  const lines = data.map(
-    (e) => `- ${e.title}${e.platform ? ` (${e.platform})` : ''} : ${label[e.perf as string]}`,
-  )
-  return `\n\nRetours sur les publications passées (tiens-en compte) :\n${lines.join('\n')}`
+  return perfContext((data ?? []) as { title: string; perf: string | null; platform: string | null }[])
 }
-
-type BoutiqueRow = { id: string; nom: string; canal_prefere: string | null }
 
 async function loadBoutiques(userId: string): Promise<string> {
   const { data: boutiques, error: errBoutiques } = await admin
@@ -298,32 +271,9 @@ async function loadBoutiques(userId: string): Promise<string> {
     .from('boutique_contacts_log')
     .select('boutique_id, date')
     .eq('user_id', userId)
-    .order('date', { ascending: false })
   if (errContacts) throw errContacts
-  const lastByBoutique = new Map<string, string>()
-  for (const c of contacts ?? []) {
-    if (!lastByBoutique.has(c.boutique_id as string)) {
-      lastByBoutique.set(c.boutique_id as string, c.date as string)
-    }
-  }
 
-  const today = Date.now()
-  const lines = (boutiques as BoutiqueRow[]).map((b) => {
-    const last = lastByBoutique.get(b.id)
-    const jours = last ? Math.floor((today - new Date(`${last}T00:00:00`).getTime()) / 86_400_000) : null
-    const contactBit = jours == null ? 'jamais contactée' : `dernier contact il y a ${jours} j`
-    return `- ${b.nom}${b.canal_prefere ? ` (${b.canal_prefere})` : ''} — ${contactBit}`
-  })
-  return `\n\nBoutiques en dépôt-vente d'Alexandra :\n${lines.join('\n')}`
-}
-
-type MatiereRow = {
-  id: string
-  nom: string
-  unite: string
-  stock_actuel: number
-  seuil_alerte: number | null
-  fournisseur: { nom: string; delai_livraison_jours: number | null } | null
+  return boutiquesContext(boutiques as BoutiqueRow[], (contacts ?? []) as ContactRow[])
 }
 
 async function loadMatieres(userId: string): Promise<MatiereRow[]> {
@@ -349,35 +299,13 @@ async function loadMatieres(userId: string): Promise<MatiereRow[]> {
   })
 }
 
-const fmtQty = (n: number, unite: string) =>
-  `${Number.isInteger(n) ? n : n.toFixed(2).replace(/\.?0+$/, '')} ${unite === 'piece' ? 'pc' : unite}`
-
-function stockContext(matieres: MatiereRow[]): string {
-  if (!matieres.length) return ''
-  const sous = matieres.filter((m) => m.seuil_alerte != null && m.stock_actuel <= m.seuil_alerte)
-  const lines = matieres.map((m) => {
-    const bits = [fmtQty(m.stock_actuel, m.unite)]
-    if (m.seuil_alerte != null) bits.push(`seuil ${fmtQty(m.seuil_alerte, m.unite)}`)
-    if (m.fournisseur?.nom) {
-      bits.push(
-        `chez ${m.fournisseur.nom}${m.fournisseur.delai_livraison_jours != null ? `, délai ${m.fournisseur.delai_livraison_jours} j` : ''}`,
-      )
-    }
-    return `- ${m.nom} : ${bits.join(', ')}`
-  })
-  const alerte = sous.length
-    ? `\nSous le seuil (à recommander) : ${sous.map((m) => m.nom).join(', ')}.`
-    : ''
-  return `\n\nStock de matières premières :\n${lines.join('\n')}${alerte}`
-}
-
 // Chaque source est chargee independamment : si l'une echoue, on le DIT au modele au lieu de
 // lui presenter un contexte vide comme un fait. Avant, une erreur reseau produisait un contexte
 // sans planning, et le modele affirmait avec assurance qu'il n'y avait rien de prevu.
 async function buildContext(userId: string, planningLimit: number): Promise<string> {
   const avertissement = (quoi: string) => (e: unknown) => {
     console.error(`[contexte] ${quoi} illisible`, e)
-    return `\n\n⚠︎ ${quoi} momentanément illisible : ne rien affirmer sur ce point, et le signaler à Alexandra.`
+    return avertissementContexte(quoi)
   }
 
   const [profil, produits, perf, planning, boutiques, matieres] = await Promise.all([
@@ -392,10 +320,10 @@ async function buildContext(userId: string, planningLimit: number): Promise<stri
     }),
   ])
 
-  const contextePlanning =
-    typeof planning === 'string' ? planning : `\n\nPlanning actuel d'Alexandra :\n${planningContext(planning)}`
+  const blocProfil = typeof profil === 'string' ? profil : profilContext(profil)
+  const contextePlanning = typeof planning === 'string' ? planning : planningContext(planning)
 
-  const corps = [profil, produits, perf, boutiques].filter((x) => typeof x === 'string').join('')
+  const corps = [blocProfil, produits, perf, boutiques].filter((x) => typeof x === 'string').join('')
   return `${corps}${stockContext(matieres)}${contextePlanning}`
 }
 
@@ -555,7 +483,7 @@ async function handleChat(req: Request, userIdPret?: string): Promise<Response> 
 
 ${TOOL_RULE}
 
-Tu peux utiliser la recherche web si Alexandra demande des tendances actuelles, des idées
+Tu peux utiliser la recherche web si la personne demande des tendances actuelles, des idées
 qui marchent en ce moment, ou des infos d'actualité.
 
 Écris en texte simple pour un écran de téléphone : pas de markdown (pas de **, #, >, -),
@@ -567,7 +495,7 @@ des paragraphes courts, va à l'essentiel.`
 
 // --- Bilan hebdo : tous les utilisateurs (cron) ou l'appelant (déclenchement manuel) ---
 
-// Seuil avant relance : pas de contact depuis 3 semaines. À caler avec Alexandra.
+// Seuil avant relance : pas de contact depuis 3 semaines (valeur de départ, à ajuster par compte).
 const RELANCE_SEUIL_JOURS = 21
 
 // Suggestion relance_boutique : calcul déterministe (pas via le LLM, pour éviter
@@ -584,13 +512,7 @@ async function detectRelancesBoutique(userId: string): Promise<number> {
     .from('boutique_contacts_log')
     .select('boutique_id, date')
     .eq('user_id', userId)
-    .order('date', { ascending: false })
-  const lastByBoutique = new Map<string, string>()
-  for (const c of contacts ?? []) {
-    if (!lastByBoutique.has(c.boutique_id as string)) {
-      lastByBoutique.set(c.boutique_id as string, c.date as string)
-    }
-  }
+  const dernier = dernierContactParBoutique((contacts ?? []) as ContactRow[])
 
   const { data: pending } = await admin
     .from('assistant_suggestions')
@@ -604,19 +526,13 @@ async function detectRelancesBoutique(userId: string): Promise<number> {
   let created = 0
   for (const b of boutiques as { id: string; nom: string }[]) {
     if (alreadyPending.has(b.id)) continue
-    const last = lastByBoutique.get(b.id)
-    const jours = last
-      ? Math.floor((today - new Date(`${last}T00:00:00`).getTime()) / 86_400_000)
-      : Infinity
+    const last = dernier.get(b.id)
+    const jours = last ? joursDepuis(last, today) : Infinity
     if (jours < RELANCE_SEUIL_JOURS) continue
-    const semaines = Math.floor(jours / 7)
-    const message = last
-      ? `${b.nom} : pas de contact depuis ${semaines} semaine${semaines > 1 ? 's' : ''}`
-      : `${b.nom} : jamais contactée`
     await admin.from('assistant_suggestions').insert({
       user_id: userId,
       type: 'relance_boutique',
-      message,
+      message: messageRelanceBoutique(b.nom, jours),
       boutique_id: b.id,
     })
     created++
@@ -685,7 +601,7 @@ ${titresConnus.map((t) => `- ${t}`).join('\n')}
 
 Prépare :
 1. 4 idées de publications concrètes pour les 2 prochaines semaines, toutes NOUVELLES.
-   Choisis ce qu'Alexandra est seule à pouvoir montrer — son atelier, ses matières, ses
+   Choisis ce que cette personne est seule à pouvoir montrer — son atelier, ses matières, ses
    clients, la saison — plutôt qu'un format que tout le monde publie. Ne propose que des
    produits réellement en stock.
 2. 1 à 3 observations utiles sur son planning (trous, idées qui stagnent, plateforme

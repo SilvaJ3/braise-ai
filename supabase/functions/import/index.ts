@@ -1,5 +1,5 @@
 // Import universel (V3) : Excel / CSV / PDF / image / texte → lignes normalisées pour une
-// entité (bougies, matières premières, fournisseurs, boutiques). Claude fait le parsing ;
+// entité (produits, matières premières, fournisseurs, boutiques). Claude fait le parsing ;
 // xlsx lu par _shared/xlsx-lite.ts (pas de dépendance, voir pourquoi dans le fichier) ;
 // secours déterministe par en-têtes de colonnes si l'IA est indisponible (CSV / tableur).
 // Rien n'est écrit en base ici : le client affiche un aperçu, l'utilisateur confirme, puis
@@ -100,7 +100,7 @@ async function extract(kind: ReturnType<typeof fileKind>, bytes: Uint8Array, b64
 function systemPrompt(entity: ImportEntity): string {
   const def = ENTITIES[entity]
   const fields = def.fields.map((f) => `- ${f.key} : ${f.description}`).join('\n')
-  return `Tu extrais des données d'un document fourni par une artisane (bougies faites main, Belgique) pour
+  return `Tu extrais des données d'un document fourni par une artisane ou un artisan (artisanat fait main, Belgique) pour
 les importer dans son application. Entité cible : ${def.label}. ${def.hint}
 
 Champs à remplir pour chaque ligne :

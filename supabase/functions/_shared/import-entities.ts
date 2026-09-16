@@ -42,8 +42,8 @@ const bool: Pick<FieldDef, 'type' | 'description' | 'synonyms'> = {
 
 export const ENTITIES: Record<ImportEntity, EntityDef> = {
   produits: {
-    label: 'Bougies (catalogue)',
-    labelSingular: 'bougie',
+    label: 'Produits (catalogue)',
+    labelSingular: 'produit',
     table: 'produits',
     dedupeKeys: ['shopify_handle', 'nom'],
     hint: "Export Shopify (Title, Body (HTML), Variant Price, Handle) ou tableau maison. Une ligne par produit ; les lignes de variantes/images sans titre sont ignorées.",
