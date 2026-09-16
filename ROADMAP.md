@@ -93,9 +93,10 @@ On ajuste wording / design / rappels selon ce qui coince. Rien d'autre ne démar
 - **Sync API Shopify.** App custom Shopify (token Admin API permanent, pas d'OAuth),
   edge function `sync-shopify`, bouton « Synchroniser depuis Shopify ». ~1 jour.
   À faire quand la boutique est live et le catalogue stable.
-- **Connexion Instagram / réseaux sociaux.** Voir section dédiée plus bas — c'est un vrai
-  chantier (app Meta + OAuth + App Review), pas un reliquat court. À planifier comme une
-  version à part.
+- ~~**Connexion Instagram / réseaux sociaux.**~~ **Retiré le 16/09** : l'intégration (deux edge
+  functions, deux tables, quatre colonnes, un bucket, un cron) tournait en production sans aucune
+  source dans ce dépôt. Supprimée plutôt que rapatriée — voir la section dédiée plus bas pour la
+  reprise éventuelle.
 - **Infos atelier / lieu.** Rien à coder : Alexandra le renseigne dans le textarea « Voix de marque ».
 
 ---
@@ -238,9 +239,31 @@ Reste, à mesure que V2 et V3 arrivent :
 
 ---
 
-## Connexion aux réseaux sociaux (Instagram / Facebook / TikTok)
+## Connexion aux réseaux sociaux (Instagram / Facebook / TikTok) — **retirée le 16/09**
 
-Question ouverte : brancher directement le compte Instagram d'Alexandra sur l'app.
+Le prototype V2.5 (OAuth Instagram, publication directe et programmée) a été **supprimé de la
+production** le 16/09 sur décision explicite. Raison : il tournait sans source versionnée — les
+migrations `0025_instagram`, `0026_instagram_cron`, `0027_oauth_states_user_idx` et les edge
+functions `instagram-oauth` / `instagram-publish` n'ont jamais existé dans ce dépôt. Rien
+d'auditable, rien de reconstructible après un `db reset`, et un jeton de publication stocké pour
+un service qui ne s'en servait plus.
+
+Ce qui a été retiré, et comment : migration `0039_retrait_instagram.sql` (cron, politiques
+Storage, quatre colonnes de `content_entries`, tables `instagram_accounts` et `oauth_states`),
+puis le bucket `content-media` et les deux fonctions par l'API. Aucune donnée perdue : tout était
+vide (relevé avant). **Reste à faire à la main** : les secrets `META_APP_ID` / `META_APP_SECRET`
+dans Project Settings → Edge Functions → Secrets (le jeton OAuth de l'outillage n'a pas le droit
+de les supprimer).
+
+Le code des fonctions est archivé hors dépôt, dans
+`~/projets-clients/braise-instagram-archive/` (corps servi par l'API, source lisible par
+recherche de marqueurs). C'est la seule copie existante. L'app Meta, côté Facebook, peut être
+supprimée séparément si tu n'en as plus besoin.
+
+**Si l'idée revient**, ne pas repartir du prototype : tout réécrire dans le dépôt. Les notes
+ci-dessous restent valables pour cadrer l'effort.
+
+Question ouverte, si on la reprenait : brancher directement le compte Instagram d'Alexandra.
 
 ### Ce qui existe (à reconfirmer au moment du dev — l'écosystème Meta bouge souvent)
 
