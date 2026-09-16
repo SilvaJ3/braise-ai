@@ -196,6 +196,28 @@ mark {
   margin-bottom: 16px;
 }
 
+/* Ligne de la carte « Pour démarrer » : un vrai <button>, donc habillé à la main — largeur
+   pleine, texte aligné à gauche, deux lignes (le titre, puis ce que ça apporte). */
+.demarrage-etape {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #f0c9ab;
+  background: var(--accent-soft);
+}
+.demarrage-etape + .demarrage-etape {
+  margin-top: 8px;
+}
+.demarrage-etape .row {
+  width: 100%;
+}
+.demarrage-etape .demarrage-detail {
+  display: block;
+  margin-top: 4px;
+}
+
 /* Sous-onglets : scroll horizontal, jamais de retour à la ligne */
 .subnav {
   display: flex;

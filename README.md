@@ -6,6 +6,9 @@ Mobile-first, PWA installable sur iPhone. Voir `specs/` pour la vision et la roa
 ## Fonctionnel
 
 - **Planning réseaux sociaux** (V1) : idées / publications, statuts, calendrier, rappels push (V1.5).
+- **Carte « Pour démarrer »** (T6) : sur l'accueil, les trois choses qui manquent au compte pour que
+  l'app serve à quelque chose (une boutique, des produits, le premier bon signé), lues dans les
+  données — chaque ligne disparaît quand c'est fait, la carte se masque définitivement.
 - **Inscription sur invitation** : compte créé côté serveur après vérification d'un code ; le
   tunnel d'accueil (activité, lieu, catalogue de départ) est la prochaine tranche.
 - **Boutiques** (V2) : fiches dépôt-vente, mini-carte, relances suggérées.

@@ -23,6 +23,8 @@ export type ProfilCompte = {
   /** Dérogation de quota propre au compte, ou null (le quota vient alors du plan). */
   quota_mensuel: number | null
   onboarding_completed_at: string | null
+  /** Date à laquelle la carte « Pour démarrer » a été masquée (null = jamais masquée). */
+  demarrage_ferme_at: string | null
 }
 
 export const CANAUX: { valeur: Canaux; label: string; precisions: string }[] = [
@@ -51,7 +53,7 @@ export function useProfilCompte(actif = true) {
       const { data, error } = await supabase
         .from('assistant_profil')
         .select(
-          'metier, nom_commercial, ville, pays, canaux, plateformes, contenu, message_accueil, plan, quota_mensuel, onboarding_completed_at',
+          'metier, nom_commercial, ville, pays, canaux, plateformes, contenu, message_accueil, plan, quota_mensuel, onboarding_completed_at, demarrage_ferme_at',
         )
         .maybeSingle()
       if (error) throw error

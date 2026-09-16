@@ -28,6 +28,40 @@ Découpage en tranches livrables (voir `PROSPECTION.md` côté pilotage) :
 | T4 — Accueil vide propre + libellés génériques | Fait, déployé |
 | T5 — Plan, quota mensuel inclus, journalisation des tokens | Fait, déployé |
 | T5 — Encaissement Stripe + CGU | À faire : bloqué par le numéro BCE (procédure au README) |
+| T6 — Carte « Pour démarrer » sur l'accueil (étapes lues dans les données) | Écrit et vérifié (`npm run check`, 162 tests) — **à déployer** : migration `0042_demarrage.sql` puis push |
+
+## Onboarding de premier usage (décision, T6 fait / T7 à faire)
+
+Deux choses distinctes, souvent confondues :
+
+1. **Le tunnel de profil** (T3, déployé) : trois écrans à l'inscription, il remplit
+   `assistant_profil` pour que l'assistant ne soit pas vague. Il est bien tel quel.
+2. **Le premier usage** : ce que la personne fait dans les cinq minutes qui suivent. Le tunnel se
+   terminait sur « Commencer à la main » → écran vide, sans rien pour dire quoi faire. C'est ce
+   trou que comble T6.
+
+**Décision : pas de visite guidée des fonctionnalités.** Un spotlight sur les onglets enseigne le
+planning à quelqu'un qui n'a rien à planifier, coûte cher à maintenir (ciblage, repositionnement,
+accessibilité, à refaire à chaque refonte d'écran) et se fait traverser en quatre taps sans laisser
+de trace. Ce qu'on fait à la place :
+
+- **T6 — carte « Pour démarrer »** (`src/components/Demarrage.tsx`, `src/lib/demarrage-etapes.ts`) :
+  trois lignes maximum, chacune menant au bon écran, dans l'ordre des dépendances réelles —
+  une boutique, les produits, puis **le premier bon signé** (l'étape qui montre la pièce maîtresse,
+  débloquée seulement quand il y a de quoi remplir un bon), le planning en dernier. Chaque ligne
+  disparaît quand la donnée existe, la carte s'efface à la dernière. Le masquage est enregistré sur
+  le compte (`assistant_profil.demarrage_ferme_at`, migration 0042) : un changement de téléphone ne
+  la fait pas revenir. Journalisation : `demarrage_vu` / `demarrage_clic` / `demarrage_masque` /
+  `demarrage_termine`, une ligne par situation et par session.
+  Effet de bord bienvenu : l'accueil ne charge plus le catalogue ni le planning en entier pour
+  savoir s'il est vide — quatre comptages côté serveur (`head: true`) suffisent.
+- **T7 — à faire** : aide contextuelle à deux endroits seulement (le canvas de signature, le
+  geste de vente de l'onglet Marché), une seule fois, vue stockée côté serveur — et une page
+  « Premiers pas » rouvrable depuis Compte. Plus l'amorçage du chat par trois puces cliquables,
+  qui vaut mieux qu'un écran de présentation.
+
+Test à appliquer avant d'ajouter quoi que ce soit ici : *est-ce que ça la décharge, ou est-ce que
+ça lui ajoute une tâche ?* Une carte qui reste affichée après avoir été fermée ajoute une tâche.
 
 ## Écart assumé vs spec
 
@@ -64,8 +98,8 @@ d'emblée, coûteux à rétrofiter.
   produit a besoin d'un onboarding qui remplit `assistant_profil` à l'inscription.
 - ~~Pas de flux d'inscription~~ → **fait (T2)** : inscription sur invitation (`/inscription` +
   edge function `inscription` + table `invitations`). L'inscription publique reste **fermée** :
-  le code est le seul chemin, et il est vérifié côté serveur. Reste à faire : le tunnel d'accueil
-  (T3), qui remplit `assistant_profil` et remplace le profil par défaut.
+  le code est le seul chemin, et il est vérifié côté serveur. Le tunnel d'accueil (T3) est fait
+  aussi : il remplit `assistant_profil` avant d'ouvrir le reste de l'app.
 - Branding « Braaise » figé (manifest, titre, icônes). Un produit multi-artisan
   demanderait un nom générique ou du white-label.
 - Push crons (`push-reminders`, `push-weekly-digest`) : vérifier qu'ils balaient bien tous

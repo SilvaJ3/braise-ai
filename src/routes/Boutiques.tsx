@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import BoutiqueForm from '../components/BoutiqueForm'
 import Fab from '../components/Fab'
@@ -13,13 +13,31 @@ const RELANCE_SEUIL_JOURS = 21 // ~3 semaines sans contact (même seuil que l'ed
 type Tab = 'boutiques' | 'commandes' | 'marches'
 const TABS: Tab[] = ['boutiques', 'commandes', 'marches']
 
-function BoutiquesTab() {
+function BoutiquesTab({
+  nouvelle = false,
+  onFermerNouvelle,
+}: {
+  /** Arrivée depuis la carte « Pour démarrer » : le formulaire s'ouvre tout de suite. */
+  nouvelle?: boolean
+  onFermerNouvelle?: () => void
+}) {
   const { data: boutiques = [], isLoading, error } = useBoutiques()
   const { data: lastContacts = {} } = useLastContacts()
   const create = useCreateBoutique()
 
   const [creating, setCreating] = useState(false)
   const [showInactives, setShowInactives] = useState(false)
+
+  // `?nouvelle=1` reçu de la carte « Pour démarrer » : le formulaire s'ouvre à l'arrivée, et le
+  // paramètre est retiré en le refermant — un rechargement ou un retour ne doit pas le rouvrir.
+  useEffect(() => {
+    if (nouvelle) setCreating(true)
+  }, [nouvelle])
+
+  const fermer = () => {
+    setCreating(false)
+    onFermerNouvelle?.()
+  }
 
   const shown = useMemo(
     () => boutiques.filter((b) => showInactives || b.actif),
@@ -34,8 +52,8 @@ function BoutiquesTab() {
       {creating && (
         <BoutiqueForm
           busy={create.isPending}
-          onCancel={() => setCreating(false)}
-          onSubmit={(draft) => create.mutate(draft, { onSuccess: () => setCreating(false) })}
+          onCancel={fermer}
+          onSubmit={(draft) => create.mutate(draft, { onSuccess: fermer })}
         />
       )}
 
@@ -89,6 +107,7 @@ export default function Boutiques() {
   const tabParam = params.get('tab')
   const tab: Tab = TABS.includes(tabParam as Tab) ? (tabParam as Tab) : 'boutiques'
   const go = (t: Tab) => setParams(t === 'boutiques' ? {} : { tab: t }, { replace: true })
+  const nouvelle = params.get('nouvelle') === '1'
 
   return (
     <>
@@ -123,7 +142,9 @@ export default function Boutiques() {
         </button>
       </div>
 
-      {tab === 'boutiques' && <BoutiquesTab />}
+      {tab === 'boutiques' && (
+        <BoutiquesTab nouvelle={nouvelle} onFermerNouvelle={() => go('boutiques')} />
+      )}
       {tab === 'commandes' && <Commandes />}
       {tab === 'marches' && <Marches />}
     </>
