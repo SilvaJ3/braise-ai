@@ -47,7 +47,7 @@ function ProfilEditor() {
           setDirty(true)
         }}
         style={{ minHeight: 140 }}
-        placeholder="Ex : Je fais des bougies coulées main, cires végétales, senteurs franches et un peu nostalgiques. Ton chaleureux, tutoiement, jamais mièvre…"
+        placeholder="Ex : je fais de la céramique émaillée à la main, tons naturels, pièces uniques. Ton chaleureux, tutoiement, jamais mièvre…"
       />
       <div className="row" style={{ marginTop: 8 }}>
         <button
@@ -108,12 +108,15 @@ function ProduitForm({
     <div className="card stack">
       <label>Nom</label>
       <input value={d.nom} onChange={(e) => set('nom', e.target.value)} autoFocus />
-      <label>Senteur</label>
+      <label>Variante</label>
       <input
         value={d.senteur ?? ''}
         onChange={(e) => set('senteur', e.target.value || null)}
-        placeholder="figue, bois brûlé…"
+        placeholder="vanille, bleu nuit, grand format…"
       />
+      <p className="muted" style={{ fontSize: '0.8rem', margin: '4px 0 0' }}>
+        Ce qui distingue deux pièces du même nom. Laisse vide si tu n'en as pas.
+      </p>
       <div className="row">
         <div className="field-half">
           <label>Prix (€)</label>
@@ -241,7 +244,7 @@ function ProduitsManager() {
   return (
     <>
       <div className="row">
-        <h2 style={{ margin: 0 }}>Mes bougies</h2>
+        <h2 style={{ margin: 0 }}>Mes produits</h2>
         <div className="spacer" />
         {!creating && !editing && (
           <button className="link" onClick={() => setCreating(true)}>
@@ -255,7 +258,7 @@ function ProduitsManager() {
 
       {isLoading && <p className="muted">…</p>}
       {!isLoading && produits.length === 0 && !creating && (
-        <p className="empty">Ajoute tes bougies pour des idées plus précises.</p>
+        <p className="empty">Ajoute tes produits pour des idées plus précises.</p>
       )}
       {!creating && !editing && (
         <p className="muted" style={{ margin: '4px 0 10px' }}>

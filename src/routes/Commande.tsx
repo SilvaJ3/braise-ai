@@ -259,7 +259,7 @@ export default function Commande() {
       </div>
 
       <div className="row">
-        <h2 style={{ margin: 0 }}>Bougies commandées</h2>
+        <h2 style={{ margin: 0 }}>Produits commandés</h2>
         <div className="spacer" />
         {commandeId && lignes.length > 0 && (
           <button className="link" disabled={marquerEnStock.isPending} onClick={() => marquerToutEnStock(!touteEnStock)}>
@@ -270,7 +270,7 @@ export default function Commande() {
       <div className="card">
         {lignes.length === 0 && (
           <p className="empty" style={{ margin: '0 0 10px' }}>
-            Ajoute les bougies commandées, une par une.
+            Ajoute les produits commandés, un par un.
           </p>
         )}
 
@@ -279,8 +279,8 @@ export default function Commande() {
             <div className="row">
               <input
                 value={l.designation}
-                placeholder="Nom de la bougie"
-                aria-label="Nom de la bougie"
+                placeholder="Nom du produit"
+                aria-label="Nom du produit"
                 autoFocus={!l.produit_id}
                 onChange={(e) => setLigne(i, { designation: e.target.value })}
                 style={{ minHeight: 34, padding: '4px 8px', flex: 1 }}
@@ -325,7 +325,7 @@ export default function Commande() {
         ))}
 
         <select
-          aria-label="Ajouter une bougie"
+          aria-label="Ajouter un produit"
           value=""
           onChange={(e) => {
             ajouterArticle(e.target.value)
@@ -333,7 +333,7 @@ export default function Commande() {
           }}
           style={{ marginTop: lignes.length ? 10 : 0 }}
         >
-          <option value="">+ Ajouter une bougie…</option>
+          <option value="">+ Ajouter un produit…</option>
           {produits
             .filter((p) => p.actif)
             .map((p) => (

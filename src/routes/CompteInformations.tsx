@@ -11,6 +11,7 @@ export default function CompteInformations() {
   const enregistrer = useEnregistrerProfilCompte()
 
   const [valeurs, setValeurs] = useState<ValeursProfil>(VALEURS_VIDES)
+  const [messageAccueil, setMessageAccueil] = useState('')
   const [preRempli, setPreRempli] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [erreur, setErreur] = useState<string | null>(null)
@@ -24,6 +25,7 @@ export default function CompteInformations() {
       canaux: (profil.canaux ?? []) as Canaux[],
       plateformes: profil.plateformes ?? [],
     })
+    setMessageAccueil(profil.message_accueil ?? '')
     setPreRempli(true)
   }, [profil, preRempli])
 
@@ -41,6 +43,7 @@ export default function CompteInformations() {
         ville: valeurs.ville.trim() || null,
         canaux: valeurs.canaux,
         plateformes: valeurs.canaux.includes('reseaux') ? valeurs.plateformes : [],
+        message_accueil: messageAccueil.trim() || null,
       })
       setMsg('Enregistré ✓')
     } catch (e) {
@@ -69,6 +72,22 @@ export default function CompteInformations() {
 
           <h2>Où tu vends</h2>
           <ChampsCanaux valeurs={valeurs} onChange={(patch) => setValeurs((v) => ({ ...v, ...patch }))} />
+
+          <h2>Ton écran d'accueil</h2>
+          <div className="card stack">
+            <label htmlFor="message-accueil">Un mot en haut de l'accueil (optionnel)</label>
+            <input
+              id="message-accueil"
+              value={messageAccueil}
+              onChange={(e) => setMessageAccueil(e.target.value)}
+              maxLength={200}
+              placeholder="ex. Ici, tout se fabrique à la main."
+            />
+            <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+              Il ne s'affiche que pour toi, en haut de l'écran « Aujourd'hui ». Laisse vide si tu
+              n'en veux pas.
+            </p>
+          </div>
 
           {erreur && (
             <p className="muted" style={{ color: 'var(--accent)' }}>

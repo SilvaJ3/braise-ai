@@ -20,7 +20,7 @@ async function compresser(fichier: File): Promise<string> {
   return canvas.toDataURL('image/jpeg', QUALITE).split(',')[1] ?? ''
 }
 
-// Photo de l'état des articles au moment du dépôt (ex. les bougies sur le présentoir de la
+// Photo de l'état des articles au moment du dépôt (ex. les pièces sur le présentoir de la
 // boutique) : un complément visuel au bon, un seul cliché pour l'instant.
 export default function PhotoInput({
   valeur,

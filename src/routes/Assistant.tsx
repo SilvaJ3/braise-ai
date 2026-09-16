@@ -7,7 +7,7 @@ import { logEvent } from '../lib/events'
 import { Highlight } from '../lib/highlight'
 
 // L'historique est persistant (table chat_messages). La réponse est générée en
-// arrière-plan côté serveur : Alexandra peut fermer l'app, une notification push
+// arrière-plan côté serveur : la personne peut fermer l'app, une notification push
 // la prévient quand c'est prêt.
 export default function Assistant() {
   const qc = useQueryClient()
@@ -75,7 +75,7 @@ export default function Assistant() {
             <div className="empty">
               <SparkleIcon size={28} />
               <p>
-                Demande des idées de contenu, un angle pour une bougie, un plan de
+                Demande des idées de contenu, un angle pour un produit, un plan de
                 semaine. Dis-lui « ajoute ça au planning » quand une idée te plaît.
               </p>
               <p className="muted">

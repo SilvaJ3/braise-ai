@@ -93,7 +93,7 @@ export default function EntryForm({
         autoFocus
       />
 
-      <label htmlFor="product">Bougie / produit</label>
+      <label htmlFor="product">Produit</label>
       <input
         id="product"
         value={d.product ?? ''}

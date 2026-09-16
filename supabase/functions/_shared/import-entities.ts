@@ -49,7 +49,7 @@ export const ENTITIES: Record<ImportEntity, EntityDef> = {
     hint: "Export Shopify (Title, Body (HTML), Variant Price, Handle) ou tableau maison. Une ligne par produit ; les lignes de variantes/images sans titre sont ignorées.",
     fields: [
       { key: 'nom', label: 'Nom', type: 'text', required: true, max: 200, description: 'nom commercial du produit', synonyms: ['nom', 'name', 'title', 'titre', 'produit', 'product', 'bougie', 'designation', 'désignation', 'libelle', 'libellé', 'article'] },
-      { key: 'senteur', label: 'Senteur', type: 'text', max: 200, description: 'parfum / notes olfactives', synonyms: ['senteur', 'parfum', 'fragrance', 'scent', 'odeur', 'notes'] },
+      { key: 'senteur', label: 'Variante', type: 'text', max: 200, description: 'ce qui distingue deux pièces du même nom (parfum, couleur, taille)', synonyms: ['senteur', 'parfum', 'fragrance', 'scent', 'odeur', 'notes', 'variante', 'couleur', 'coloris', 'taille'] },
       { key: 'description', label: 'Histoire / angle', type: 'text', max: 2000, description: 'description courte, texte brut sans HTML', synonyms: ['description', 'body', 'body (html)', 'histoire', 'texte', 'details', 'détails'] },
       { key: 'prix_vente', label: 'Prix (€)', type: 'number', min: 0, description: 'prix de vente TTC en euros, nombre décimal', synonyms: ['prix', 'prix de vente', 'prix_vente', 'price', 'variant price', 'pv', 'tarif', 'prix ttc'] },
       { key: 'saison', label: 'Saison', type: 'enum', values: ['toute_annee', 'printemps', 'ete', 'automne', 'hiver', 'noel'], description: 'saison de vente si évidente (ex. "Noël", "hiver"), sinon vide', synonyms: ['saison', 'season', 'collection'] },

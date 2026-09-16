@@ -198,7 +198,7 @@ function BesoinsTab() {
     return (
       <p className="empty">
         Rien à commander pour l'instant. Calculé depuis les commandes en cours et les recettes
-        des bougies (Compte → Mes bougies → Recette).
+        des produits (Compte → Mes produits → Recette).
       </p>
     )
   }

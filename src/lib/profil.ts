@@ -15,6 +15,8 @@ export type ProfilCompte = {
   canaux: string[]
   plateformes: string[]
   contenu: string
+  /** Mot affiché en haut de l'écran d'accueil. Vide = rien. */
+  message_accueil: string | null
   onboarding_completed_at: string | null
 }
 
@@ -43,7 +45,9 @@ export function useProfilCompte(actif = true) {
     queryFn: async (): Promise<ProfilCompte | null> => {
       const { data, error } = await supabase
         .from('assistant_profil')
-        .select('metier, nom_commercial, ville, pays, canaux, plateformes, contenu, onboarding_completed_at')
+        .select(
+          'metier, nom_commercial, ville, pays, canaux, plateformes, contenu, message_accueil, onboarding_completed_at',
+        )
         .maybeSingle()
       if (error) throw error
       return (data as ProfilCompte | null) ?? null
