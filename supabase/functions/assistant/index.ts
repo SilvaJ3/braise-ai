@@ -226,7 +226,7 @@ function estDoublon(titre: string, existants: string[]): boolean {
 async function loadProfil(userId: string): Promise<ProfilCompte | null> {
   const { data, error } = await admin
     .from('assistant_profil')
-    .select('metier, nom_commercial, ville, pays, contenu')
+    .select('metier, nom_commercial, ville, pays, canaux, plateformes, contenu')
     .eq('user_id', userId)
     .maybeSingle()
   if (error) throw error

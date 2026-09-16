@@ -10,9 +10,30 @@ export type ProfilCompte = {
   nom_commercial: string | null
   ville: string | null
   pays: string | null
+  /** Où la personne vend : reseaux / marches / boutiques / en_ligne (voir la contrainte en base). */
+  canaux?: string[] | null
+  /** Plateformes sociales réellement utilisées : instagram / facebook / tiktok. */
+  plateformes?: string[] | null
   /** Voix de marque : texte libre saisi par la personne. */
   contenu: string | null
 }
+
+/** Libellés partagés entre le prompt et l'interface : une seule vérité sur ce que veut dire un canal. */
+export const CANAUX_LABEL: Record<string, string> = {
+  reseaux: 'réseaux sociaux',
+  marches: 'marchés artisanaux',
+  boutiques: 'dépôt-vente en boutiques',
+  en_ligne: 'boutique en ligne',
+}
+
+export const PLATEFORMES_LABEL: Record<string, string> = {
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  tiktok: 'TikTok',
+}
+
+const libelles = (valeurs: string[] | null | undefined, table: Record<string, string>): string[] =>
+  (valeurs ?? []).filter((v) => typeof v === 'string' && table[v]).map((v) => table[v])
 
 export type Entry = {
   title: string
@@ -60,6 +81,14 @@ export function profilContext(profil: ProfilCompte | null | undefined): string {
   if (nom) lignes.push(`Nom commercial : ${nom}.`)
   if (metier) lignes.push(`Activité déclarée : ${metier}.`)
   if (ville) lignes.push(`Basée à : ${ville}.`)
+  const canaux = libelles(profil?.canaux, CANAUX_LABEL)
+  if (canaux.length) lignes.push(`Canaux de vente : ${canaux.join(', ')}.`)
+  const plateformes = libelles(profil?.plateformes, PLATEFORMES_LABEL)
+  if (plateformes.length) {
+    lignes.push(
+      `Plateformes sociales utilisées : ${plateformes.join(', ')} — ne propose pas de contenu pour les autres sans le préciser.`,
+    )
+  }
   if (!metier && !voix) {
     lignes.push(
       "Le profil n'est pas encore renseigné : ne rien affirmer sur son activité, ses produits, " +

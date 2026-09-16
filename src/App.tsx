@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import BottomNav from './components/BottomNav'
 import NotificationBell from './components/NotificationBell'
 import { useAuth } from './lib/auth'
+import { useProfilCompte } from './lib/profil'
 import Assistant from './routes/Assistant'
 import Atelier from './routes/Atelier'
 import Aujourdhui from './routes/Aujourdhui'
@@ -10,6 +11,7 @@ import Boutiques from './routes/Boutiques'
 import Compte from './routes/Compte'
 import CompteApparence from './routes/CompteApparence'
 import CompteCoordonnees from './routes/CompteCoordonnees'
+import CompteInformations from './routes/CompteInformations'
 import CompteMotDePasse from './routes/CompteMotDePasse'
 import CompteNotifications from './routes/CompteNotifications'
 import Commande from './routes/Commande'
@@ -19,10 +21,12 @@ import Login from './routes/Login'
 import Marche from './routes/Marche'
 import Notifications from './routes/Notifications'
 import NotificationsCategorie from './routes/NotificationsCategorie'
+import Onboarding from './routes/Onboarding'
 import Planning from './routes/Planning'
 
 export default function App() {
   const { session, loading } = useAuth()
+  const profil = useProfilCompte(Boolean(session))
 
   if (loading) return <p className="muted">Chargement…</p>
   if (!session) {
@@ -35,11 +39,29 @@ export default function App() {
     )
   }
 
+  if (profil.isLoading) return <p className="muted">Chargement…</p>
+
+  // Tant que le tunnel d'accueil n'est pas terminé, rien d'autre n'est ouvert : ni la barre du
+  // bas, ni un écran de données que la personne ne saurait pas encore remplir. Une ligne absente
+  // (compte créé à la main dans Supabase) compte comme « tunnel à faire ». En revanche, une
+  // lecture en erreur ne doit pas enfermer quelqu'un dans le tunnel : dans le doute, on le laisse
+  // entrer.
+  const tunnelAFaire = !profil.isError && (profil.data == null || profil.data.onboarding_completed_at == null)
+  if (tunnelAFaire) {
+    return (
+      <Routes>
+        <Route path="/onboarding" element={<Onboarding />} />
+        <Route path="*" element={<Navigate to="/onboarding" replace />} />
+      </Routes>
+    )
+  }
+
   return (
     <>
       <NotificationBell />
       <Routes>
         <Route path="/" element={<Aujourdhui />} />
+        <Route path="/onboarding" element={<Navigate to="/" replace />} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/notifications/:categorie" element={<NotificationsCategorie />} />
         <Route path="/planning" element={<Planning />} />
@@ -54,6 +76,7 @@ export default function App() {
         <Route path="/marches/:id" element={<Marche />} />
         <Route path="/assistant" element={<Assistant />} />
         <Route path="/compte" element={<Compte />} />
+        <Route path="/compte/informations" element={<CompteInformations />} />
         <Route path="/compte/coordonnees" element={<CompteCoordonnees />} />
         <Route path="/compte/apparence" element={<CompteApparence />} />
         <Route path="/compte/notifications" element={<CompteNotifications />} />

@@ -83,6 +83,43 @@ describe('profilContext', () => {
     expect(bloc).not.toMatch(/Activité déclarée/)
     expect(bloc).toMatch(/pas encore renseigné/)
   })
+
+  it("dit où la personne vend, en français, quand l'onboarding l'a recueilli", () => {
+    const bloc = profilContext({
+      metier: 'céramiste',
+      nom_commercial: null,
+      ville: null,
+      pays: null,
+      canaux: ['boutiques', 'marches'],
+      plateformes: ['instagram'],
+      contenu: '',
+    })
+    expect(bloc).toMatch(/Canaux de vente : dépôt-vente en boutiques, marchés artisanaux\./)
+    expect(bloc).toMatch(/Plateformes sociales utilisées : Instagram/)
+    verifierNeutre(bloc)
+  })
+
+  it('ignore une valeur de canal inconnue au lieu de la recracher', () => {
+    const bloc = profilContext({
+      metier: 'céramiste',
+      nom_commercial: null,
+      ville: null,
+      pays: null,
+      canaux: ['boutiques', 'ebay'],
+      plateformes: ['myspace'],
+      contenu: '',
+    })
+    expect(bloc).toMatch(/Canaux de vente : dépôt-vente en boutiques\./)
+    expect(bloc).not.toMatch(/ebay/)
+    expect(bloc).not.toMatch(/myspace/)
+    expect(bloc).not.toMatch(/Plateformes sociales/)
+  })
+
+  it('ne dit rien des canaux ni des plateformes quand rien n\'a été renseigné', () => {
+    const bloc = profilContext({ metier: 'céramiste', nom_commercial: null, ville: null, pays: null, contenu: '' })
+    expect(bloc).not.toMatch(/Canaux de vente/)
+    expect(bloc).not.toMatch(/Plateformes sociales/)
+  })
 })
 
 describe('planningContext', () => {

@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 
 // Menu d'ensemble : chaque réglage a sa propre page, pour que celle-ci reste courte.
 const ENTREES = [
+  { to: '/compte/informations', label: 'Mes informations', hint: 'Activité, lieu, canaux de vente' },
   { to: '/compte/coordonnees', label: 'Mes coordonnées', hint: "En-tête des bons de dépôt" },
   { to: '/compte/apparence', label: 'Apparence', hint: 'Couleurs de l’app' },
   { to: '/compte/notifications', label: 'Notifications', hint: 'Rappels et point hebdo' },
