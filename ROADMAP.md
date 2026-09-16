@@ -285,6 +285,12 @@ suivi manuel des perfs est une corvée.
 
 ## Audit de robustesse (septembre 2026) — ce qui a été durci
 
+- **Chat muet (trouvé le 16/09)** : le corps de la requête était lu deux fois (`Deno.serve` pour
+  connaître `mode`, puis `handleChat`). Un `Request` ne se relit pas : la seconde lecture levait,
+  le `.catch(() => ({}))` la transformait en « message vide », et **toutes** les questions
+  recevaient un `400`. Le corps est désormais lu une seule fois et passé aux fonctions qui en ont
+  besoin. Le dernier échange réussi datait du 29/08 — personne ne l'avait vu parce que rien ne
+  testait le chemin authentifié.
 - **Chat bloqué** : une réponse `pending` orpheline (edge function tuée avant d'écrire) bloquait
   la saisie pour toujours. Désormais clôturée en erreur après 5 min, côté serveur et côté client.
 - **Rappels push** : réservation atomique (`update … where reminder_sent_at is null` avant

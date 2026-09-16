@@ -53,6 +53,28 @@ supabase functions deploy inscription
 
 Secrets attendus : `ANTHROPIC_API_KEY`, `VAPID_PRIVATE_KEY`, `RESEND_API_KEY`,
 `MAIL_DOMAIN` (+ `SUPABASE_*` fournis automatiquement). Le secret de cron `assistant_cron_secret` vit dans Vault (voir migration 0003).
+
+**Un push sur `main` semble redéployer les fonctions** : le 16/09, cinq fonctions (`depot`,
+`import`, `push`, `instagram-*`) ont un horodatage de mise à jour à l'heure exacte d'un push, et
+l'API ne permet pas de lire l'intégration pour confirmer. Conséquence à garder en tête : ce qui
+part sur `main` peut partir en production sans autre geste. Vérifier après coup le corps servi
+(`GET /v1/projects/{ref}/functions/{slug}/body`).
+
+**Après tout déploiement de `assistant`, vérifier un vrai tour de chat** — le service peut
+démarrer, répondre `401` sur un appel anonyme, et n'être cassé que sur le chemin authentifié :
+
+```bash
+# avec un compte de test : obtenir une session, poser une question, relire la réponse
+curl -s "$SUPABASE_URL/functions/v1/assistant" \
+  -H "Authorization: Bearer $JWT" -H 'content-type: application/json' \
+  -d '{"mode":"chat","message":"En une phrase, qu'"'"'est-ce que je fabrique ?"}'
+# -> {"pending_id": "…"} puis la réponse dans public.chat_messages (status = done)
+```
+
+Le 16/09/2026, ce contrôle a montré que le chat répondait `400 message vide` à **toutes** les
+questions : le corps de la requête était lu deux fois (`Deno.serve` pour connaître `mode`, puis
+`handleChat`), et un `Request` ne se relit pas.
+
 ### Envoi des mails (bons de dépôt)
 
 Les mails partent du **service de l'application**, pas de la boîte de l'utilisateur : aucun

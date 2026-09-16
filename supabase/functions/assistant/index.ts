@@ -403,7 +403,11 @@ async function runChatTurn(
   }
 }
 
-async function handleChat(req: Request, userIdPret?: string): Promise<Response> {
+// Le corps de la requête est lu UNE SEULE FOIS, dans Deno.serve, et passé ici. Un `Request` ne
+// se relit pas : un second `req.json()` lève, et le `.catch(() => ({}))` qui l'entourait
+// transformait l'échec en « message vide » — le chat répondait 400 à toutes les questions depuis
+// que la lecture du `mode` existait en amont.
+async function handleChat(req: Request, userIdPret: string | undefined, corps: Record<string, unknown>): Promise<Response> {
   let userId = userIdPret
   if (!userId) {
     const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '')
@@ -412,8 +416,7 @@ async function handleChat(req: Request, userIdPret?: string): Promise<Response> 
     userId = userData.user.id
   }
 
-  const body = await req.json().catch(() => ({}))
-  const message = typeof body.message === 'string' ? body.message.trim() : ''
+  const message = typeof corps.message === 'string' ? corps.message.trim() : ''
   if (!message) return json({ error: 'message vide' }, 400)
   if (message.length > MAX_MESSAGE_CHARS) {
     return json({ error: `message trop long (max ${MAX_MESSAGE_CHARS} caractères)` }, 400)
@@ -736,9 +739,10 @@ Deno.serve(async (req) => {
   const userId = userData.user.id
 
   try {
-    const body = await req.json().catch(() => ({}))
-    const mode = body.mode ?? 'chat'
-    if (mode === 'chat') return await handleChat(req, userId)
+    // Lu ici, une seule fois pour toute la requête : voir le commentaire de handleChat.
+    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>
+    const mode = typeof body.mode === 'string' ? body.mode : 'chat'
+    if (mode === 'chat') return await handleChat(req, userId, body)
     if (mode === 'weekly') return await handleWeekly(req)
     return json({ error: `mode inconnu: ${mode}` }, 400)
   } catch (e) {
