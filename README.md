@@ -6,6 +6,8 @@ Mobile-first, PWA installable sur iPhone. Voir `specs/` pour la vision et la roa
 ## Fonctionnel
 
 - **Planning réseaux sociaux** (V1) : idées / publications, statuts, calendrier, rappels push (V1.5).
+- **Inscription sur invitation** : compte créé côté serveur après vérification d'un code ; le
+  tunnel d'accueil (activité, lieu, catalogue de départ) est la prochaine tranche.
 - **Boutiques** (V2) : fiches dépôt-vente, mini-carte, relances suggérées.
 - **Atelier** (V3, en cours) : matières premières (stock, seuil, fournisseur), fournisseurs,
   **import par IA** d'un Excel / CSV / PDF / photo vers bougies, matières, fournisseurs ou boutiques.
@@ -46,6 +48,7 @@ supabase functions deploy assistant
 supabase functions deploy push
 supabase functions deploy import
 supabase functions deploy depot
+supabase functions deploy inscription
 ```
 
 Secrets attendus : `ANTHROPIC_API_KEY`, `VAPID_PRIVATE_KEY`, `RESEND_API_KEY`,
@@ -85,13 +88,37 @@ n'apparaisse plus du tout dans les mails. Le `Reply-To` deviendrait alors inutil
 
 ## Compte utilisateur
 
-App mono-utilisateur, pas d'écran d'inscription. Le compte d'Alexandra
-(`alexandra.mnier@gmail.com`) est déjà créé avec un mot de passe temporaire —
-à changer via l'écran **Compte** dans l'app après la première connexion.
+L'inscription publique est **désactivée** sur le projet Supabase : le seul chemin vers un compte
+est l'edge function `inscription`, qui exige un code d'invitation (table `invitations`, illisible
+par le client). Le compte est créé côté serveur, déjà confirmé, et sa ligne `assistant_profil` est
+ouverte avec `onboarding_completed_at` à null — c'est cette colonne qui déclenchera le tunnel
+d'accueil.
 
-À faire côté Supabase Studio : désactiver les inscriptions publiques
-(Authentication → Sign In / Providers → "Allow new users to sign up" = off).
-Ajouter un autre utilisateur : Authentication → Users → Add user.
+Créer un code, depuis l'éditeur SQL de Supabase (ou `execute_sql`) :
+
+```sql
+-- note = pour qui, email = adresse imposée (optionnel), validité en jours
+select public.invitation_creer('Abeille Blanche — dépôt-vente', 'contact@exemple.be', 'fondateur', 30);
+-- -> '7K2M-9QX4-ABCD'
+```
+
+L'utilisatrice va sur `/inscription`, saisit le code, son email et un mot de passe (10 caractères
+minimum, avec minuscule, majuscule et chiffre — c'est la politique du service), et se retrouve
+connectée.
+
+Suivi des inscriptions et de l'entonnoir :
+
+```sql
+select code, note, used_at, used_by from public.invitations order by created_at desc;
+select resultat, count(*) from public.inscription_tentatives group by resultat;
+```
+
+**Pas d'email de confirmation aujourd'hui** : GoTrue n'envoie rien sur ce projet (aucun SMTP), donc
+le code fait office de vérification. Tant que ce n'est pas branché, une personne qui perd son mot
+de passe ne peut pas le réinitialiser seule — la remise à zéro passe par le tableau de bord
+Supabase (Authentication → Users) ou par un appel Admin API.
+
+Ajouter un utilisateur à la main : Authentication → Users → Add user.
 
 ## Déploiement
 

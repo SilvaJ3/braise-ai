@@ -14,6 +14,7 @@ import CompteMotDePasse from './routes/CompteMotDePasse'
 import CompteNotifications from './routes/CompteNotifications'
 import Commande from './routes/Commande'
 import Depot from './routes/Depot'
+import Inscription from './routes/Inscription'
 import Login from './routes/Login'
 import Marche from './routes/Marche'
 import Notifications from './routes/Notifications'
@@ -28,6 +29,7 @@ export default function App() {
     return (
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/inscription" element={<Inscription />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     )

@@ -16,6 +16,18 @@ Référence produit : `specs/spec-app-au-coin-du-feu.md` et `specs/vision-assist
 | V4 — Bon de dépôt signé + envoi mail | **Fait** (voir plus bas). Le contrat cadre (13 articles) reste hors app : signé une fois par boutique, sur papier. |
 | V5, V6, V8 | Pas commencés |
 
+## Chantier MVP — ouvrir à d'autres artisans
+
+Découpage en tranches livrables (voir `PROSPECTION.md` côté pilotage) :
+
+| Tranche | État |
+|---|---|
+| T1 — Profil de compte neutre (plus de « Alexandra / bougies » codé en dur) | Fait, déployé |
+| T2 — Inscription sur invitation (code, compte créé côté serveur) | Fait, déployé |
+| T3 — Tunnel d'accueil (activité, lieu, catalogue de départ) | À faire |
+| T4 — Accueil vide propre + libellés génériques (« Mes bougies », « Bougies commandées »…) | À faire |
+| T5 — Plan, quota mensuel inclus, journalisation des tokens, encaissement Stripe, CGU | À faire |
+
 ## Écart assumé vs spec
 
 La spec prévoit que V7 (IA) ne démarre qu'après V1–V4. L'assistant a été pris en avance
@@ -49,8 +61,10 @@ d'emblée, coûteux à rétrofiter.
   Au-delà de ~50 comptes, passer en fan-out (1 invocation edge / user).
 - `DEFAULT_PROFIL` code en dur « Alexandra » et « bougies » — OK comme fallback, mais un vrai
   produit a besoin d'un onboarding qui remplit `assistant_profil` à l'inscription.
-- Pas de flux d'inscription (désactivé volontairement). À rouvrir + écran onboarding le jour
-  de la commercialisation.
+- ~~Pas de flux d'inscription~~ → **fait (T2)** : inscription sur invitation (`/inscription` +
+  edge function `inscription` + table `invitations`). L'inscription publique reste **fermée** :
+  le code est le seul chemin, et il est vérifié côté serveur. Reste à faire : le tunnel d'accueil
+  (T3), qui remplit `assistant_profil` et remplace le profil par défaut.
 - Branding « Braaise » figé (manifest, titre, icônes). Un produit multi-artisan
   demanderait un nom générique ou du white-label.
 - Push crons (`push-reminders`, `push-weekly-digest`) : vérifier qu'ils balaient bien tous
