@@ -195,7 +195,8 @@ async function handle(req: Request): Promise<Response> {
   if (ANTHROPIC_KEY) {
     // Deux quotas, deux rôles : le mensuel est le plafond du plan (ce qui se voit sur la facture
     // et ce qui se vend), l'horaire protège d'un martèlement. Le mensuel se vérifie en premier,
-    // pour que le message parle du quota qui bloque vraiment.
+    // pour que le message parle du quota qui bloque vraiment. Comme pour le chat, un import refusé
+    // a fait monter le compteur sans consommer de calcul.
     const { data: profil } = await admin
       .from('assistant_profil')
       .select('plan, quota_mensuel')

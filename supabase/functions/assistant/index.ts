@@ -476,6 +476,11 @@ async function handleChat(req: Request, userIdPret: string | undefined, corps: R
   // Quota mensuel du plan : c'est le plafond qui se vend et qui se voit sur la facture. Vérifié
   // avant l'horaire, pour que le message parle du quota qui bloque vraiment, et AVANT l'appel au
   // modèle (réserver puis appeler — jamais l'inverse).
+  //
+  // Conséquence assumée de l'incrément atomique : une question refusée a quand même fait monter le
+  // compteur (on réserve, puis on compare). Le coût réel n'est pas engagé — aucun appel au modèle
+  // n'a lieu — et un compteur légèrement au-dessus du quota ne change rien à l'affichage, qui
+  // borne le « reste » à zéro.
   const profil = await loadProfil(userId).catch(() => null)
   const quotaMois = quotaQuestions(profil?.plan, profil?.quota_mensuel)
   const { data: moisOk, error: errQuotaMois } = await admin.rpc('consommer_quota_mois', {
