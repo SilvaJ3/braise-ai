@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from './supabase'
+import type { Plan, UsageMois } from '../../supabase/functions/_shared/compte'
 
 // Profil de compte : ce que le tunnel d'accueil remplit, et ce que l'assistant lit pour savoir à
 // qui il parle. Distinct de la « voix de marque » (texte libre, éditable dans Compte), qui vit
@@ -17,6 +18,10 @@ export type ProfilCompte = {
   contenu: string
   /** Mot affiché en haut de l'écran d'accueil. Vide = rien. */
   message_accueil: string | null
+  /** Plan commercial : essai / fondateur / mensuel / annuel (voir _shared/compte.ts). */
+  plan: Plan
+  /** Dérogation de quota propre au compte, ou null (le quota vient alors du plan). */
+  quota_mensuel: number | null
   onboarding_completed_at: string | null
 }
 
@@ -46,11 +51,29 @@ export function useProfilCompte(actif = true) {
       const { data, error } = await supabase
         .from('assistant_profil')
         .select(
-          'metier, nom_commercial, ville, pays, canaux, plateformes, contenu, message_accueil, onboarding_completed_at',
+          'metier, nom_commercial, ville, pays, canaux, plateformes, contenu, message_accueil, plan, quota_mensuel, onboarding_completed_at',
         )
         .maybeSingle()
       if (error) throw error
       return (data as ProfilCompte | null) ?? null
+    },
+  })
+}
+
+/**
+ * Ce que le compte a consommé ce mois-ci : plan, quotas, tokens. Tout est calculé côté base sous
+ * la RLS du compte appelant (`mon_compte()`), pour que l'affichage ne puisse pas mentir.
+ */
+export function useMonCompte() {
+  return useQuery({
+    queryKey: ['mon-compte'],
+    staleTime: 60_000,
+    queryFn: async (): Promise<UsageMois> => {
+      const { data, error } = await supabase.rpc('mon_compte')
+      if (error) throw error
+      const ligne = (Array.isArray(data) ? data[0] : data) as UsageMois | undefined
+      if (!ligne) throw new Error('consommation illisible')
+      return ligne
     },
   })
 }
@@ -61,6 +84,7 @@ function useInvaliderProfil() {
     qc.invalidateQueries({ queryKey: CLE })
     // La voix de marque est lue ailleurs dans la même ligne : elle doit se rafraîchir aussi.
     qc.invalidateQueries({ queryKey: ['assistant_profil'] })
+    qc.invalidateQueries({ queryKey: ['mon-compte'] })
   }
 }
 

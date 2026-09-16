@@ -24,9 +24,10 @@ Découpage en tranches livrables (voir `PROSPECTION.md` côté pilotage) :
 |---|---|
 | T1 — Profil de compte neutre (plus de « Alexandra / bougies » codé en dur) | Fait, déployé |
 | T2 — Inscription sur invitation (code, compte créé côté serveur) | Fait, déployé |
-| T3 — Tunnel d'accueil (activité, lieu, catalogue de départ) | À faire |
-| T4 — Accueil vide propre + libellés génériques (« Mes bougies », « Bougies commandées »…) | À faire |
-| T5 — Plan, quota mensuel inclus, journalisation des tokens, encaissement Stripe, CGU | À faire |
+| T3 — Tunnel d'accueil (activité, lieu, catalogue de départ) | Fait, déployé |
+| T4 — Accueil vide propre + libellés génériques | Fait, déployé |
+| T5 — Plan, quota mensuel inclus, journalisation des tokens | Fait, déployé |
+| T5 — Encaissement Stripe + CGU | À faire : bloqué par le numéro BCE (procédure au README) |
 
 ## Écart assumé vs spec
 

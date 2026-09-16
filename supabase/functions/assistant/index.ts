@@ -21,6 +21,7 @@ import {
   type ProduitRow,
   type ProfilCompte,
 } from '../_shared/contexte-assistant.ts'
+import { ligneUsage, messageQuotaAtteint, quotaQuestions } from '../_shared/compte.ts'
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void }
 
@@ -221,16 +222,33 @@ function estDoublon(titre: string, existants: string[]): boolean {
   return false
 }
 
+/** Le profil + ce qui décide du coût : le plan et sa dérogation éventuelle de quota. */
+type ProfilAssiste = ProfilCompte & { plan?: string | null; quota_mensuel?: number | null }
+
 // Le profil n'a plus de valeur de repli codée en dur : la ligne de `assistant_profil` est la
 // seule source, et un profil vide produit une consigne de prudence (voir profilContext).
-async function loadProfil(userId: string): Promise<ProfilCompte | null> {
+async function loadProfil(userId: string): Promise<ProfilAssiste | null> {
   const { data, error } = await admin
     .from('assistant_profil')
-    .select('metier, nom_commercial, ville, pays, canaux, plateformes, contenu')
+    .select('metier, nom_commercial, ville, pays, canaux, plateformes, contenu, plan, quota_mensuel')
     .eq('user_id', userId)
     .maybeSingle()
   if (error) throw error
-  return (data as ProfilCompte | null) ?? null
+  return (data as ProfilAssiste | null) ?? null
+}
+
+/** Journalise les tokens consommés. Un échec de journal ne doit jamais casser la réponse. */
+async function enregistrerUsage(
+  userId: string,
+  fonction: 'assistant' | 'bilan',
+  appels: number,
+  inputTokens: number,
+  outputTokens: number,
+): Promise<void> {
+  const { error } = await admin
+    .from('usage_llm')
+    .insert(ligneUsage(userId, fonction, MODEL, appels, inputTokens, outputTokens))
+  if (error) console.error('[usage]', error)
 }
 
 async function loadProduits(userId: string): Promise<string> {
@@ -337,6 +355,11 @@ async function runChatTurn(
   system: string,
   messages: ChatTurnMsg[],
 ): Promise<void> {
+  // Tokens consommés pendant le tour : un tour peut enchaîner plusieurs appels au modèle (outils,
+  // reprise après `pause_turn`). On les cumule et on journalise une ligne par question.
+  let appels = 0
+  let inputTokens = 0
+  let outputTokens = 0
   try {
     let added = 0
     let reply = ''
@@ -352,6 +375,9 @@ async function runChatTurn(
         messages,
         tools: [ADD_TOOL, WEB_SEARCH_TOOL],
       })
+      appels++
+      inputTokens += resp.usage?.input_tokens ?? 0
+      outputTokens += resp.usage?.output_tokens ?? 0
       if (resp.stop_reason === 'pause_turn') {
         messages.push({ role: 'assistant', content: resp.content })
         continue
@@ -389,9 +415,13 @@ async function runChatTurn(
       .from('chat_messages')
       .update({ content: reply.slice(0, 20_000), status: 'done', meta: { added } })
       .eq('id', assistantId)
+    await enregistrerUsage(userId, 'assistant', appels, inputTokens, outputTokens)
     await sendPush(userId, "Réponse de l'assistant", reply.slice(0, 140))
   } catch (e) {
     console.error('runChatTurn', e)
+    // Une erreur après des appels au modèle a quand même coûté : ce qui a été consommé est
+    // journalisé, sinon la facture ne se réconcilie pas avec ce qui est affiché au compte.
+    if (appels > 0) await enregistrerUsage(userId, 'assistant', appels, inputTokens, outputTokens)
     await admin
       .from('chat_messages')
       .update({
@@ -442,6 +472,22 @@ async function handleChat(req: Request, userIdPret: string | undefined, corps: R
   }
   const busy = (busyRows ?? []).find((r) => !stale.includes(r))
   if (busy) return json({ pending_id: busy.id, already: true })
+
+  // Quota mensuel du plan : c'est le plafond qui se vend et qui se voit sur la facture. Vérifié
+  // avant l'horaire, pour que le message parle du quota qui bloque vraiment, et AVANT l'appel au
+  // modèle (réserver puis appeler — jamais l'inverse).
+  const profil = await loadProfil(userId).catch(() => null)
+  const quotaMois = quotaQuestions(profil?.plan, profil?.quota_mensuel)
+  const { data: moisOk, error: errQuotaMois } = await admin.rpc('consommer_quota_mois', {
+    p_user: userId,
+    p_quoi: 'questions',
+    p_max: quotaMois,
+  })
+  if (errQuotaMois) {
+    console.error('[quota mois chat]', errQuotaMois)
+  } else if (moisOk === false) {
+    return json({ error: messageQuotaAtteint('questions', quotaMois) }, 429)
+  }
 
   // Quota par utilisateur : chaque tour peut coûter plusieurs appels LLM + recherches web.
   // Le compteur vit dans `rate_limits` (service_role uniquement) : contrairement à l'ancien
@@ -625,6 +671,7 @@ Rends ton travail via l'outil rendre_bilan. N'écris pas de texte en dehors de l
     60_000,
   )
   const call = resp.content.find((b) => b.type === 'tool_use')
+  await enregistrerUsage(userId, 'bilan', 1, resp.usage?.input_tokens ?? 0, resp.usage?.output_tokens ?? 0)
   const parsed = (call?.input as { ideas?: IdeaInput[]; observations?: string[] }) ?? {
     ideas: [],
     observations: [],

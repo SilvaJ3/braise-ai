@@ -12,6 +12,7 @@ import Compte from './routes/Compte'
 import CompteApparence from './routes/CompteApparence'
 import CompteCoordonnees from './routes/CompteCoordonnees'
 import CompteInformations from './routes/CompteInformations'
+import CompteMonCompte from './routes/CompteMonCompte'
 import CompteMotDePasse from './routes/CompteMotDePasse'
 import CompteNotifications from './routes/CompteNotifications'
 import Commande from './routes/Commande'
@@ -76,6 +77,7 @@ export default function App() {
         <Route path="/marches/:id" element={<Marche />} />
         <Route path="/assistant" element={<Assistant />} />
         <Route path="/compte" element={<Compte />} />
+        <Route path="/compte/mon-compte" element={<CompteMonCompte />} />
         <Route path="/compte/informations" element={<CompteInformations />} />
         <Route path="/compte/coordonnees" element={<CompteCoordonnees />} />
         <Route path="/compte/apparence" element={<CompteApparence />} />

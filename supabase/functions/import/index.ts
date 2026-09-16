@@ -21,6 +21,7 @@ import {
   type ImportResult,
 } from '../_shared/import-entities.ts'
 import { readXlsx, sheetToCsv } from '../_shared/xlsx-lite.ts'
+import { ligneUsage, messageQuotaAtteint, quotaImports } from '../_shared/compte.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -119,7 +120,7 @@ Règles :
 - Réponds uniquement via l'outil rendre_lignes.`
 }
 
-async function parseWithClaude(entity: ImportEntity, ex: Extracted): Promise<ImportResult> {
+async function parseWithClaude(entity: ImportEntity, ex: Extracted, userId: string): Promise<ImportResult> {
   const content: unknown[] = []
   if (ex.kind === 'text') {
     let text = ex.text
@@ -146,6 +147,11 @@ async function parseWithClaude(entity: ImportEntity, ex: Extracted): Promise<Imp
     { timeoutMs: 120_000, retries: 1 },
   )
   const input = toolInputOf(resp.content, 'rendre_lignes')
+  // Journalisé même quand l'extraction ne rend rien : l'appel a été facturé.
+  const { error: errUsage } = await admin
+    .from('usage_llm')
+    .insert(ligneUsage(userId, 'import', MODEL, 1, resp.usage?.input_tokens ?? 0, resp.usage?.output_tokens ?? 0))
+  if (errUsage) console.error('[usage]', errUsage)
   if (!input) throw new Error("L'IA n'a rien renvoyé")
   return sanitizeLlmOutput(entity, input)
 }
@@ -187,6 +193,23 @@ async function handle(req: Request): Promise<Response> {
   const meta = { kind, sheets: ex.kind === 'text' ? ex.sheets : [] }
 
   if (ANTHROPIC_KEY) {
+    // Deux quotas, deux rôles : le mensuel est le plafond du plan (ce qui se voit sur la facture
+    // et ce qui se vend), l'horaire protège d'un martèlement. Le mensuel se vérifie en premier,
+    // pour que le message parle du quota qui bloque vraiment.
+    const { data: profil } = await admin
+      .from('assistant_profil')
+      .select('plan, quota_mensuel')
+      .eq('user_id', userData.user.id)
+      .maybeSingle()
+    const quotaMois = quotaImports(profil?.plan, profil?.quota_mensuel)
+    const { data: moisOk, error: errMois } = await admin.rpc('consommer_quota_mois', {
+      p_user: userData.user.id,
+      p_quoi: 'imports',
+      p_max: quotaMois,
+    })
+    if (errMois) console.error('[quota mois import]', errMois)
+    else if (moisOk === false) return json({ error: messageQuotaAtteint('imports', quotaMois) }, 429)
+
     // Quota par utilisateur : l'import est le poste de coût LLM le plus élevé du projet —
     // jusqu'à 16 000 jetons de sortie pour un fichier de 6 Mo, jusqu'à ~4 minutes de calcul
     // facturé, et rien ne le bornait : un compte pouvait le relancer en boucle.
@@ -202,7 +225,7 @@ async function handle(req: Request): Promise<Response> {
     }
 
     try {
-      const result = await parseWithClaude(entity, ex)
+      const result = await parseWithClaude(entity, ex, userData.user.id)
       return json({ ...result, meta })
     } catch (e) {
       console.error('parseWithClaude', e)

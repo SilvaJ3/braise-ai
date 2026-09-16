@@ -54,11 +54,11 @@ supabase functions deploy inscription
 Secrets attendus : `ANTHROPIC_API_KEY`, `VAPID_PRIVATE_KEY`, `RESEND_API_KEY`,
 `MAIL_DOMAIN` (+ `SUPABASE_*` fournis automatiquement). Le secret de cron `assistant_cron_secret` vit dans Vault (voir migration 0003).
 
-**Un push sur `main` semble redéployer les fonctions** : le 16/09, cinq fonctions (`depot`,
-`import`, `push`, `instagram-*`) ont un horodatage de mise à jour à l'heure exacte d'un push, et
-l'API ne permet pas de lire l'intégration pour confirmer. Conséquence à garder en tête : ce qui
-part sur `main` peut partir en production sans autre geste. Vérifier après coup le corps servi
-(`GET /v1/projects/{ref}/functions/{slug}/body`).
+**Un push sur `main` redéploie les fonctions** (intégration GitHub côté Supabase, confirmée le
+16/09) : ce qui part sur `main` part en production sans autre geste — fonction, et donc
+comportement. Un déploiement manuel par l'API reste possible et sert à choisir exactement les
+fichiers joints (`_shared/` inclus), mais il n'est pas le seul chemin. Vérifier après coup le corps
+servi (`GET /v1/projects/{ref}/functions/{slug}/body`).
 
 **Après tout déploiement de `assistant`, vérifier un vrai tour de chat** — le service peut
 démarrer, répondre `401` sur un appel anonyme, et n'être cassé que sur le chemin authentifié :
@@ -141,6 +141,47 @@ de passe ne peut pas le réinitialiser seule — la remise à zéro passe par le
 Supabase (Authentication → Users) ou par un appel Admin API.
 
 Ajouter un utilisateur à la main : Authentication → Users → Add user.
+
+## Plans, quotas et encaissement
+
+Chaque compte porte un plan (`assistant_profil.plan`) : `essai`, `fondateur`, `mensuel`, `annuel`.
+**Les quotas par défaut vivent dans `supabase/functions/_shared/compte.ts`** — seule source de
+vérité ; la contrainte en base ne fait que reprendre la liste des plans.
+
+| Plan | Questions / mois | Imports / mois |
+|---|---|---|
+| essai | 40 | 3 |
+| fondateur | 150 | 20 |
+| mensuel | 150 | 20 |
+| annuel | 150 | 20 |
+
+- Le compteur est **mensuel, mois calendaire Europe/Bruxelles** (`quotas_mensuels`). Le compte ne
+  peut que le lire ; `consommer_quota_mois()` l'incrémente de façon atomique, **avant** l'appel au
+  modèle — réserver puis appeler, jamais l'inverse.
+- Les jetons réellement consommés sont journalisés dans `usage_llm`, par fonction (`assistant`,
+  `bilan`, `import`). L'écran Compte → Mon compte lit `mon_compte()`, qui agrège le mois sous la
+  RLS du compte appelant : l'affichage ne peut pas mentir sur ce qui est compté.
+- Déroger au quota d'un compte (dépannage, geste commercial) :
+  `update public.assistant_profil set quota_mensuel = 500 where user_id = '…';`
+
+### Encaisser — Stripe, à la main
+
+Le paiement reste **hors de l'app** : un lien de paiement par formule, et l'activation se fait à
+la main tant qu'il y a peu de comptes.
+
+1. Ouvrir un compte Stripe — **il faut un numéro d'entreprise (BCE)** : c'est le prérequis, pas
+   le prestataire.
+2. Créer trois abonnements dans Produits : Fondateur 19 €/mois, Mensuel 29 €/mois, Annuel 290 €/an.
+3. Pour chacun, un **lien de paiement** en mode abonnement, à envoyer dans la conversation.
+4. Au paiement reçu, passer le compte au bon plan :
+   `update public.assistant_profil set plan = 'fondateur', plan_depuis = now() where user_id = '…';`
+5. Plus tard, si le volume le justifie : un webhook Stripe (`invoice.paid`) vers une petite edge
+   function qui fait la même chose sans intervention.
+
+Coûts relevés le 16/09/2026 (tarifs Stripe, EEE) : cartes standard **1,5 % + 0,25 €**, prélèvement
+SEPA **0,35 € forfait**, Bancontact 1,40 % + 0,25 € (*à l'acte seulement*), plus **0,7 % de Stripe
+Billing sur le volume récurrent**. Le SEPA est la voie la moins chère pour un abonnement — 0,35 €
+par prélèvement, quel que soit le montant.
 
 ## Déploiement
 
