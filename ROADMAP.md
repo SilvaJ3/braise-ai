@@ -253,23 +253,23 @@ galère. **Ce qui n'existe pas** : rien ne porte une image ni une référence �
 titre, une plateforme, une date et un champ `notes` libre ; les colonnes d'image ont été retirées
 avec l'Instagram (0039).
 
-**Ce que serait la V1** (si on y va) : table `planches` (titre, notes, lien éventuel vers une entrée
-du planning) + `planche_references` (lien ou image), bucket Storage privé par compte (même modèle
-que `depots`), un écran « Planches », et la planche lue dans `buildContext`. **1,5 à 2 jours.**
-Pas d'API Pinterest : il n'y en a pas d'utilisable ; son geste reste coller un lien ou déposer une
-capture.
+**Attention : on ne connaît pas son raisonnement.** JSB le dit très bien (17/09) — « on fonce dans un
+mur si je pense connaître son propre raisonnement pour la recherche d'inspiration de planche ».
+Personne ici n'a jamais cherché une planche de tatouage : sa forme (ce qu'elle collecte, comment
+elle trie, si elle s'inspire ou détourne, si elle montre la planche au client) n'est pas devinable
+depuis un bureau.
 
-**Trois questions à lui poser avant de coder**, parce qu'elles changent la forme :
+**Donc aucune table n'est décidée.** L'estimation technique ci-dessous n'est qu'un **ordre de
+grandeur, valable si son raisonnement s'avère simple** : deux tables (`planches` + ses références),
+un bucket Storage privé par compte (même modèle que `depots`), un écran, la planche lue dans
+`buildContext` → **1,5 à 2 jours**. Pas d'API Pinterest utilisable : son geste restera coller un lien
+ou déposer une capture. Si son processus est plus retors (tri complexe, allers-retours client,
+réutilisation de ses propres planches), c'est un autre produit, et il vaut mieux le découvrir avant.
 
-1. Quand une idée lui vient, elle la met où aujourd'hui ?
-2. Une planche = un projet à la fois, ou un mur d'images où elle pioche ? (rattachée au planning, ou
-   autonome)
-3. Est-ce qu'elle la montre à quelqu'un (au client, avant le rendez-vous) ? Si oui, ce n'est plus la
-   même fonctionnalité.
-
-**Position de départ : ne pas coder avant de l'avoir vue utiliser l'app.** Une fonctionnalité
-construite pour une seule personne qu'on n'a pas encore observée, c'est le pari que le RAT cherche à
-éviter. Décision après la rencontre.
+**Ce qu'on fait le 29/09 : on observe, on ne spécifie pas.** Grille d'observation :
+`~/projets-clients/prospection/beta/2026-09-29-grille-planche.md` — lui faire montrer son dernier
+vrai cas, noter ses mots, ne rien proposer, ne promettre aucun écran. Le reste de la rencontre porte
+sur ce qui existe et qui marche déjà pour elle : réseaux sociaux, chat, planning.
 
 **Question de fond, non tranchée** : Braaise sert-il deux vocations — le papier de l'atelier
 (dépôts, stock, commandes) *et* l'inspiration du créatif (planning, planches) ? Les deux restent
