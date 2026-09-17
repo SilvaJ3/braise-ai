@@ -242,6 +242,40 @@ note n'est pas un avis juridique.**
   partirait de sa vraie adresse, mais Google impose une validation de plusieurs semaines pour
   ce droit, et la connexion casse tous les 7 jours avant validation).
 
+## Chantier identifié — planches d'inspiration (non décidé)
+
+**D'où ça vient.** Une tatoueuse a expliqué à Alexandra sa galère : le planning des réseaux
+sociaux, les idées, et **les planches d'inspiration** pour ses tatouages (ses idées + des exemples,
+type Pinterest). Elle est pressentie comme bêta testeuse. Rencontre prévue le 29/09/2026.
+
+**Ce qui existe pour elle aujourd'hui** : le planning (V1) et le chat (V7) couvrent sa première
+galère. **Ce qui n'existe pas** : rien ne porte une image ni une référence — `content_entries` a un
+titre, une plateforme, une date et un champ `notes` libre ; les colonnes d'image ont été retirées
+avec l'Instagram (0039).
+
+**Ce que serait la V1** (si on y va) : table `planches` (titre, notes, lien éventuel vers une entrée
+du planning) + `planche_references` (lien ou image), bucket Storage privé par compte (même modèle
+que `depots`), un écran « Planches », et la planche lue dans `buildContext`. **1,5 à 2 jours.**
+Pas d'API Pinterest : il n'y en a pas d'utilisable ; son geste reste coller un lien ou déposer une
+capture.
+
+**Trois questions à lui poser avant de coder**, parce qu'elles changent la forme :
+
+1. Quand une idée lui vient, elle la met où aujourd'hui ?
+2. Une planche = un projet à la fois, ou un mur d'images où elle pioche ? (rattachée au planning, ou
+   autonome)
+3. Est-ce qu'elle la montre à quelqu'un (au client, avant le rendez-vous) ? Si oui, ce n'est plus la
+   même fonctionnalité.
+
+**Position de départ : ne pas coder avant de l'avoir vue utiliser l'app.** Une fonctionnalité
+construite pour une seule personne qu'on n'a pas encore observée, c'est le pari que le RAT cherche à
+éviter. Décision après la rencontre.
+
+**Question de fond, non tranchée** : Braaise sert-il deux vocations — le papier de l'atelier
+(dépôts, stock, commandes) *et* l'inspiration du créatif (planning, planches) ? Les deux restent
+dans la doctrine (« ce qui tourne autour de la création », jamais la gestion). Ne rien figer avant
+d'avoir trois personnes comme elle.
+
 ## V5 — Intégration Gmail (reporté, le plus lourd)
 
 - OAuth Gmail (par boutique ou global).
