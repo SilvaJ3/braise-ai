@@ -271,6 +271,16 @@ réutilisation de ses propres planches), c'est un autre produit, et il vaut mieu
 vrai cas, noter ses mots, ne rien proposer, ne promettre aucun écran. Le reste de la rencontre porte
 sur ce qui existe et qui marche déjà pour elle : réseaux sociaux, chat, planning.
 
+**Un prototype existe depuis le 17/09** — `~/projets-clients/proto-tatoueuse/` (fichier unique, quatre
+écrans, hors ligne, aucune donnée réelle). Le planning et le chat y sont tels qu'ils existent ; la
+planche y est traitée **comme une question** : une bannière le dit, et sous un exemple de planche il
+y a les six questions de la grille, avec un bouton qui met les réponses en texte prêt à envoyer.
+Les écrans dépôt / boutiques / stock / commandes en sont **absents** — ils ne la concernent pas.
+
+**Ce prototype ne décide rien** : aucune table, aucune migration, aucun écran validé. Il sert à faire
+réagir, pas à spécifier. Ordre imposé le 29 : **son dernier vrai tatouage d'abord** (raconté et montré
+par elle), le prototype ensuite, présenté comme une hypothèse.
+
 **Question de fond, non tranchée** : Braaise sert-il deux vocations — le papier de l'atelier
 (dépôts, stock, commandes) *et* l'inspiration du créatif (planning, planches) ? Les deux restent
 dans la doctrine (« ce qui tourne autour de la création », jamais la gestion). Ne rien figer avant
