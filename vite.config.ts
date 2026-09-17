@@ -18,7 +18,7 @@ export default defineConfig({
       manifest: {
         name: 'Braaise',
         short_name: 'Braaise',
-        description: 'Braaise — votre assistant personnel',
+        description: "Braaise — l'assistant de l'atelier : dépôts, commandes, planning",
         lang: 'fr',
         theme_color: '#b5451b',
         background_color: '#fdf6ee',
