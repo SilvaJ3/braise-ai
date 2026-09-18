@@ -12,6 +12,7 @@ import {
   useSetPerf,
   useUpdateEntry,
 } from '../lib/entries'
+import { useCommandes } from '../lib/commandes'
 import { ymd } from '../lib/dates'
 import { logEvent } from '../lib/events'
 import { PERF_LABEL, PLATFORM_LABEL, STATUS_LABEL, TYPE_LABEL, nextStatus } from '../lib/labels'
@@ -64,6 +65,9 @@ export default function Planning() {
   const location = useLocation()
   const navigate = useNavigate()
   const { data: entries = [], isLoading, error } = useEntries()
+  // Les échéances de commandes se marquent dans le calendrier : c'est le même écran qui dit
+  // « quoi préparer cette semaine », et une commande à livrer en fait partie.
+  const { data: commandes = [] } = useCommandes()
   const create = useCreateEntry()
   const update = useUpdateEntry()
   const del = useDeleteEntry()
@@ -159,7 +163,12 @@ export default function Planning() {
       {!isLoading && !error && (
         <>
           {view === 'calendrier' && (
-            <MonthCalendar entries={entries} selected={day} onSelect={setDay} />
+            <MonthCalendar
+              entries={entries}
+              commandes={commandes}
+              selected={day}
+              onSelect={setDay}
+            />
           )}
 
           {view === 'liste' && (

@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
+import { joursAvecCommande } from '../lib/calendrier'
 import { ymd } from '../lib/dates'
 import { STATUS_LABEL, STATUS_ORDER } from '../lib/labels'
-import type { ContentEntry, ContentStatus } from '../lib/supabase'
+import type { Commande, ContentEntry, ContentStatus } from '../lib/supabase'
 
 const STATUS_COLOR: Record<ContentStatus, string> = {
   idee: '#b0a498',
@@ -9,6 +10,10 @@ const STATUS_COLOR: Record<ContentStatus, string> = {
   planifie: '#b5451b',
   publie: '#4f9d5d',
 }
+
+/** Bleu ardoise : la seule teinte froide de la grille, pour une échéance de commande — ni un
+ *  statut de publication, ni un rappel. Elle doit se distinguer des quatre couleurs chaudes. */
+const COMMANDE_COLOR = '#4a7396'
 
 const WEEKDAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
 const MONTHS = [
@@ -18,10 +23,13 @@ const MONTHS = [
 
 export default function MonthCalendar({
   entries,
+  commandes = [],
   selected,
   onSelect,
 }: {
   entries: ContentEntry[]
+  /** Commandes à servir : leur échéance marque le jour, à côté des statuts de publication. */
+  commandes?: Commande[]
   selected: string | null
   onSelect: (date: string | null) => void
 }) {
@@ -41,6 +49,8 @@ export default function MonthCalendar({
     return m
   }, [entries])
 
+  const commandesParJour = useMemo(() => joursAvecCommande(commandes), [commandes])
+
   const year = cursor.getFullYear()
   const month = cursor.getMonth()
   const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7 // Mon=0
@@ -53,9 +63,12 @@ export default function MonthCalendar({
 
   function dotColors(date: string): string[] {
     const statuses = byDay.get(date)
-    if (!statuses) return []
-    const uniq = STATUS_ORDER.filter((s) => statuses.includes(s))
-    return uniq.map((s) => STATUS_COLOR[s])
+    const couleurs = statuses
+      ? STATUS_ORDER.filter((s) => statuses.includes(s)).map((s) => STATUS_COLOR[s])
+      : []
+    // L'échéance d'une commande s'ajoute aux statuts du jour : un même jour peut porter les deux.
+    if (commandesParJour.has(date)) couleurs.push(COMMANDE_COLOR)
+    return couleurs
   }
 
   return (
@@ -98,7 +111,7 @@ export default function MonthCalendar({
             >
               <span>{Number(date.slice(-2))}</span>
               <span className="cal-dots">
-                {dotColors(date).slice(0, 4).map((c, j) => (
+                {dotColors(date).slice(0, 5).map((c, j) => (
                   <i key={j} style={{ background: c }} />
                 ))}
               </span>
@@ -113,6 +126,9 @@ export default function MonthCalendar({
             <i className="cal-dot" style={{ background: STATUS_COLOR[s] }} /> {STATUS_LABEL[s]}
           </span>
         ))}
+        <span className="muted">
+          <i className="cal-dot" style={{ background: COMMANDE_COLOR }} /> Commande
+        </span>
       </div>
     </div>
   )
