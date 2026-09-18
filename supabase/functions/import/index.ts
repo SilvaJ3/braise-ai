@@ -5,7 +5,7 @@
 // Rien n'est écrit en base ici : le client affiche un aperçu, l'utilisateur confirme, puis
 // insère via RLS. Clé Anthropic uniquement côté serveur.
 import { createClient } from 'jsr:@supabase/supabase-js@2'
-import { anthropicMessages, toolInputOf } from '../_shared/anthropic.ts'
+import { anthropicMessages, systemEnBlocs, toolInputOf } from '../_shared/anthropic.ts'
 import {
   ENTITIES,
   MAX_FILE_BYTES,
@@ -21,7 +21,7 @@ import {
   type ImportResult,
 } from '../_shared/import-entities.ts'
 import { readXlsx, sheetToCsv } from '../_shared/xlsx-lite.ts'
-import { ligneUsage, messageQuotaAtteint, quotaImports } from '../_shared/compte.ts'
+import { consommation, ligneUsage, messageQuotaAtteint, quotaImports } from '../_shared/compte.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -139,7 +139,11 @@ async function parseWithClaude(entity: ImportEntity, ex: Extracted, userId: stri
     {
       model: MODEL,
       max_tokens: 16_000,
-      system: systemPrompt(entity),
+      // Le prompt d'extraction (définition des champs + règles) est identique d'un import à l'autre
+      // pour une même entité : mis en cache, il est relu à 0,1x quand deux fichiers du même type
+      // sont importés dans la même passe. Le document, lui, change à chaque fois — il n'entre donc
+      // pas dans le préfixe mis en cache, il est dans les messages.
+      system: systemEnBlocs([systemPrompt(entity)]),
       messages: [{ role: 'user', content }],
       tools: [{ name: 'rendre_lignes', description: `Rends les ${ENTITIES[entity].label} extraites.`, input_schema: toolSchema(entity) }],
       tool_choice: { type: 'tool', name: 'rendre_lignes' },
@@ -150,7 +154,7 @@ async function parseWithClaude(entity: ImportEntity, ex: Extracted, userId: stri
   // Journalisé même quand l'extraction ne rend rien : l'appel a été facturé.
   const { error: errUsage } = await admin
     .from('usage_llm')
-    .insert(ligneUsage(userId, 'import', MODEL, 1, resp.usage?.input_tokens ?? 0, resp.usage?.output_tokens ?? 0))
+    .insert(ligneUsage(userId, 'import', MODEL, consommation(resp.usage)))
   if (errUsage) console.error('[usage]', errUsage)
   if (!input) throw new Error("L'IA n'a rien renvoyé")
   return sanitizeLlmOutput(entity, input)

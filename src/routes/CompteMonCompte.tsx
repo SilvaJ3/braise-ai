@@ -1,11 +1,21 @@
 import { useNavigate } from 'react-router-dom'
 import {
-  coutEstimeEur,
+  FONCTION_LABEL,
+  coutConsommation,
+  economieCache,
   PLANS,
   quotaImports,
   quotaQuestions,
+  type Consommation,
+  type UsageParFonction,
 } from '../../supabase/functions/_shared/compte'
 import { useMonCompte } from '../lib/profil'
+
+const nb = (n: number) => Math.round(n).toLocaleString('fr-BE')
+const euros = (n: number) => `${n.toFixed(2).replace('.', ',')} €`
+/** Jetons d'une ligne de détail : les quatre postes comptent, mais pas au même tarif. */
+const jetons = (u: UsageParFonction): number =>
+  Number(u.input_tokens) + Number(u.output_tokens) + Number(u.cache_read_tokens) + Number(u.cache_write_tokens)
 
 // Ce que le compte consomme : c'est le plafond vendu (questions incluses), pas une statistique
 // décorative. Tout vient de la base (`mon_compte()`), sous la RLS du compte : l'écran ne peut
@@ -42,7 +52,24 @@ export default function CompteMonCompte() {
   const quotaQ = quotaQuestions(data.plan, data.quota_derogation)
   const quotaI = quotaImports(data.plan, data.quota_derogation)
   const reste = Math.max(0, quotaQ - data.questions_utilisees)
-  const cout = coutEstimeEur(Number(data.input_tokens), Number(data.output_tokens))
+  const detail: UsageParFonction[] = Array.isArray(data.detail)
+    ? (data.detail as UsageParFonction[])
+    : []
+  const cacheRelu = Number(data.cache_read_tokens ?? 0)
+  const recherches = Number(data.recherches_web ?? 0)
+  // La consommation du mois, dans la forme commune au journal : le cache est compté à son tarif
+  // (0,1x) et non au tarif plein, sinon l'écran annoncerait une facture dix fois trop grosse sur
+  // les jetons relus.
+  const consoMois: Consommation = {
+    appels: Number(data.appels ?? 0),
+    input_tokens: Number(data.input_tokens ?? 0),
+    output_tokens: Number(data.output_tokens ?? 0),
+    cache_read_tokens: cacheRelu,
+    cache_write_tokens: Number(data.cache_write_tokens ?? 0),
+    recherches_web: recherches,
+  }
+  const cout = coutConsommation(consoMois)
+  const economie = economieCache(consoMois)
   const moisLisible = new Date(`${data.mois}T12:00:00`).toLocaleDateString('fr-BE', {
     month: 'long',
     year: 'numeric',
@@ -92,11 +119,38 @@ export default function CompteMonCompte() {
             : "Tu as utilisé toutes tes questions du mois : écris-moi si tu en veux plus, ou attends le 1er."}
         </p>
         {/* Détail technique, volontairement discret : c'est ce que l'outil consomme réellement
-            chez son fournisseur de modèle, utile pendant les premiers mois. */}
+            chez son fournisseur de modèle, utile pendant les premiers mois. Le cache et les
+            recherches web y figurent parce qu'ils se facturent à part des jetons d'entrée/sortie :
+            un total qui les ignore est faux dans les deux sens. */}
         <p className="muted" style={{ margin: '10px 0 0', fontSize: '0.78rem' }}>
-          Détail : {Number(data.input_tokens).toLocaleString('fr-BE')} jetons en entrée,{' '}
-          {Number(data.output_tokens).toLocaleString('fr-BE')} en sortie, sur {data.appels} appel
-          {data.appels > 1 ? 's' : ''} au modèle — environ {cout.toFixed(2).replace('.', ',')} €.
+          Détail : {nb(Number(data.input_tokens))} jetons en entrée,{' '}
+          {nb(Number(data.output_tokens))} en sortie, sur {data.appels} appel
+          {data.appels > 1 ? 's' : ''} au modèle — environ {euros(cout)}.
+        </p>
+
+        {detail.length > 0 && (
+          <div style={{ marginTop: 10 }}>
+            <p className="muted" style={{ margin: '0 0 4px', fontSize: '0.78rem' }}>
+              Par usage :
+            </p>
+            {detail.map((d) => (
+              <div className="row" key={d.fonction} style={{ fontSize: '0.78rem' }}>
+                <span className="muted">{FONCTION_LABEL[d.fonction] ?? d.fonction}</span>
+                <div className="spacer" />
+                <span className="muted">
+                  {d.appels} appel{d.appels > 1 ? 's' : ''} ·{' '}
+                  {nb(jetons(d))} jetons · {euros(coutConsommation(d))}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <p className="muted" style={{ margin: '8px 0 0', fontSize: '0.78rem' }}>
+          {cacheRelu > 0
+            ? `Dont ${nb(cacheRelu)} jetons relus dans le cache : ${euros(economie)} évités.`
+            : 'Aucun jeton relu dans le cache ce mois-ci.'}
+          {recherches > 0 && ` ${recherches} recherche${recherches > 1 ? 's' : ''} web facturée${recherches > 1 ? 's' : ''} à la part.`}
         </p>
       </div>
 

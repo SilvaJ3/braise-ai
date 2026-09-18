@@ -1,7 +1,7 @@
 // Assistant IA "Braaise" — chat d'idées (réponse en arrière-plan + push) + bilan hebdo.
 // Clé Anthropic uniquement côté serveur (secret Supabase ANTHROPIC_API_KEY).
 import { createClient } from 'jsr:@supabase/supabase-js@2'
-import { anthropicMessages, textOf, type AnthropicResp } from '../_shared/anthropic.ts'
+import { anthropicMessages, systemEnBlocs, textOf, type AnthropicResp, type SystemBlock } from '../_shared/anthropic.ts'
 import {
   avertissementContexte,
   boutiquesContext,
@@ -21,7 +21,15 @@ import {
   type ProduitRow,
   type ProfilCompte,
 } from '../_shared/contexte-assistant.ts'
-import { ligneUsage, messageQuotaAtteint, quotaQuestions } from '../_shared/compte.ts'
+import {
+  CONSOMMATION_VIDE,
+  consommation,
+  cumuler,
+  ligneUsage,
+  messageQuotaAtteint,
+  quotaQuestions,
+  type Consommation,
+} from '../_shared/compte.ts'
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void }
 
@@ -41,6 +49,41 @@ const WEEKLY_MODEL = 'claude-sonnet-5'
 const TOOL_RULE = `Quand la personne te demande d'ajouter une ou des idées à son planning (ou dit oui à ta
 proposition de le faire), utilise l'outil ajouter_idees_au_planning. N'invente pas de dates
 si elle n'en donne pas : laisse date vide (l'entrée reste une simple idée).`
+
+/**
+ * Consignes fixes du chat, montées en PREMIER bloc du prompt.
+ *
+ * Deux raisons, dans cet ordre : elles ne changent jamais d'un appel à l'autre, et avec la
+ * définition des outils elles forment le préfixe commun à toutes les questions de tous les comptes
+ * — donc la partie que le cache d'Anthropic peut relire à 0,1x le tarif d'entrée. Avant, elles
+ * étaient écrites APRÈS le contexte de l'atelier : chaque changement de stock invalidait tout ce
+ * qui les précédait, et le cache n'aurait jamais pu les couvrir.
+ */
+const CONSIGNES_CHAT = `${TOOL_RULE}
+
+Tu peux utiliser la recherche web si la personne demande des tendances actuelles, des idées
+qui marchent en ce moment, ou des infos d'actualité.
+
+Écris en texte simple pour un écran de téléphone : pas de markdown (pas de **, #, >, -),
+des paragraphes courts, va à l'essentiel.`
+
+/**
+ * Consignes fixes du bilan hebdo. Montées en premier bloc, comme celles du chat — ici l'intérêt du
+ * cache est différent : le cron génère un bilan par compte, l'un après l'autre. Ces consignes sont
+ * identiques pour tous les comptes, donc relues (0,1x) dès la deuxième génération de la passe.
+ */
+const CONSIGNES_BILAN = `Prépare :
+1. 4 idées de publications concrètes pour les 2 prochaines semaines, toutes NOUVELLES.
+   Choisis ce que cette personne est seule à pouvoir montrer — son atelier, ses matières, ses
+   clients, la saison — plutôt qu'un format que tout le monde publie. Ne propose que des
+   produits réellement en stock.
+2. 1 à 3 observations utiles sur son planning (trous, idées qui stagnent, plateforme
+   délaissée, saisonnalité).
+
+Rends ton travail via l'outil rendre_bilan. N'écris pas de texte en dehors de l'outil.
+
+INTERDIT ABSOLU : ne repropose aucune des idées déjà présentes dans le planning donné plus bas,
+même reformulée, même avec un autre angle, une autre plateforme ou un autre format.`
 
 // Garde-fous
 const MAX_MESSAGE_CHARS = 4000 // question utilisateur
@@ -237,17 +280,15 @@ async function loadProfil(userId: string): Promise<ProfilAssiste | null> {
   return (data as ProfilAssiste | null) ?? null
 }
 
-/** Journalise les tokens consommés. Un échec de journal ne doit jamais casser la réponse. */
+/** Journalise la consommation. Un échec de journal ne doit jamais casser la réponse. */
 async function enregistrerUsage(
   userId: string,
   fonction: 'assistant' | 'bilan',
-  appels: number,
-  inputTokens: number,
-  outputTokens: number,
+  conso: Consommation,
 ): Promise<void> {
   const { error } = await admin
     .from('usage_llm')
-    .insert(ligneUsage(userId, fonction, MODEL, appels, inputTokens, outputTokens))
+    .insert(ligneUsage(userId, fonction, MODEL, conso))
   if (error) console.error('[usage]', error)
 }
 
@@ -320,7 +361,17 @@ async function loadMatieres(userId: string): Promise<MatiereRow[]> {
 // Chaque source est chargee independamment : si l'une echoue, on le DIT au modele au lieu de
 // lui presenter un contexte vide comme un fait. Avant, une erreur reseau produisait un contexte
 // sans planning, et le modele affirmait avec assurance qu'il n'y avait rien de prevu.
-async function buildContext(userId: string, planningLimit: number): Promise<string> {
+/**
+ * Contexte de l'atelier, séparé selon sa fréquence de changement.
+ *
+ * `stable` : ce qui bouge rarement (profil, catalogue, retours de performance, boutiques) — mis en
+ * cache. `variable` : ce qui change d'une question à l'autre (stock, planning) — jamais mis en
+ * cache, sinon chaque appel réécrirait un cache qu'aucun suivant ne relirait.
+ */
+async function buildContext(
+  userId: string,
+  planningLimit: number,
+): Promise<{ stable: string; variable: string }> {
   const avertissement = (quoi: string) => (e: unknown) => {
     console.error(`[contexte] ${quoi} illisible`, e)
     return avertissementContexte(quoi)
@@ -341,8 +392,10 @@ async function buildContext(userId: string, planningLimit: number): Promise<stri
   const blocProfil = typeof profil === 'string' ? profil : profilContext(profil)
   const contextePlanning = typeof planning === 'string' ? planning : planningContext(planning)
 
-  const corps = [blocProfil, produits, perf, boutiques].filter((x) => typeof x === 'string').join('')
-  return `${corps}${stockContext(matieres)}${contextePlanning}`
+  const stable = [blocProfil, produits, perf, boutiques]
+    .filter((x): x is string => typeof x === 'string')
+    .join('')
+  return { stable, variable: `${stockContext(matieres)}${contextePlanning}` }
 }
 
 // --- Chat : réponse générée en arrière-plan, notifiée par push ------------------
@@ -352,14 +405,13 @@ type ChatTurnMsg = { role: string; content: unknown }
 async function runChatTurn(
   userId: string,
   assistantId: string,
-  system: string,
+  system: SystemBlock[],
   messages: ChatTurnMsg[],
 ): Promise<void> {
-  // Tokens consommés pendant le tour : un tour peut enchaîner plusieurs appels au modèle (outils,
-  // reprise après `pause_turn`). On les cumule et on journalise une ligne par question.
-  let appels = 0
-  let inputTokens = 0
-  let outputTokens = 0
+  // Consommation du tour : un tour peut enchaîner plusieurs appels au modèle (outils, reprise
+  // après `pause_turn`). On les cumule et on journalise une ligne par question — c'est le seul
+  // endroit où `appels` dit combien d'allers-retours une question a réellement coûtés.
+  let conso: Consommation = CONSOMMATION_VIDE
   try {
     let added = 0
     let reply = ''
@@ -375,9 +427,7 @@ async function runChatTurn(
         messages,
         tools: [ADD_TOOL, WEB_SEARCH_TOOL],
       })
-      appels++
-      inputTokens += resp.usage?.input_tokens ?? 0
-      outputTokens += resp.usage?.output_tokens ?? 0
+      conso = cumuler(conso, consommation(resp.usage))
       if (resp.stop_reason === 'pause_turn') {
         messages.push({ role: 'assistant', content: resp.content })
         continue
@@ -415,13 +465,13 @@ async function runChatTurn(
       .from('chat_messages')
       .update({ content: reply.slice(0, 20_000), status: 'done', meta: { added } })
       .eq('id', assistantId)
-    await enregistrerUsage(userId, 'assistant', appels, inputTokens, outputTokens)
+    await enregistrerUsage(userId, 'assistant', conso)
     await sendPush(userId, "Réponse de l'assistant", reply.slice(0, 140))
   } catch (e) {
     console.error('runChatTurn', e)
     // Une erreur après des appels au modèle a quand même coûté : ce qui a été consommé est
     // journalisé, sinon la facture ne se réconcilie pas avec ce qui est affiché au compte.
-    if (appels > 0) await enregistrerUsage(userId, 'assistant', appels, inputTokens, outputTokens)
+    if (conso.appels > 0) await enregistrerUsage(userId, 'assistant', conso)
     await admin
       .from('chat_messages')
       .update({
@@ -533,15 +583,10 @@ async function handleChat(req: Request, userIdPret: string | undefined, corps: R
   while (messages.length && messages[0].role !== 'user') messages.shift()
 
   const context = await buildContext(userId, 60)
-  const system = `${context}
-
-${TOOL_RULE}
-
-Tu peux utiliser la recherche web si la personne demande des tendances actuelles, des idées
-qui marchent en ce moment, ou des infos d'actualité.
-
-Écris en texte simple pour un écran de téléphone : pas de markdown (pas de **, #, >, -),
-des paragraphes courts, va à l'essentiel.`
+  // Ordre voulu : consignes fixes, puis contexte qui bouge rarement (les deux mis en cache), puis
+  // ce qui change à chaque question (stock, planning). Le cache lit un préfixe exact : l'ordre des
+  // blocs fait partie de l'optimisation, pas de la cosmétique.
+  const system = systemEnBlocs([CONSIGNES_CHAT, context.stable], [context.variable])
 
   EdgeRuntime.waitUntil(runChatTurn(userId, assistantId, system, messages))
   return json({ pending_id: assistantId })
@@ -644,24 +689,19 @@ async function runWeeklyForUser(
   // ci-dessous les rejette si le modèle passe outre.
   const titresConnus = (await loadPlanning(userId, 300)).map((e) => e.title).filter(Boolean)
 
-  const system = `${context}
-
-Nous sommes le ${today}.
-
-INTERDIT ABSOLU : ne repropose aucune des idées déjà présentes dans le planning ci-dessus,
-même reformulée, même avec un autre angle, une autre plateforme ou un autre format. Liste
-des titres à ne PAS réutiliser :
-${titresConnus.map((t) => `- ${t}`).join('\n')}
-
-Prépare :
-1. 4 idées de publications concrètes pour les 2 prochaines semaines, toutes NOUVELLES.
-   Choisis ce que cette personne est seule à pouvoir montrer — son atelier, ses matières, ses
-   clients, la saison — plutôt qu'un format que tout le monde publie. Ne propose que des
-   produits réellement en stock.
-2. 1 à 3 observations utiles sur son planning (trous, idées qui stagnent, plateforme
-   délaissée, saisonnalité).
-
-Rends ton travail via l'outil rendre_bilan. N'écris pas de texte en dehors de l'outil.`
+  // Le bilan tourne une fois par compte : le cache ne peut pas resservir à l'intérieur d'un tour.
+  // Là où il sert, c'est d'un compte au suivant dans la même passe de cron : on ne met donc en
+  // cache QUE les consignes, identiques pour tout le monde, et pas le contexte qui est propre à
+  // chaque compte (sinon le préfixe diffère et rien n'est jamais relu).
+  const system = systemEnBlocs(
+    [CONSIGNES_BILAN],
+    [
+      context.stable,
+      `Nous sommes le ${today}.`,
+      `Titres à ne PAS réutiliser :\n${titresConnus.map((t) => `- ${t}`).join('\n')}`,
+      context.variable,
+    ],
+  )
 
   const resp = await anthropic(
     {
@@ -676,7 +716,7 @@ Rends ton travail via l'outil rendre_bilan. N'écris pas de texte en dehors de l
     60_000,
   )
   const call = resp.content.find((b) => b.type === 'tool_use')
-  await enregistrerUsage(userId, 'bilan', 1, resp.usage?.input_tokens ?? 0, resp.usage?.output_tokens ?? 0)
+  await enregistrerUsage(userId, 'bilan', consommation(resp.usage))
   const parsed = (call?.input as { ideas?: IdeaInput[]; observations?: string[] }) ?? {
     ideas: [],
     observations: [],
