@@ -4,6 +4,7 @@ import Fab from '../components/Fab'
 import FournisseurForm from '../components/FournisseurForm'
 import ImportWizard from '../components/ImportWizard'
 import MatiereForm from '../components/MatiereForm'
+import { ProduitsManager } from '../components/Reglages'
 import Skeleton from '../components/Skeleton'
 import {
   CATEGORIE_LABEL,
@@ -34,9 +35,10 @@ import type { ImportEntity } from '../lib/importer'
 import { useSuiviMatiere } from '../lib/reglages'
 import type { Fournisseur, MatierePremiere } from '../lib/supabase'
 
-type Tab = 'matieres' | 'besoins' | 'commandees' | 'fournisseurs' | 'import'
-const TABS: Tab[] = ['matieres', 'besoins', 'commandees', 'fournisseurs', 'import']
+type Tab = 'produits' | 'matieres' | 'besoins' | 'commandees' | 'fournisseurs' | 'import'
+const TABS: Tab[] = ['matieres', 'besoins', 'commandees', 'fournisseurs', 'produits', 'import']
 const TAB_LABEL: Record<Tab, string> = {
+  produits: 'Produits',
   matieres: 'Matières',
   besoins: 'À commander',
   commandees: 'Commandées',
@@ -504,6 +506,7 @@ export default function Atelier() {
       {tab === 'besoins' && <BesoinsTab />}
       {tab === 'commandees' && <CommandeesTab />}
       {tab === 'fournisseurs' && <FournisseursTab />}
+      {tab === 'produits' && <ProduitsManager />}
       {tab === 'import' && <ImportWizard key={initialEntity ?? 'default'} initialEntity={initialEntity} />}
     </>
   )

@@ -234,7 +234,12 @@ function RecetteEditor({ produitId }: { produitId: string }) {
   )
 }
 
-function ProduitsManager() {
+/**
+ * Catalogue des produits, réutilisé à deux endroits : l'onglet « Ce qu'il sait » de l'assistant
+ * (où vivent la voix de marque et les recettes) et l'onglet « Produits » de l'atelier. Un seul
+ * composant, donc aucune divergence possible entre les deux écrans.
+ */
+export function ProduitsManager() {
   const { data: produits = [], isLoading } = useProduits()
   const del = useDeleteProduit()
   const [creating, setCreating] = useState(false)
@@ -258,7 +263,10 @@ function ProduitsManager() {
 
       {isLoading && <p className="muted">…</p>}
       {!isLoading && produits.length === 0 && !creating && (
-        <p className="empty">Ajoute tes produits pour des idées plus précises.</p>
+        <p className="empty">
+          Ajoute tes produits : ils servent aux idées de l'assistant, aux commandes, et se
+          retrouvent en un tap sur un bon de dépôt.
+        </p>
       )}
       {!creating && !editing && (
         <p className="muted" style={{ margin: '4px 0 10px' }}>
