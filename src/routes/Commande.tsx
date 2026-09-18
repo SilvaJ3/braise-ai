@@ -178,7 +178,7 @@ export default function Commande() {
             onChange={(e) => setType(e.target.value as CommandeType)}
           >
             <option value="personne">Une personne</option>
-            <option value="boutique">Une boutique (dépôt-vente)</option>
+            <option value="boutique">Une boutique</option>
           </select>
         </div>
       )}

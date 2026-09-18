@@ -180,18 +180,18 @@ describe('boutiques et contacts', () => {
     expect(messageRelanceBoutique('Le Comptoir', Infinity)).toBe('Le Comptoir : jamais contactée')
   })
 
-  it('décrit les boutiques sans nommer personne', () => {
+  it('décrit les boutiques, avec leur mode de vente, sans nommer personne', () => {
     const bloc = boutiquesContext(
       [
-        { id: 'a', nom: 'Le Comptoir', canal_prefere: 'mail' },
-        { id: 'z', nom: 'Atelier Neuf', canal_prefere: null },
+        { id: 'a', nom: 'Le Comptoir', canal_prefere: 'mail', mode: 'depot_vente' },
+        { id: 'z', nom: 'Atelier Neuf', canal_prefere: null, mode: 'achat_ferme' },
       ],
       contacts,
       MAINTENANT,
     )
-    expect(bloc).toMatch(/Boutiques en dépôt-vente :/)
-    expect(bloc).toContain('- Le Comptoir (mail) — dernier contact il y a 10 j')
-    expect(bloc).toContain('- Atelier Neuf — jamais contactée')
+    expect(bloc).toMatch(/Boutiques \(points de vente\) :/)
+    expect(bloc).toContain('- Le Comptoir (mail, dépôt-vente) — dernier contact il y a 10 j')
+    expect(bloc).toContain('- Atelier Neuf (achat ferme) — jamais contactée')
     verifierNeutre(bloc)
   })
 

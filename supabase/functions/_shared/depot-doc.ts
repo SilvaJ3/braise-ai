@@ -17,10 +17,48 @@ export type DepotLigne = {
   prix_unitaire: number
 }
 
+/**
+ * Mode de vente du point de vente. Le bon ne dit pas la même chose dans les deux cas :
+ * en dépôt-vente les articles restent à l'artisane et seuls les articles vendus sont facturés ;
+ * en achat ferme la boutique achète à la remise, et le total est un montant livré, pas une
+ * valeur de vente à venir. Le mode est figé sur le bon à l'émission (colonne `depots.mode`).
+ */
+export type ModeVente = 'depot_vente' | 'achat_ferme'
+
+export const MODES_VENTE: ModeVente[] = ['depot_vente', 'achat_ferme']
+
+export const MODE_LABEL: Record<ModeVente, string> = {
+  depot_vente: 'Dépôt-vente',
+  achat_ferme: 'Achat ferme',
+}
+
+/** Titre du document : en achat ferme, ce n'est plus un dépôt mais une livraison vendue. */
+export function titreBon(mode: ModeVente): string {
+  return mode === 'achat_ferme' ? 'Bon de livraison' : 'Bon de dépôt'
+}
+
+/** Le total ne veut pas dire la même chose selon le mode. */
+export function labelTotal(mode: ModeVente): string {
+  return mode === 'achat_ferme' ? 'Total livré (prix de vente TTC)' : 'Total (prix de vente TTC)'
+}
+
+/**
+ * La règle commerciale, imprimée sur le bon sous le titre et reprise dans le mail : c'est la
+ * phrase qui manquait. Texte défini par l'app et non saisissable, pour qu'il ne dérive pas
+ * d'une boutique à l'autre (la mention du contrat cadre, elle, reste un champ libre du compte).
+ */
+export const MODE_MENTION: Record<ModeVente, string> = {
+  depot_vente:
+    'Dépôt-vente : les articles restent votre propriété. Seuls les articles vendus sont facturés, au fur et à mesure des ventes.',
+  achat_ferme:
+    'Achat ferme : les articles sont achetés à la remise du présent bon. Facturation selon les conditions convenues.',
+}
+
 export type DepotDoc = {
   numero: string | null
   date_depot: string // AAAA-MM-JJ
   emetteur: Emetteur
+  mode: ModeVente
   boutique_nom: string
   boutique_adresse: string | null
   boutique_email: string | null
@@ -88,7 +126,7 @@ export function numeroSuivant(annee: number, dejaEmis: number): string {
 
 export function emailSubject(doc: DepotDoc): string {
   const ref = doc.numero ? ` n° ${doc.numero}` : ''
-  return `Bon de dépôt${ref} — ${doc.emetteur.nom || 'dépôt-vente'} — ${fmtDateCourte(doc.date_depot)}`
+  return `${titreBon(doc.mode)}${ref} — ${doc.emetteur.nom || 'dépôt-vente'} — ${fmtDateCourte(doc.date_depot)}`
 }
 
 export function emailBody(doc: DepotDoc): string {
@@ -96,12 +134,16 @@ export function emailBody(doc: DepotDoc): string {
   const parts = [
     `Bonjour,`,
     ``,
-    `Voici le bon de dépôt${doc.numero ? ` n° ${doc.numero}` : ''} du ${fmtDateLongue(doc.date_depot)} pour ${doc.boutique_nom}, signé, en pièce jointe.`,
+    `Voici le ${titreBon(doc.mode).toLowerCase()}${doc.numero ? ` n° ${doc.numero}` : ''} du ${fmtDateLongue(doc.date_depot)} pour ${doc.boutique_nom}, signé, en pièce jointe.`,
     ``,
-    `Articles déposés :`,
+    `Articles ${doc.mode === 'achat_ferme' ? 'livrés' : 'déposés'} :`,
     ...lignes,
     ``,
-    `Total (prix de vente TTC) : ${fmtEuro(totalDoc(doc.lignes))}`,
+    `${labelTotal(doc.mode)} : ${fmtEuro(totalDoc(doc.lignes))}`,
+    ``,
+    // La règle commerciale va dans le mail autant que sur le PDF : le gérant qui lit le mail
+    // sans ouvrir la pièce jointe est exactement celui qui se trompe sur ce qu'il doit.
+    MODE_MENTION[doc.mode],
   ]
   if (doc.notes?.trim()) parts.push('', `Note : ${doc.notes.trim()}`)
   parts.push(

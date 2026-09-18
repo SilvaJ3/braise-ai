@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  MODE_MENTION,
   emailBody,
   emailSubject,
   fmtDateCourte,
@@ -7,11 +8,13 @@ import {
   fmtEuro,
   fmtQte,
   isEmail,
+  labelTotal,
   nbArticles,
   numeroSuivant,
   parseEmails,
   pdfFilename,
   problemesEnvoi,
+  titreBon,
   totalDoc,
   totalLigne,
   type DepotDoc,
@@ -30,6 +33,7 @@ const doc = (over: Partial<DepotDoc> = {}): DepotDoc => ({
   numero: '2026-001',
   date_depot: '2026-09-03',
   emetteur,
+  mode: 'depot_vente',
   boutique_nom: 'La Petite Boutique',
   boutique_adresse: 'Rue Dansaert 12, 1000 Bruxelles',
   boutique_email: 'contact@laboutique.be',
@@ -113,6 +117,41 @@ describe('mail', () => {
     expect(b).toContain('Total (prix de vente TTC) : 165 €')
     expect(b).toContain('Note : Livré en main propre.')
     expect(b).toContain('Braaise')
+  })
+})
+
+describe('mode de vente', () => {
+  it('le titre du document suit le mode', () => {
+    expect(titreBon('depot_vente')).toBe('Bon de dépôt')
+    expect(titreBon('achat_ferme')).toBe('Bon de livraison')
+  })
+
+  it('le total ne dit pas la même chose selon le mode', () => {
+    expect(labelTotal('depot_vente')).toBe('Total (prix de vente TTC)')
+    expect(labelTotal('achat_ferme')).toBe('Total livré (prix de vente TTC)')
+  })
+
+  it('l’objet du mail suit le mode', () => {
+    expect(emailSubject(doc())).toBe('Bon de dépôt n° 2026-001 — Braaise — 03/09/2026')
+    expect(emailSubject(doc({ mode: 'achat_ferme' }))).toBe(
+      'Bon de livraison n° 2026-001 — Braaise — 03/09/2026',
+    )
+  })
+
+  it('le mail porte la règle commerciale, dans les deux cas', () => {
+    const depot = emailBody(doc())
+    expect(depot).toContain('Voici le bon de dépôt n° 2026-001')
+    expect(depot).toContain('Articles déposés :')
+    expect(depot).toContain('Total (prix de vente TTC) : 165 €')
+    expect(depot).toContain(MODE_MENTION.depot_vente)
+    expect(depot).toContain('Seuls les articles vendus sont facturés')
+
+    const ferme = emailBody(doc({ mode: 'achat_ferme' }))
+    expect(ferme).toContain('Voici le bon de livraison n° 2026-001')
+    expect(ferme).toContain('Articles livrés :')
+    expect(ferme).toContain('Total livré (prix de vente TTC) : 165 €')
+    expect(ferme).toContain(MODE_MENTION.achat_ferme)
+    expect(ferme).not.toContain('Seuls les articles vendus sont facturés')
   })
 })
 

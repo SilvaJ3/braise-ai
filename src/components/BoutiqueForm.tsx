@@ -1,10 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { geocodeAdresse } from '../lib/geocode'
-import { CANAL_LABEL } from '../lib/labels'
+import { CANAL_LABEL, MODE_LABEL, MODES_VENTE, type ModeVente } from '../lib/labels'
 import type { Boutique, BoutiqueDraft, CanalContact } from '../lib/supabase'
 
 const EMPTY: BoutiqueDraft = {
   nom: '',
+  mode: 'depot_vente',
   adresse: null,
   horaires: null,
   canal_prefere: null,
@@ -33,6 +34,7 @@ export default function BoutiqueForm({
     initial
       ? {
           nom: initial.nom,
+          mode: initial.mode,
           adresse: initial.adresse,
           horaires: initial.horaires,
           canal_prefere: initial.canal_prefere,
@@ -86,6 +88,24 @@ export default function BoutiqueForm({
         required
         autoFocus
       />
+
+      <label htmlFor="mode">Mode de vente</label>
+      <select
+        id="mode"
+        value={d.mode}
+        onChange={(e) => set('mode', e.target.value as ModeVente)}
+      >
+        {MODES_VENTE.map((m) => (
+          <option key={m} value={m}>
+            {MODE_LABEL[m]}
+          </option>
+        ))}
+      </select>
+      <p className="muted" style={{ marginTop: -4 }}>
+        {d.mode === 'achat_ferme'
+          ? "La boutique achète les articles à la remise : le document s'intitule « Bon de livraison »."
+          : "Les articles restent à toi : le document s'intitule « Bon de dépôt », et seuls les articles vendus sont facturés."}
+      </p>
 
       <label htmlFor="adresse">Adresse</label>
       <input

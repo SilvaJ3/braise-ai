@@ -5,6 +5,7 @@ import Skeleton from '../components/Skeleton'
 import { useBoutiques } from '../lib/boutiques'
 import { STATUT_LABEL, useCommandes } from '../lib/commandes'
 import { fmtDateCourte } from '../lib/depots'
+import { MODE_LABEL } from '../lib/labels'
 
 export default function Commandes() {
   const navigate = useNavigate()
@@ -13,6 +14,9 @@ export default function Commandes() {
   const [voirArchivees, setVoirArchivees] = useState(false)
 
   const boutiqueNom = useMemo(() => new Map(boutiques.map((b) => [b.id, b.nom])), [boutiques])
+  // Le mode de la boutique, et non « dépôt-vente » supposé : une commande destinée à une
+  // boutique en achat ferme n'est pas un dépôt (elle se livre et se facture à la remise).
+  const boutiqueMode = useMemo(() => new Map(boutiques.map((b) => [b.id, b.mode])), [boutiques])
 
   const shown = useMemo(
     () =>
@@ -55,7 +59,7 @@ export default function Commandes() {
               </span>
               <span className="muted" style={{ display: 'block', margin: '6px 0 0' }}>
                 Pour le {fmtDateCourte(c.date_echeance)}
-                {c.type === 'boutique' ? ' · Dépôt-vente' : ' · Commande personnelle'}
+                {c.type === 'boutique' ? ` · ${MODE_LABEL[boutiqueMode.get(c.boutique_id ?? '') ?? 'depot_vente']}` : ' · Commande personnelle'}
               </span>
             </Link>
           ))}

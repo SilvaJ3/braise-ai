@@ -9,7 +9,7 @@ import { STATUT_LABEL as COMMANDE_STATUT_LABEL } from '../lib/commandes'
 import { fmtDateCourte } from '../lib/depots'
 import { logEvent } from '../lib/events'
 import { Highlight } from '../lib/highlight'
-import { STATUS_LABEL } from '../lib/labels'
+import { MODE_LABEL, STATUS_LABEL } from '../lib/labels'
 import { useCommandesAAlerter, useDismissReminder, useDismissedReminders, useRappelsDus } from '../lib/notifications'
 import { useSuiviMatiere } from '../lib/reglages'
 import type { AssistantSuggestion } from '../lib/supabase'
@@ -122,6 +122,8 @@ function CommandesDetail() {
   const commandes = useCommandesAAlerter()
   const { data: boutiques = [] } = useBoutiques()
   const boutiqueNom = new Map(boutiques.map((b) => [b.id, b.nom]))
+  // Le libellé suit le mode réel de la boutique, il n'est plus supposé « dépôt-vente ».
+  const boutiqueMode = new Map(boutiques.map((b) => [b.id, b.mode]))
 
   if (commandes.length === 0) return <p className="empty">Aucune échéance proche.</p>
   return (
@@ -136,7 +138,7 @@ function CommandesDetail() {
           </span>
           <span className="muted" style={{ display: 'block', margin: '6px 0 0' }}>
             Pour le {fmtDateCourte(c.date_echeance)}
-            {c.type === 'boutique' ? ' · Dépôt-vente' : ' · Commande personnelle'}
+            {c.type === 'boutique' ? ` · ${MODE_LABEL[boutiqueMode.get(c.boutique_id ?? '') ?? 'depot_vente']}` : ' · Commande personnelle'}
           </span>
         </Link>
       ))}

@@ -278,7 +278,7 @@ async function loadPerf(userId: string): Promise<string> {
 async function loadBoutiques(userId: string): Promise<string> {
   const { data: boutiques, error: errBoutiques } = await admin
     .from('boutiques')
-    .select('id, nom, canal_prefere')
+    .select('id, nom, canal_prefere, mode')
     .eq('user_id', userId)
     .eq('actif', true)
     .order('nom')

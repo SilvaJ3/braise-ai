@@ -16,6 +16,7 @@ const base: DepotDoc = {
   numero: '2026-001',
   date_depot: '2026-09-03',
   emetteur,
+  mode: 'depot_vente',
   boutique_nom: 'La Petite Boutique',
   boutique_adresse: 'Rue Dansaert 12, 1000 Bruxelles',
   boutique_email: 'contact@laboutique.be',
@@ -101,6 +102,31 @@ describe('renderDepotPdf', () => {
   it('imprime la note quand elle existe', async () => {
     const { texte } = await readPdf(renderDepotPdf({ ...base, notes: 'Reprise des invendus fin octobre.' }))
     expect(texte).toContain('Reprise des invendus fin octobre.')
+  })
+
+  it('rend un bon de dépôt pour un dépôt-vente, avec la règle commerciale', async () => {
+    const { texte } = await readPdf(renderDepotPdf(base))
+    expect(texte).toContain('Bon de dépôt')
+    expect(texte).toContain('DÉTAIL DU DÉPÔT')
+    expect(texte).toContain('Dépôt-vente : les articles restent')
+    expect(texte).toContain('Seuls les articles vendus sont facturés')
+  })
+
+  it('rend un bon de livraison pour une boutique en achat ferme', async () => {
+    const { texte } = await readPdf(renderDepotPdf({ ...base, mode: 'achat_ferme' }))
+    expect(texte).toContain('Bon de livraison')
+    expect(texte).not.toContain('Bon de dépôt')
+    expect(texte).toContain('DÉTAIL DE LA LIVRAISON')
+    expect(texte).toContain('Achat ferme : les articles sont achetés')
+    expect(texte).not.toContain('Seuls les articles vendus sont facturés')
+    // Le total garde le même montant, mais il ne se lit plus comme une valeur de vente à venir.
+    expect(texte).toContain('245 €')
+  })
+
+  it('photographie la livraison, pas le dépôt, en achat ferme', async () => {
+    const { texte } = await readPdf(renderDepotPdf({ ...base, mode: 'achat_ferme', photo_image: JPEG_1PX }))
+    expect(texte).toContain('Photo de la livraison')
+    expect(texte).not.toContain('Photo du dépôt')
   })
 
   it('affiche le bloc photo quand une photo est fournie', async () => {

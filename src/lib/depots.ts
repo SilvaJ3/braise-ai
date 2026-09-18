@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { DepotDoc } from '../../supabase/functions/_shared/depot-doc'
+import type { DepotDoc, ModeVente } from '../../supabase/functions/_shared/depot-doc'
 import { functionErrorMessage } from './push'
 import {
   supabase,
@@ -14,15 +14,21 @@ export type {
   DepotLigne,
 } from '../../supabase/functions/_shared/depot-doc'
 export {
+  MODE_LABEL,
+  MODE_MENTION,
+  MODES_VENTE,
   fmtDateCourte,
   fmtDateLongue,
   fmtEuro,
   fmtQte,
+  labelTotal,
   parseEmails,
   problemesEnvoi,
+  titreBon,
   totalDoc,
   totalLigne,
 } from '../../supabase/functions/_shared/depot-doc'
+export type { ModeVente } from '../../supabase/functions/_shared/depot-doc'
 
 // Domaine d'expédition de l'app : purement informatif côté client (l'envoi réel est fait
 // par l'edge function, qui tient le secret du service de mail).
@@ -121,6 +127,8 @@ export function useDepot(id: string | undefined) {
 export type DepotSaisie = {
   id?: string
   boutique_id: string | null
+  /** Mode de vente figé sur le bon (repris de la fiche boutique au moment de l'enregistrement). */
+  mode: ModeVente
   date_depot: string
   boutique_nom: string
   boutique_adresse: string | null
@@ -133,6 +141,7 @@ export type DepotSaisie = {
 export async function saveDepot(saisie: DepotSaisie): Promise<string> {
   const entete = {
     boutique_id: saisie.boutique_id,
+    mode: saisie.mode,
     date_depot: saisie.date_depot,
     boutique_nom: saisie.boutique_nom.trim(),
     boutique_adresse: saisie.boutique_adresse?.trim() || null,
@@ -269,6 +278,7 @@ export function docDepuisSaisie(
     numero: null,
     date_depot: saisie.date_depot,
     emetteur: profil as ProfilEntreprise,
+    mode: saisie.mode,
     boutique_nom: saisie.boutique_nom,
     boutique_adresse: saisie.boutique_adresse,
     boutique_email: saisie.boutique_email,

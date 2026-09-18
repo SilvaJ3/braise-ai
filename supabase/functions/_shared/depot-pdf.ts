@@ -5,9 +5,11 @@
 // DepotDoc) et un quadrillage de fond simplifié (grille 20pt au lieu de 5×6pt, pour un flux PDF
 // raisonnable — cf. note dans papierDeFond()).
 import {
+  MODE_MENTION,
   fmtDateCourte,
   fmtEuro,
   fmtQte,
+  titreBon,
   totalDoc,
   totalLigne,
   type DepotDoc,
@@ -129,23 +131,30 @@ function enTeteTableau(doc: PdfDoc, y: number): number {
   return y + h
 }
 
-/** Cadre signature arrondi : mention légale (italique serif) + nom/date + zone de signature.
- *  Hauteur calculée d'après le contenu, puis dessinée avant le texte pour ne rien recouvrir. */
+/** Cadre signature arrondi : la règle commerciale du mode de vente (sans), la mention légale
+ *  (italique serif) + nom/date + zone de signature. Hauteur calculée d'après le contenu, puis
+ *  dessinée avant le texte pour ne rien recouvrir. */
 function blocSignature(doc: PdfDoc, d: DepotDoc, top: number): number {
   const PAD = 18
   const boxX = M
   const boxW = A4.width - 2 * M
   const innerW = boxW - 2 * PAD
   const leading = 8.5 * 1.5
+  const leadingMode = 9 * 1.45
+  const lignesMode = wrapTextFont(MODE_MENTION[d.mode], innerW, 9, FONT.sans)
   const lignesMention = wrapTextFont(d.emetteur.mention_signature, innerW, 8.5, FONT.serifItalic)
 
-  const yMention = top + PAD
+  const yMode = top + PAD
+  const yMention = yMode + lignesMode.length * leadingMode + 10
   const yNomDate = yMention + lignesMention.length * leading + 16
   const ySigLabel = yNomDate + 16
   const ySigZone = ySigLabel + 16
   const boxH = ySigZone + 40 + PAD - top
 
   doc.roundedRect(boxX, top, boxW, boxH, 3, { stroke: CADRE, strokeWidth: 0.75 })
+  lignesMode.forEach((l, i) =>
+    doc.text(boxX + PAD, yMode + i * leadingMode, l, { size: 9, font: FONT.sans, color: TEXTE }),
+  )
   lignesMention.forEach((l, i) =>
     doc.text(boxX + PAD, yMention + i * leading, l, { size: 8.5, font: FONT.serifItalic, color: GRIS }),
   )
@@ -175,7 +184,7 @@ function blocPhoto(doc: PdfDoc, d: DepotDoc, top: number): number {
   if (!d.photo_image) return 0
   const PAD = 10
   const boxW = A4.width - 2 * M
-  doc.text(M, top, 'Photo du dépôt', { size: 9, font: FONT.sansBold, color: TEXTE })
+  doc.text(M, top, d.mode === 'achat_ferme' ? 'Photo de la livraison' : 'Photo du dépôt', { size: 9, font: FONT.sansBold, color: TEXTE })
   const boxTop = top + 14
   const boxH = PHOTO_H + 2 * PAD
   doc.roundedRect(M, boxTop, boxW, boxH, 3, { stroke: CADRE, strokeWidth: 0.75 })
@@ -192,7 +201,7 @@ export function renderDepotPdf(d: DepotDoc): Uint8Array {
   papierDeFond(doc)
   let y = enTete(doc, d, false)
 
-  doc.text(M, y, 'Bon de dépôt', { size: 24, font: FONT.serifBold, color: TEXTE })
+  doc.text(M, y, titreBon(d.mode), { size: 24, font: FONT.serifBold, color: TEXTE })
   y += 30
   doc.rect(M, y, 38, 2.5, VERT)
   y += 22
@@ -200,7 +209,7 @@ export function renderDepotPdf(d: DepotDoc): Uint8Array {
   // Deux colonnes d'identification.
   const colD = 330
   eyebrow(doc, M, y, 'Point de vente')
-  eyebrow(doc, colD, y, 'Détail du dépôt')
+  eyebrow(doc, colD, y, d.mode === 'achat_ferme' ? 'Détail de la livraison' : 'Détail du dépôt')
   let yg = y + 18
   let yd = y + 18
 
@@ -215,7 +224,7 @@ export function renderDepotPdf(d: DepotDoc): Uint8Array {
   yg = champ(M, yg, 'Nom :', d.boutique_nom, colD - M - 20)
   yg = champ(M, yg, 'Adresse :', d.boutique_adresse ?? '', colD - M - 20)
   yg = champ(M, yg, 'Email :', d.boutique_email ?? '', colD - M - 20)
-  yd = champ(colD, yd, 'Date de dépôt :', fmtDateCourte(d.date_depot), A4.width - M - colD)
+  yd = champ(colD, yd, d.mode === 'achat_ferme' ? 'Date de livraison :' : 'Date de dépôt :', fmtDateCourte(d.date_depot), A4.width - M - colD)
   if (d.numero) yd = champ(colD, yd, 'N° :', d.numero, A4.width - M - colD)
 
   y = Math.max(yg, yd) + 16
@@ -250,10 +259,10 @@ export function renderDepotPdf(d: DepotDoc): Uint8Array {
     y += 12
   }
 
-  // Photo et signature ne doivent jamais être coupées : ~155 pt pour la signature (mention sur
-  // 2 lignes), + la hauteur fixe du cadre photo si une photo a été prise.
+  // Photo et signature ne doivent jamais être coupées : ~170 pt pour la signature (règle du mode
+  // de vente sur 2 lignes + mention du contrat), + la hauteur fixe du cadre photo si une photo.
   const hPhoto = d.photo_image ? PHOTO_H + 2 * 10 + 14 : 0
-  if (y + hPhoto + 155 > BAS_UTILE) {
+  if (y + hPhoto + 170 > BAS_UTILE) {
     doc.addPage()
     papierDeFond(doc)
     y = enTete(doc, d, true) + 10

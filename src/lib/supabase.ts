@@ -1,4 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
+// Le mode de vente est défini une seule fois, dans le modèle partagé du bon de dépôt : le
+// document, le mail et l'app doivent dire la même chose (cf. _shared/depot-doc.ts).
+import type { ModeVente } from '../../supabase/functions/_shared/depot-doc'
+
+export type { ModeVente }
 
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -71,6 +76,7 @@ export type Boutique = {
   id: string
   user_id: string
   nom: string
+  mode: ModeVente
   adresse: string | null
   horaires: Record<string, string> | null
   canal_prefere: CanalContact | null
@@ -175,6 +181,7 @@ export type Depot = {
   id: string
   user_id: string
   boutique_id: string | null
+  mode: ModeVente
   numero: string | null
   date_depot: string
   statut: DepotStatut

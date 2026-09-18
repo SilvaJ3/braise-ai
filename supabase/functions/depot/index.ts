@@ -18,6 +18,7 @@ import {
   problemesEnvoi,
   type DepotDoc,
   type Emetteur,
+  type ModeVente,
 } from '../_shared/depot-doc.ts'
 import { renderDepotPdf } from '../_shared/depot-pdf.ts'
 import { envoyerMail } from '../_shared/mailer.ts'
@@ -67,6 +68,8 @@ async function loadEmetteur(userId: string): Promise<Emetteur> {
 type DepotRow = {
   id: string
   user_id: string
+  boutique_id: string | null
+  mode: ModeVente
   numero: string | null
   date_depot: string
   statut: string
@@ -81,10 +84,27 @@ type DepotRow = {
   pdf_path: string | null
 }
 
+/**
+ * Mode de vente qui s'applique au bon. Un bon non signé suit encore sa boutique (le mode se
+ * décide sur la fiche) ; une fois le bon signé, c'est la valeur figée sur le bon qui fait foi,
+ * même si la boutique change de mode ensuite. Si le bon a perdu sa boutique (fiche supprimée),
+ * la valeur figée est tout ce qui reste.
+ */
+async function modeDuBon(row: { boutique_id: string | null; user_id: string; mode: ModeVente; signed_at: string | null }): Promise<ModeVente> {
+  if (!row.boutique_id || row.signed_at) return row.mode
+  const { data } = await admin
+    .from('boutiques')
+    .select('mode')
+    .eq('id', row.boutique_id)
+    .eq('user_id', row.user_id)
+    .maybeSingle()
+  return ((data?.mode as ModeVente | undefined) ?? row.mode)
+}
+
 async function loadDepot(userId: string, depotId: string): Promise<{ row: DepotRow; doc: DepotDoc } | null> {
   const { data: row } = await admin
     .from('depots')
-    .select('id, user_id, numero, date_depot, statut, boutique_nom, boutique_adresse, boutique_email, notes, signataire_nom, signature_image, photo_image, signed_at, pdf_path')
+    .select('id, user_id, boutique_id, mode, numero, date_depot, statut, boutique_nom, boutique_adresse, boutique_email, notes, signataire_nom, signature_image, photo_image, signed_at, pdf_path')
     .eq('id', depotId)
     .eq('user_id', userId)
     .maybeSingle()
@@ -101,6 +121,7 @@ async function loadDepot(userId: string, depotId: string): Promise<{ row: DepotR
     numero: row.numero,
     date_depot: row.date_depot,
     emetteur: await loadEmetteur(userId),
+    mode: await modeDuBon(row as DepotRow),
     boutique_nom: row.boutique_nom,
     boutique_adresse: row.boutique_adresse,
     boutique_email: row.boutique_email,
@@ -250,6 +271,7 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>): Pro
     .update({
       numero: doc.numero,
       statut: 'signe',
+      mode: doc.mode,
       signataire_nom: doc.signataire_nom,
       signature_image: doc.signature_image,
       photo_image: doc.photo_image,

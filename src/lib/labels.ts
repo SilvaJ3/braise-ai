@@ -35,6 +35,11 @@ export const CANAL_LABEL: Record<CanalContact, string> = {
   autre: 'Autre',
 }
 
+// Mode de vente d'un point de vente : le libellé vit avec le modèle du bon de dépôt (le PDF et
+// l'app doivent écrire le même mot).
+export { MODE_LABEL, MODES_VENTE } from '../../supabase/functions/_shared/depot-doc'
+export type { ModeVente } from '../../supabase/functions/_shared/depot-doc'
+
 export function nextStatus(s: ContentStatus): ContentStatus {
   const i = STATUS_ORDER.indexOf(s)
   return STATUS_ORDER[Math.min(i + 1, STATUS_ORDER.length - 1)]

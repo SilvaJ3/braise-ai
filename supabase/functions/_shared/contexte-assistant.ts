@@ -5,6 +5,8 @@
 // et il ne doit plus porter d'identité en dur : le produit sert plusieurs artisans depuis
 // l'onboarding, et l'assistant ne sait d'un compte que ce que sa ligne `assistant_profil` dit.
 
+import type { ModeVente } from './depot-doc.ts'
+
 export type ProfilCompte = {
   metier: string | null
   nom_commercial: string | null
@@ -52,7 +54,7 @@ export type ProduitRow = {
   saison: string | null
 }
 
-export type BoutiqueRow = { id: string; nom: string; canal_prefere: string | null }
+export type BoutiqueRow = { id: string; nom: string; canal_prefere: string | null; mode: ModeVente }
 export type ContactRow = { boutique_id: string; date: string }
 
 export type MatiereRow = {
@@ -178,9 +180,15 @@ export function boutiquesContext(
     const last = dernier.get(b.id)
     const contactBit =
       last == null ? 'jamais contactée' : `dernier contact il y a ${joursDepuis(last, maintenant)} j`
-    return `- ${b.nom}${b.canal_prefere ? ` (${b.canal_prefere})` : ''} — ${contactBit}`
+    // Le mode de vente figure sur chaque ligne : sans lui, l'assistant affirmait « dépôt-vente »
+    // pour une boutique qui achète ferme (elle se facture à la remise, pas à la vente).
+    const bits = [
+      b.canal_prefere ?? null,
+      b.mode === 'achat_ferme' ? 'achat ferme' : 'dépôt-vente',
+    ].filter((x): x is string => !!x)
+    return `- ${b.nom} (${bits.join(', ')}) — ${contactBit}`
   })
-  return `\n\nBoutiques en dépôt-vente :\n${lignes.join('\n')}`
+  return `\n\nBoutiques (points de vente) :\n${lignes.join('\n')}`
 }
 
 export const fmtQty = (n: number, unite: string): string =>

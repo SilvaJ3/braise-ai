@@ -6,13 +6,17 @@ import Skeleton from '../components/Skeleton'
 import { useBoutiques } from '../lib/boutiques'
 import { ymd } from '../lib/dates'
 import {
+  MODE_LABEL,
+  MODE_MENTION,
   apercuDepot,
   docDepuisSaisie,
   fmtEuro,
+  labelTotal,
   parseEmails,
   problemesEnvoi,
   saveDepot,
   STATUT_LABEL,
+  titreBon,
   totalDoc,
   urlPdfDepot,
   useArchiverDepot,
@@ -102,6 +106,9 @@ export default function Depot() {
   const saisie: DepotSaisie = {
     id: depotId,
     boutique_id: boutique?.id ?? null,
+    // Le mode suit la fiche boutique tant que le bon n'est pas signé ; une fois signé, c'est
+    // celui figé sur le bon qui compte (l'écran d'un bon existant ne doit pas changer de sens).
+    mode: depot?.signed_at ? depot.mode : boutique?.mode ?? depot?.mode ?? 'depot_vente',
     date_depot: date,
     boutique_nom: boutique?.nom ?? depot?.boutique_nom ?? '',
     boutique_adresse: boutique?.adresse ?? depot?.boutique_adresse ?? null,
@@ -198,7 +205,7 @@ export default function Depot() {
       </button>
 
       <div className="row">
-        <h1 style={{ margin: 0 }}>Bon de dépôt</h1>
+        <h1 style={{ margin: 0 }}>{titreBon(doc.mode)}</h1>
         <div className="spacer" />
         {depot?.archived_at && <span className="badge">Archivé</span>}
         {depot && <span className="badge">{STATUT_LABEL[depot.statut]}</span>}
@@ -206,6 +213,7 @@ export default function Depot() {
       <p className="muted" style={{ marginTop: 4 }}>
         {saisie.boutique_nom || 'Boutique inconnue'}
         {depot?.numero ? ` · n° ${depot.numero}` : ''}
+        {` · ${MODE_LABEL[doc.mode]}`}
       </p>
       {depot && (
         <button
@@ -252,11 +260,11 @@ export default function Depot() {
       )}
 
       <div className="card stack">
-        <label htmlFor="date">Date du dépôt</label>
+        <label htmlFor="date">{doc.mode === 'achat_ferme' ? 'Date de la livraison' : 'Date du dépôt'}</label>
         <input id="date" type="date" value={date} disabled={verrouille} onChange={(e) => setDate(e.target.value)} />
       </div>
 
-      <h2>Articles déposés</h2>
+      <h2>{doc.mode === 'achat_ferme' ? 'Articles livrés' : 'Articles déposés'}</h2>
       <div className="card">
         {lignes.length === 0 && (
           <p className="empty" style={{ margin: '0 0 10px' }}>
@@ -339,7 +347,7 @@ export default function Depot() {
 
         {lignes.length > 0 && (
           <div className="depot-total">
-            <span>Total (prix de vente TTC)</span>
+            <span>{labelTotal(doc.mode)}</span>
             <span>{fmtEuro(total)}</span>
           </div>
         )}
@@ -367,12 +375,15 @@ export default function Depot() {
           onChange={(e) => setSignataire(e.target.value)}
         />
         <p className="muted" style={{ margin: '4px 0 0' }}>
+          {MODE_MENTION[doc.mode]}
+        </p>
+        <p className="muted" style={{ margin: '4px 0 0' }}>
           {profil?.mention_signature}
         </p>
         <SignaturePad onChange={setSignature} disabled={verrouille} />
       </div>
 
-      <h2>Photo du dépôt (optionnel)</h2>
+      <h2>Photo {doc.mode === 'achat_ferme' ? 'de la livraison' : 'du dépôt'} (optionnel)</h2>
       <div className="card stack">
         <p className="muted" style={{ margin: 0 }}>
           Un cliché de l'état des articles chez la boutique, en complément de la liste et de la signature.
