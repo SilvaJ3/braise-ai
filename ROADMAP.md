@@ -61,17 +61,36 @@ depuis le site donne toujours le plan `fondateur`, sans compter.
 
 **Le découpage, dans l'ordre :**
 
-1. **La fonction de paiement** (`stripe-checkout`) — crée une session Checkout pour le compte connecté,
-   choisit le prix selon son plan et applique le coupon fondateur si le plan est `fondateur`. ≃ 2 h.
-2. **La fonction de retour** (`stripe-webhook`) — enregistre le client et l'abonnement sur le compte,
-   et traite les cas moches : échec de prélèvement, impayé, résiliation. ≃ 2 h.
-3. **L'écran d'abonnement** dans `Mon compte` — l'état réel (« actif jusqu'au… », « paiement en
-   échec »), le bouton « S'abonner », et le **portail Stripe** pour changer de carte ou résilier
-   soi-même. ≃ 2 h.
-4. **Les tests** — carte refusée, échec de prélèvement, résiliation, et le passage fondateur →
-   mensuel au bout de 24 mois. ≃ 1 h.
-5. **La bascule** (seule étape bloquée par le n° BCE) — vérification d'entreprise, clés de production,
-   et un vrai paiement de bout en bout. ≃ 1 h.
+1. ✅ **La fonction de paiement** (`stripe-checkout`) — **faite et vérifiée le 19/09**, déployée.
+2. ✅ **La fonction de retour** (`stripe-webhook`) — **faite et vérifiée le 19/09**, déployée
+   (`--no-verify-jwt`, la signature Stripe fait office d'authentification).
+3. ⏳ **L'écran d'abonnement** dans `Mon compte` — le bouton, l'état réel et le portail Stripe.
+4. ⏳ **Les tests** — les cas moches (carte refusée, impayé, résiliation).
+5. ⏳ **La bascule** (seule étape bloquée par le n° BCE).
+
+**Ce qui a été vérifié, pas supposé** (19/09, mode test) :
+
+- un compte `fondateur` qui clique « S'abonner » obtient une session dont le **sous-total est 39 € et
+  le total à payer 29 €** — le coupon s'applique tout seul (relevé sur la session Stripe :
+  `amount_subtotal 3900`, `amount_total 2900`) ;
+- le webhook **écrit bien sur le compte** : statut `actif`, `abonnement_prix_centimes 2900`, fin de
+  période et identifiant d'abonnement enregistrés ;
+- une **signature falsifiée est refusée** (HTTP 400) ;
+- le compte est rattaché à son client Stripe au premier paiement.
+
+**Ce qui reste de ton côté — 2 minutes, et c'est le seul point bloquant :** mon jeton n'a pas le droit
+d'écrire les secrets du projet (lecture seule). Il faut donc les poser une fois dans le tableau de
+Supabase (`Project Settings` → `Edge Functions` → `Secrets`) :
+
+- `STRIPE_SECRET_KEY` — ta clé de test, celle qui est déjà dans `.env.local` ;
+- `STRIPE_PRIX_MENSUEL` = `price_1UHLwkHJnfqhoXjCmkP0Zt5w` ;
+- `STRIPE_PRIX_ANNUEL` = `price_1UHLwkHJnfqhoXjCYPnjlN2o` ;
+- `STRIPE_COUPON_FONDATEUR` = `BYfhMZY2` ;
+- `STRIPE_WEBHOOK_SECRET` — il est **déjà dans ton `.env.local`** (ligne `STRIPE_WEBHOOK_SECRET=…`),
+  tu la copies de là.
+
+*(Variante : tu réautorises le connecteur avec la permission `edge_functions_secrets`, et je les pose
+moi-même — dis-le moi et je te guide en trois clics.)*
 
 Tant qu'on reste en mode test, **rien ne circule** : uniquement des cartes de test.
 
