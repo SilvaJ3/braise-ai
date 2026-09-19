@@ -66,6 +66,12 @@ select{width:100%;padding:10px;border:1px solid #cfd4cb;border-radius:8px;font:i
 .repartition-ligne span{font-size:13px}
 .bon-lignes{margin:10px 0 12px;padding-left:18px;font-size:13.5px;color:#3a3a38}
 .bon-lignes li{margin:2px 0}
+/* Signaler un bon : la même chose qu'une confirmation ratée, mais dite avec des mots. Le bon,
+   lui, n'est pas modifié — c'est un message à l'artisane, et la page le dit à l'écran. */
+.signaler{width:100%;background:#fff;color:var(--ko);border:1px solid var(--ko);
+   border-radius:9px;padding:13px;font-size:14px;font-weight:600;margin-top:10px}
+.contest{margin-top:12px;padding-top:12px;border-top:1px solid var(--trait)}
+.contest label{display:block;font-size:13px;color:var(--gris);margin:0 0 6px}
 </style>
 </head>
 <body>
@@ -91,6 +97,8 @@ const supabase = createClient(SUPABASE_URL, CLE_PUBLIQUE)
 const jeton = new URLSearchParams(location.search).get('t') || location.hash.slice(1)
 const contenu = document.getElementById('contenu')
 const $ = (id) => document.getElementById(id)
+const echapper = (t) => String(t ?? '').replace(/[&<>"']/g, (c) =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 const eur = (n) => (Math.round((Number(n) + Number.EPSILON) * 100) / 100)
   .toLocaleString('fr-BE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 const dateCourte = (iso) => {
@@ -139,7 +147,8 @@ function afficher() {
     ${(p.a_confirmer || []).length ? `
       <h2>${p.a_confirmer.length > 1 ? 'Des bons à confirmer' : 'Un bon à confirmer'}</h2>
       <p class="aide">C'est votre confirmation qui fait entrer ces pièces dans votre stock — pas
-         l'envoi du bon par l'artisane.</p>
+         l'envoi du bon par l'artisane. Si un bon ne correspond pas, dites-le : c'est un message
+         pour l'artisane, le bon n'est pas modifié.</p>
       ${p.a_confirmer.map((b) => `
         <div class="carte">
           <span class="piece">${b.numero ? 'Bon n° ' + b.numero : 'Bon'} — ${dateCourte(b.date)}</span>
@@ -149,6 +158,19 @@ function afficher() {
           </ul>
           <button class="secondaire" data-bon="${b.bon_id}">J'ai bien reçu ce bon</button>
           <p class="message" data-retour="${b.bon_id}"></p>
+          ${b.conteste ? `
+            <p class="message ko">Vous avez signalé : « ${echapper(b.message_conteste || '')} ».
+               L'artisane le verra avant de répondre.</p>` : ''}
+          <button class="signaler" data-contester="${b.bon_id}" aria-expanded="false">
+            ${b.conteste ? 'Signaler autre chose' : 'Ce bon ne correspond pas'}
+          </button>
+          <div class="contest" data-zone="${b.bon_id}" style="display:none">
+            <label for="mot-${b.bon_id}">Qu'est-ce qui ne correspond pas ?</label>
+            <textarea id="mot-${b.bon_id}" rows="3"
+              placeholder="Par exemple : il manque une bougie, ou une pièce n'est pas sur le bon."></textarea>
+            <button class="principal" data-envoyer-conteste="${b.bon_id}">Envoyer à l'artisane</button>
+            <p class="message" data-retour-conteste="${b.bon_id}"></p>
+          </div>
         </div>`).join('')}` : ''}
 
     ${plusieurs ? `
@@ -214,7 +236,8 @@ function afficher() {
     <div id="historique"><p class="aide">Chargement…</p></div>
 
     <p class="note">
-      <b>Ceci ne remplace aucun document contractuel.</b> Les bons signés restent les pièces qui
+      <b>Signaler un bon ne le modifie pas</b> : c'est un message, et l'artisane seule décide de
+      ce qu'elle en fait. <b>Ceci ne remplace aucun document contractuel.</b> Les bons signés restent les pièces qui
       font foi ; cet espace sert à suivre la relation entre l'artisane et la boutique, et à vous
       éviter de tout noter à la main. Ce lien est le vôtre : l'artisane peut le désactiver à tout
       moment, et il ne montre que vos pièces — jamais celles des autres boutiques.
@@ -237,6 +260,13 @@ function afficher() {
 
   for (const b of contenu.querySelectorAll('button[data-bon]')) {
     b.addEventListener('click', () => confirmer(b))
+  }
+
+  for (const b of contenu.querySelectorAll('button[data-contester]')) {
+    b.addEventListener('click', () => ouvrirContestation(b))
+  }
+  for (const b of contenu.querySelectorAll('button[data-envoyer-conteste]')) {
+    b.addEventListener('click', () => contester(b))
   }
   $('envoyer').addEventListener('click', envoyer)
   $('commander').addEventListener('click', commander)
@@ -373,6 +403,47 @@ async function confirmer(bouton) {
   }
   retour.className = 'message ok'
   retour.textContent = 'Merci. Ces pièces sont maintenant dans votre stock.'
+  await demarrer()
+}
+
+/** Ouvrir (ou refermer) le champ de signalement d'un bon. */
+function ouvrirContestation(bouton) {
+  const bon = bouton.dataset.contester
+  const zone = contenu.querySelector(`div[data-zone="${CSS.escape(bon)}"]`)
+  const ouvert = zone.style.display !== 'none'
+  zone.style.display = ouvert ? 'none' : ''
+  bouton.setAttribute('aria-expanded', String(!ouvert))
+  if (!ouvert) zone.querySelector('textarea').focus()
+}
+
+/** « Ce bon ne correspond pas » : un message à l'artisane. Le bon n'est pas touché — l'artisane
+ *  décide de ce qu'elle en fait (un nouveau bon, une reprise, une correction de stock). */
+async function contester(bouton) {
+  const bon = bouton.dataset.envoyerConteste
+  const zone = contenu.querySelector(`div[data-zone="${CSS.escape(bon)}"]`)
+  const retour = contenu.querySelector(`p[data-retour-conteste="${CSS.escape(bon)}"]`)
+  const message = (zone.querySelector('textarea').value || '').trim()
+
+  if (message.length < 3) {
+    retour.className = 'message ko'
+    retour.textContent = "Écrivez une phrase, que l'artisane sache quoi regarder."
+    return
+  }
+
+  bouton.disabled = true
+  const { data, error } = await supabase.rpc('boutique_contester_bon', {
+    jeton_param: jeton,
+    bon_param: bon,
+    message_param: message,
+  })
+  if (error || data?.erreur) {
+    bouton.disabled = false
+    retour.className = 'message ko'
+    retour.textContent = "Le message n'est pas parti. Réessayez dans un instant."
+    return
+  }
+  // Relecture de l'état : la carte affiche alors ce qui a été signalé, et le bon reste à
+  // confirmer tant que vous ne l'avez pas confirmé.
   await demarrer()
 }
 

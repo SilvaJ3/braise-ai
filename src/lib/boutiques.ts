@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { messageErreur, type BoutiqueEtat, type StatutReleve } from './boutique-etat'
 import {
   supabase,
   type Boutique,
@@ -122,5 +123,93 @@ export function useLastContacts() {
       }
       return last
     },
+  })
+}
+
+// --- Côté artisane : l'état de ses boutiques, ses relevés, son lien (0059, 0060) --------------
+//
+// Une seule requête porte tout ce qu'elle voit d'une boutique : `mes_boutiques_etat()` — le stock
+// pièce par pièce, les relevés reçus, le jeton du lien, les bons en attente de confirmation, et
+// ce que la boutique a signalé. Elle est filtrée dans la base par `auth.uid()` : aucun
+// identifiant de compte ne circule dans l'appel, et la même fonction ne rend jamais la boutique
+// de quelqu'un d'autre.
+//
+// Les trois écritures qui suivent sont les seules du lot, et elles passent toutes par une
+// fonction SQL déjà éprouvée (voir supabase/migrations/0059 et 0060). Rien n'est supprimé :
+// un relevé écarté reste, une contestation vue reste, un lien coupé reste.
+
+export const MES_BOUTIQUES_KEY = ['mes_boutiques_etat']
+
+/** Le code d'erreur rendu par une fonction SQL devient une phrase lisible, une fois pour toutes. */
+function resultatRpc(data: unknown, error: { message: string } | null) {
+  if (error) throw new Error(error.message)
+  const code = (data as { erreur?: string } | null)?.erreur
+  if (code) throw new Error(messageErreur(code))
+  return data
+}
+
+export function useMesBoutiquesEtat() {
+  return useQuery({
+    queryKey: MES_BOUTIQUES_KEY,
+    queryFn: async (): Promise<BoutiqueEtat[]> => {
+      const { data, error } = await supabase.rpc('mes_boutiques_etat')
+      resultatRpc(data, error)
+      return ((data as { boutiques?: BoutiqueEtat[] } | null)?.boutiques ?? []) as BoutiqueEtat[]
+    },
+  })
+}
+
+/** Valider un relevé, ou l'écarter en gardant la raison. Le statut change et la note de
+ *  l'artisane s'ajoute à celle de la boutique — rien ne s'efface. */
+export function useCorrigerDeclaration() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      statut,
+      note,
+    }: {
+      id: string
+      statut: StatutReleve
+      note?: string | null
+    }) => {
+      const { data, error } = await supabase.rpc('corriger_declaration', {
+        declaration_param: id,
+        statut_param: statut,
+        note_param: note?.trim() || null,
+      })
+      resultatRpc(data, error)
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: MES_BOUTIQUES_KEY }),
+  })
+}
+
+/** Couper l'accès : le rattachement passe à `actif = false`. La boutique garde son adresse et son
+ *  historique, elle perd la lecture de ses pièces et la parole. Ses pièces, elles, ne bougent
+ *  pas — elles ne sont simplement plus déclarables par elle. */
+export function useCouperLienBoutique() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (boutiqueId: string) => {
+      const { data, error } = await supabase.rpc('couper_lien_boutique', {
+        boutique_param: boutiqueId,
+      })
+      resultatRpc(data, error)
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: MES_BOUTIQUES_KEY }),
+  })
+}
+
+/** « J'ai vu ce qu'elle a signalé ». La trace reste ; elle cesse d'être une nouveauté. */
+export function useMarquerContestationVue() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (contestationId: string) => {
+      const { data, error } = await supabase.rpc('marquer_contestation_vue', {
+        contestation_param: contestationId,
+      })
+      resultatRpc(data, error)
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: MES_BOUTIQUES_KEY }),
   })
 }

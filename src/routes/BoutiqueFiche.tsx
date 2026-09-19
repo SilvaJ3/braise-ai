@@ -3,7 +3,9 @@ import BoutiqueDetail from '../components/BoutiqueDetail'
 import BoutiqueForm from '../components/BoutiqueForm'
 import Skeleton from '../components/Skeleton'
 import { useState } from 'react'
-import { useBoutiques, useDeleteBoutique, useUpdateBoutique } from '../lib/boutiques'
+import { useQueryClient } from '@tanstack/react-query'
+import BoutiqueSuivi from '../components/BoutiqueSuivi'
+import { MES_BOUTIQUES_KEY, useBoutiques, useDeleteBoutique, useUpdateBoutique } from '../lib/boutiques'
 import { STATUT_LABEL as COMMANDE_STATUT_LABEL, useCommandes } from '../lib/commandes'
 import { fmtDateCourte, STATUT_LABEL, useArchiverDepot, useDepots } from '../lib/depots'
 import { CANAL_LABEL } from '../lib/labels'
@@ -16,6 +18,7 @@ export default function BoutiqueFiche() {
   const { data: commandes = [] } = useCommandes(id)
   const archiver = useArchiverDepot()
   const update = useUpdateBoutique()
+  const qc = useQueryClient()
   const del = useDeleteBoutique()
   const [editing, setEditing] = useState(false)
   const [voirArchives, setVoirArchives] = useState(false)
@@ -24,6 +27,12 @@ export default function BoutiqueFiche() {
 
   if (isLoading) return <Skeleton rows={4} />
   if (!boutique) return <p className="empty">Boutique introuvable.</p>
+
+  // Un bon envoyé mais pas encore confirmé par la boutique : c'est le compte qui manque le plus
+  // souvent à l'artisane, il est écrit là où elle cherche ses bons.
+  const bonsEnAttente = depots.filter(
+    (d) => !d.archived_at && d.statut !== 'brouillon' && !d.confirme_le,
+  ).length
 
   return (
     <>
@@ -69,6 +78,10 @@ export default function BoutiqueFiche() {
 
           <BoutiqueDetail boutique={boutique} />
 
+          {/* Ce qu'elle voit de cette boutique : le stock chez elle, ce qu'elle a signalé, ses
+              relevés à valider, et son lien. Un seul appel, filtré par le compte connecté. */}
+          <BoutiqueSuivi boutique={boutique} />
+
           <div className="row" style={{ marginTop: 16 }}>
             <h2 style={{ margin: 0 }}>Commandes</h2>
             <div className="spacer" />
@@ -96,6 +109,9 @@ export default function BoutiqueFiche() {
 
           <div className="row" style={{ marginTop: 16 }}>
             <h2 style={{ margin: 0 }}>Bons de dépôt</h2>
+            {bonsEnAttente > 0 && (
+              <span className="muted">· {bonsEnAttente} en attente de confirmation</span>
+            )}
             <div className="spacer" />
             <button className="link" onClick={() => navigate(`/boutiques/${boutique.id}/depot`)}>
               + Nouveau
@@ -125,6 +141,12 @@ export default function BoutiqueFiche() {
                       <span className="spacer" />
                       {d.archived_at && <span className="badge">Archivé</span>}
                       <span className="badge">{STATUT_LABEL[d.statut]}</span>
+                      {d.statut !== 'brouillon' &&
+                        (d.confirme_le ? (
+                          <span className="badge">reçu</span>
+                        ) : (
+                          <span className="badge">à confirmer</span>
+                        ))}
                     </Link>
                     {d.send_error && d.statut !== 'envoye' && (
                       <p className="muted" style={{ margin: '6px 0 0', color: 'var(--accent)' }}>
@@ -135,7 +157,16 @@ export default function BoutiqueFiche() {
                       <div className="spacer" />
                       <button
                         className="link"
-                        onClick={() => archiver.mutate({ id: d.id, archiver: !d.archived_at })}
+                        onClick={() =>
+                          archiver.mutate(
+                            { id: d.id, archiver: !d.archived_at },
+                            {
+                              // Archiver un bon en attente change aussi le compte du suivi :
+                              // on le relit plutôt que de laisser une ligne fausse à l'écran.
+                              onSuccess: () => qc.invalidateQueries({ queryKey: MES_BOUTIQUES_KEY }),
+                            },
+                          )
+                        }
                       >
                         {d.archived_at ? 'Désarchiver' : 'Archiver'}
                       </button>

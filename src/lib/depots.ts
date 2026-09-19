@@ -84,10 +84,20 @@ export function useSaveProfilEntreprise() {
  * reste chargé par useDepot, pour l'écran d'un bon donné. */
 export type DepotListe = Pick<
   Depot,
-  'id' | 'boutique_id' | 'numero' | 'date_depot' | 'statut' | 'archived_at' | 'send_error'
+  | 'id'
+  | 'boutique_id'
+  | 'numero'
+  | 'date_depot'
+  | 'statut'
+  | 'archived_at'
+  | 'send_error'
+  | 'confirme_le'
 >
 
-const DEPOTS_LISTE_COLONNES = 'id, boutique_id, numero, date_depot, statut, archived_at, send_error'
+// `confirme_le` est là pour dire, dans la fiche d'une boutique, si la réception a été confirmée :
+// c'est cette date — pas l'envoi — qui fait entrer les pièces dans le stock de la boutique.
+const DEPOTS_LISTE_COLONNES =
+  'id, boutique_id, numero, date_depot, statut, archived_at, send_error, confirme_le'
 
 export function useDepots(boutiqueId?: string) {
   return useQuery({

@@ -199,6 +199,9 @@ export type Depot = {
   sent_at: string | null
   send_error: string | null
   archived_at: string | null
+  /** Quand la boutique a confirmé avoir reçu le bon (0056). null = pas encore confirmé : ces
+   *  pièces ne comptent pas encore dans son stock. */
+  confirme_le: string | null
   created_at: string
   updated_at: string
 }
