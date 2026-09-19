@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vos pièces en dépôt</title>
+<style>
+/* La page que la boutique ouvre depuis son lien. Aucun compte, aucun mot de passe : le jeton de
+   l'adresse EST l'accès. Mobile d'abord, parce qu'on la lit debout dans la réserve. */
+:root{
+  --vert:#2E5339; --texte:#292826; --gris:#6f6f6e; --trait:#e2e0d9; --creme:#FBF9F5;
+  --bandeau:#EBF1E9; --zebre:#F7F8F5; --ko:#8C3B2E;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--creme);color:var(--texte);
+     font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.page{max-width:520px;margin:0 auto;background:#fff;min-height:100vh;box-shadow:0 0 40px rgba(0,0,0,.06)}
+header{background:var(--vert);color:#fff;padding:20px 22px}
+.marque{font:600 13px/1 Georgia,serif;letter-spacing:.14em;text-transform:uppercase;opacity:.9}
+h1{font:600 22px/1.2 Georgia,serif;margin:8px 0 4px}
+header p{margin:0;font-size:13.5px;opacity:.9}
+main{padding:18px 20px 44px}
+h2{font:600 15px/1.3 Georgia,serif;margin:26px 0 10px}
+.intro{background:var(--bandeau);border-radius:10px;padding:13px 15px;font-size:13.5px;margin:0 0 6px}
+.aide{color:var(--gris);font-size:12.5px;margin:6px 0 0}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{background:var(--bandeau);text-align:left;font:600 11.5px/1.3 helvetica,sans-serif;
+   letter-spacing:.04em;text-transform:uppercase;color:#41553f;padding:8px 6px}
+th.d,td.d{text-align:right}
+tbody tr:nth-child(odd){background:var(--zebre)}
+td{padding:10px 6px;border-bottom:1px solid var(--trait);vertical-align:top}
+.piece{display:block;font-weight:600}
+.sous{display:block;color:var(--gris);font-size:12px;margin-top:1px}
+input[type=number]{width:62px;padding:7px 8px;border:1px solid #cfd4cb;border-radius:7px;
+   font:inherit;font-size:14px;text-align:right}
+input[type=text],textarea{width:100%;padding:9px 10px;border:1px solid #cfd4cb;border-radius:8px;
+   font:inherit;font-size:14px}
+.mouvement{margin-top:6px;font-size:12.5px;color:var(--gris)}
+.mouvement input{margin:0 4px}
+button{font:inherit;cursor:pointer}
+.principal{width:100%;background:var(--vert);color:#fff;border:0;border-radius:9px;
+   padding:14px;font-size:15px;font-weight:600;margin-top:18px}
+.secondaire{width:100%;background:#fff;color:var(--vert);border:1px solid var(--vert);
+   border-radius:9px;padding:13px;font-size:15px;font-weight:600;margin-top:12px}
+.message{margin:10px 0 0;font-size:13.5px}
+.message.ok{color:var(--vert)}
+.message.ko{color:var(--ko)}
+.historique{width:100%;border-collapse:collapse;font-size:13.5px}
+.historique td{padding:8px 6px}
+.note{color:var(--gris);font-size:12px;margin-top:26px;padding-top:14px;border-top:1px solid var(--trait)}
+select{width:100%;padding:10px;border:1px solid #cfd4cb;border-radius:8px;font:inherit}
+.carte{border:1px solid var(--trait);border-radius:11px;padding:14px;margin-bottom:14px}
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div class="marque" id="marque">Espace de la boutique</div>
+    <h1 id="titre">Vos pièces en dépôt</h1>
+    <p id="sous-titre">Rien à installer, rien à créer.</p>
+  </header>
+
+  <main id="contenu">
+    <p class="aide">Chargement…</p>
+  </main>
+</div>
+
+<script type="module">
+const SUPABASE_URL = 'https://nnssqleqvfafbkkxyqne.supabase.co'
+const CLE_PUBLIQUE = 'sb_publishable_k-84JsMb8QmX70s6Gh3FGw_iaEc-hyE'
+
+const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2')
+const supabase = createClient(SUPABASE_URL, CLE_PUBLIQUE)
+
+const jeton = new URLSearchParams(location.search).get('t') || location.hash.slice(1)
+const contenu = document.getElementById('contenu')
+const $ = (id) => document.getElementById(id)
+const eur = (n) => (Math.round((Number(n) + Number.EPSILON) * 100) / 100)
+  .toLocaleString('fr-BE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
+const mois = (iso) => {
+  try { return new Date(iso).toLocaleDateString('fr-BE', { month: 'long', year: 'numeric' }) }
+  catch { return '' }
+}
+
+if (!jeton) {
+  contenu.innerHTML = '<p class="message ko">Ce lien est incomplet. Demandez à l\'artisane de vous le renvoyer.</p>'
+} else {
+  demarrer()
+}
+
+let etat = null
+let partenaireCourant = null
+
+async function demarrer() {
+  const { data, error } = await supabase.rpc('boutique_etat', { jeton_param: jeton })
+  if (error || !data || data.erreur) {
+    contenu.innerHTML = '<p class="message ko">Ce lien n\'est plus valable. Demandez-en un nouveau à l\'artisane.</p>'
+    return
+  }
+  etat = data
+  $('marque').textContent = (data.partenaires[0]?.artisan) || 'Espace de la boutique'
+  partenaireCourant = data.partenaires[0]?.partenaire_id
+  afficher()
+}
+
+function afficher() {
+  const p = etat.partenaires.find((x) => x.partenaire_id === partenaireCourant) || etat.partenaires[0]
+  const plusieurs = etat.partenaires.length > 1
+
+  if (!p || !p.pieces.length) {
+    contenu.innerHTML = '<p class="aide">Aucune pièce en dépôt pour le moment.</p>'
+    return
+  }
+
+  contenu.innerHTML = `
+    <p class="intro">Bonjour. Comptez ce qu'il vous reste : l'application en déduit ce qui est
+       parti. Rien ne s'envoie sans que vous cliquiez.</p>
+
+    ${plusieurs ? `
+      <h2>Artisan</h2>
+      <select id="selecteur">
+        ${etat.partenaires.map((x) => `<option value="${x.partenaire_id}" ${x.partenaire_id === p.partenaire_id ? 'selected' : ''}>${x.artisan}</option>`).join('')}
+      </select>` : ''}
+
+    <h2>${p.artisan} — chez ${p.boutique}</h2>
+    <table>
+      <thead><tr><th>Pièce</th><th class="d">L'app en attend</th><th class="d">Il vous en reste</th></tr></thead>
+      <tbody>
+        ${p.pieces.map((pc) => `
+          <tr data-cle="${pc.cle}">
+            <td><span class="piece">${pc.designation}</span>
+                <span class="sous">${eur(pc.prix)} pièce</span></td>
+            <td class="d">${pc.reste}</td>
+            <td class="d"><input type="number" min="0" step="1" value="${pc.reste}"
+                     data-role="compte" aria-label="Ce qu'il vous reste de ${pc.designation}"></td>
+          </tr>
+          <tr data-detail="${pc.cle}" style="display:none;background:#fff">
+            <td colspan="3"><div class="mouvement" data-role="detail"></div></td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+
+    <h2>Un mot pour l'artisane (facultatif)</h2>
+    <textarea id="note" rows="2" placeholder="Par exemple : la vitrine a été refaite cette semaine."></textarea>
+
+    <button class="principal" id="envoyer">Envoyer mon relevé</button>
+    <p class="message" id="retour"></p>
+
+    <h2>Ce qu'il me faudrait</h2>
+    <p class="aide">Comptez ${p.delai_semaines} semaine${p.delai_semaines > 1 ? 's' : ''} de fabrication
+       et de livraison. Laissez vide ce dont vous n'avez pas besoin.</p>
+    <table>
+      <thead><tr><th>Pièce</th><th class="d">Quantité</th></tr></thead>
+      <tbody>
+        ${p.pieces.map((pc) => `
+          <tr data-commande="${pc.cle}">
+            <td><span class="piece">${pc.designation}</span></td>
+            <td class="d"><input type="number" min="0" step="1" value="" placeholder="0"
+                     data-role="demande" aria-label="Quantité souhaitée pour ${pc.designation}"></td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+    <textarea id="note-commande" rows="2" placeholder="Une précision sur votre demande (facultatif)"></textarea>
+    <button class="secondaire" id="commander">Demander un réassort</button>
+    <p class="message" id="retour-commande"></p>
+
+    <h2>Vos derniers relevés</h2>
+    <div id="historique"><p class="aide">Chargement…</p></div>
+
+    <p class="note">
+      <b>Ceci ne remplace aucun document contractuel.</b> Les bons signés restent les pièces qui
+      font foi ; cet espace sert à suivre la relation entre l'artisane et la boutique, et à vous
+      éviter de tout noter à la main. Ce lien est le vôtre : l'artisane peut le désactiver à tout
+      moment, et il ne montre que vos pièces — jamais celles des autres boutiques.
+    </p>`
+
+  if (plusieurs) {
+    $('selecteur').addEventListener('change', (e) => {
+      partenaireCourant = e.target.value
+      afficher()
+    })
+  }
+
+  // Le comptage : dès qu'un chiffre change, on montre ce que ça implique.
+  for (const champ of contenu.querySelectorAll('input[data-role=compte]')) {
+    champ.addEventListener('input', () => detailLigne(champ))
+    detailLigne(champ)
+  }
+
+  $('envoyer').addEventListener('click', envoyer)
+  $('commander').addEventListener('click', commander)
+  chargerHistorique()
+}
+
+function pieceDe(cle) {
+  const p = etat.partenaires.find((x) => x.partenaire_id === partenaireCourant)
+  return p.pieces.find((x) => x.cle === cle)
+}
+
+/** Ce que le comptage implique : une baisse se répartit entre vendues et reprises. */
+function detailLigne(champ) {
+  const ligne = champ.closest('tr')
+  const cle = ligne.dataset.cle
+  const piece = pieceDe(cle)
+  const detail = contenu.querySelector(`tr[data-detail="${CSS.escape(cle)}"]`)
+  const zone = detail.querySelector('[data-role=detail]')
+  const compte = Number(champ.value)
+  const attendu = Number(piece.reste)
+
+  if (champ.value === '' || Number.isNaN(compte) || compte === attendu) {
+    detail.style.display = 'none'
+    return
+  }
+
+  detail.style.display = ''
+  if (compte < attendu) {
+    const ecart = attendu - compte
+    zone.innerHTML = `Il en manque <b>${ecart}</b> :
+      vendues <input type="number" min="0" step="1" value="${ecart}" data-role="ventes" data-cle="${cle}"> ·
+      reprises <input type="number" min="0" step="1" value="0" data-role="reprises" data-cle="${cle}">
+      <span class="sous">Les vendues sont facturées, les reprises non.</span>`
+  } else {
+    const ecart = compte - attendu
+    zone.innerHTML = `Il y en a <b>${ecart}</b> de plus : c'est une livraison que l'artisane n'a pas
+      encore enregistrée ? <span class="sous">Ce sera noté comme une entrée, sans facturation.</span>`
+  }
+}
+
+function collecter() {
+  const lignes = []
+  let erreur = null
+  for (const champ of contenu.querySelectorAll('input[data-role=compte]')) {
+    const ligne = champ.closest('tr')
+    const cle = ligne.dataset.cle
+    const piece = pieceDe(cle)
+    if (champ.value === '') continue
+    const compte = Number(champ.value)
+    const attendu = Number(piece.reste)
+    if (compte < 0) { erreur = 'Un nombre ne peut pas être négatif.'; continue }
+    if (compte === attendu) continue
+
+    if (compte > attendu) {
+      lignes.push({ cle, entrees: compte - attendu })
+      continue
+    }
+    const v = contenu.querySelector(`input[data-role=ventes][data-cle="${CSS.escape(cle)}"]`)
+    const r = contenu.querySelector(`input[data-role=reprises][data-cle="${CSS.escape(cle)}"]`)
+    const ventes = Number(v?.value || 0)
+    const reprises = Number(r?.value || 0)
+    const ecart = attendu - compte
+    if (ventes + reprises !== ecart) {
+      erreur = `Pour « ${piece.designation} », vendues + reprises doivent faire ${ecart}.`
+      continue
+    }
+    lignes.push({ cle, ventes, reprises })
+  }
+  return { lignes, erreur }
+}
+
+async function envoyer() {
+  const bouton = $('envoyer')
+  const retour = $('retour')
+  const { lignes, erreur } = collecter()
+  retour.className = 'message'
+  if (erreur) { retour.className = 'message ko'; retour.textContent = erreur; return }
+  if (!lignes.length) { retour.textContent = 'Rien n\'a changé : il n\'y a rien à envoyer.'; return }
+
+  bouton.disabled = true
+  const { data, error } = await supabase.rpc('boutique_declarer', {
+    jeton_param: jeton,
+    partenaire_param: partenaireCourant,
+    lignes_param: lignes,
+    note_param: $('note').value,
+  })
+  bouton.disabled = false
+  if (error || data?.erreur) {
+    retour.className = 'message ko'
+    retour.textContent = 'L\'envoi a échoué. Réessayez dans un instant.'
+    return
+  }
+  retour.className = 'message ok'
+  retour.textContent = data.facturable > 0
+    ? `C'est envoyé. ${eur(data.facturable)} de ventes déclarées cette fois.`
+    : 'C\'est envoyé. Aucune vente facturable cette fois.'
+  if (data.alerte) {
+    retour.textContent += ' Une ligne dépasse ce que l\'artisane avait déposé : elle le verra.'
+  }
+  await demarrer()
+}
+
+async function commander() {
+  const bouton = $('commander')
+  const retour = $('retour-commande')
+  const lignes = []
+  for (const champ of contenu.querySelectorAll('input[data-role=demande]')) {
+    const q = Number(champ.value)
+    if (!champ.value || Number.isNaN(q) || q <= 0) continue
+    lignes.push({ cle: champ.closest('tr').dataset.commande, quantite: q })
+  }
+  retour.className = 'message'
+  if (!lignes.length) { retour.textContent = 'Indiquez au moins une quantité.'; return }
+
+  bouton.disabled = true
+  const { data, error } = await supabase.rpc('boutique_commander', {
+    jeton_param: jeton,
+    partenaire_param: partenaireCourant,
+    lignes_param: lignes,
+    note_param: $('note-commande').value,
+  })
+  bouton.disabled = false
+  if (error || data?.erreur) {
+    retour.className = 'message ko'
+    retour.textContent = 'La demande n\'est pas partie. Réessayez dans un instant.'
+    return
+  }
+  retour.className = 'message ok'
+  retour.textContent = 'Votre demande est arrivée chez l\'artisane. Elle la confirmera.'
+  for (const champ of contenu.querySelectorAll('input[data-role=demande]')) champ.value = ''
+  $('note-commande').value = ''
+}
+
+async function chargerHistorique() {
+  const zone = $('historique')
+  const { data, error } = await supabase.rpc('boutique_historique', {
+    jeton_param: jeton, partenaire_param: partenaireCourant,
+  })
+  const lignes = data?.historique || []
+  if (error || !lignes.length) { zone.innerHTML = '<p class="aide">Aucun relevé pour l\'instant.</p>'; return }
+  zone.innerHTML = `<table class="historique">
+    <tbody>${lignes.map((h) => `
+      <tr><td>${mois(h.declaration)}</td>
+          <td>${h.ventes} vendue${h.ventes > 1 ? 's' : ''}${h.reprises ? `, ${h.reprises} reprise${h.reprises > 1 ? 's' : ''}` : ''}</td>
+          <td class="d">${eur(h.facturable)}</td></tr>`).join('')}
+    </tbody></table>`
+}
+</script>
+</body>
+</html>
