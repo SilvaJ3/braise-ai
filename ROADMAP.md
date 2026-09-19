@@ -46,6 +46,35 @@ Ils vivent dans `_shared/compte.ts` (`PLANS`) et s'affichent dans « Mon compte 
 avant d'encaisser** : borner réellement les places de fondateur — aujourd'hui une invitation créée
 depuis le site donne toujours le plan `fondateur`, sans compter.
 
+## T5 bis — encaissement Stripe : ce qui est fait, et le découpage
+
+**Côté Stripe (mode test, créé le 19/09/2026 — compte `acct_1UHLjJHJnfqhoXjC`, Belgique, euros) :**
+
+- Produit `Braaise` — `prod_VHvoji5vLJcTGG`
+- Prix **mensuel 39 € HTVA** — `price_1UHLwkHJnfqhoXjCmkP0Zt5w`
+- Prix **annuel 390 € HTVA** — `price_1UHLwkHJnfqhoXjCYPnjlN2o`
+- Coupon **fondateur −10 € pendant 24 mois** — `BYfhMZY2` → **29 € effectifs** sur le prix de 39 €,
+  et le tarif remonte tout seul à 39 € au terme des deux ans. Vérifié en relisant le coupon depuis
+  Stripe, pas en le supposant.
+- La clé secrète de test vit dans `.env.local` (ignoré par git, vérifié). **La clé publique n'est pas
+  nécessaire** : le Checkout est hébergé par Stripe, tout passe par le serveur.
+
+**Le découpage, dans l'ordre :**
+
+1. **La fonction de paiement** (`stripe-checkout`) — crée une session Checkout pour le compte connecté,
+   choisit le prix selon son plan et applique le coupon fondateur si le plan est `fondateur`. ≃ 2 h.
+2. **La fonction de retour** (`stripe-webhook`) — enregistre le client et l'abonnement sur le compte,
+   et traite les cas moches : échec de prélèvement, impayé, résiliation. ≃ 2 h.
+3. **L'écran d'abonnement** dans `Mon compte` — l'état réel (« actif jusqu'au… », « paiement en
+   échec »), le bouton « S'abonner », et le **portail Stripe** pour changer de carte ou résilier
+   soi-même. ≃ 2 h.
+4. **Les tests** — carte refusée, échec de prélèvement, résiliation, et le passage fondateur →
+   mensuel au bout de 24 mois. ≃ 1 h.
+5. **La bascule** (seule étape bloquée par le n° BCE) — vérification d'entreprise, clés de production,
+   et un vrai paiement de bout en bout. ≃ 1 h.
+
+Tant qu'on reste en mode test, **rien ne circule** : uniquement des cartes de test.
+
 ## Ce qui n'attend que toi (tout le reste est côté développement)
 
 | Quoi | Pourquoi c'est toi, et pas le code |
