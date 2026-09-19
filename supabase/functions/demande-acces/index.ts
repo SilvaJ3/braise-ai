@@ -280,6 +280,9 @@ async function traiterValidation(req: Request, t: string): Promise<ResultatValid
     p_note: note,
     // Nominatif : l'invitation ne vaut que pour cette adresse, et le lien la pré-remplit.
     p_email: ligne.email,
+    // Une demande, pas un ordre : la fonction SQL applique le plafond des dix places de fondateur
+    // (migration 0048) et bascule sur le tarif mensuel au-delà. On ne compte donc rien ici — c'est
+    // le seul endroit où la décision peut être atomique.
     p_plan: 'fondateur',
     p_validite_jours: VALIDITE_JOURS,
   })
