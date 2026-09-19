@@ -27,8 +27,8 @@ Découpage en tranches livrables (voir `PROSPECTION.md` côté pilotage) :
 | T3 — Tunnel d'accueil (activité, lieu, catalogue de départ) | Fait, déployé |
 | T4 — Accueil vide propre + libellés génériques | Fait, déployé |
 | T5 — Plan, quota mensuel inclus, journalisation des tokens | Fait, déployé |
-| T5 — Encaissement Stripe + CGU | À faire : bloqué par le numéro BCE (procédure au README) |
-| T6 — Carte « Pour démarrer » sur l'accueil (étapes lues dans les données) | Écrit et vérifié (`npm run check`, 162 tests) — **à déployer** : migration `0042_demarrage.sql` puis push |
+| T5 — Encaissement Stripe + CGU | À faire : bloqué par le numéro BCE pour **encaisser**. Le mode **test** ne l'est pas : le parcours complet (page de prix, Checkout, abonnement, échec de paiement, webhook) se déroule sans vérification d'entreprise, et la bascule en production se limite à la vérification + l'échange des clés. |
+| T6 — Carte « Pour démarrer » sur l'accueil (étapes lues dans les données) | **Fait, déployé** — vérifié en production le 19/09 : la carte s'affiche sur l'accueil, `assistant_profil.demarrage_ferme_at` est en base (migration 0042 appliquée). 193 tests. |
 
 ## Onboarding de premier usage (décision, T6 fait / T7 à faire)
 
@@ -105,9 +105,13 @@ d'emblée, coûteux à rétrofiter.
 - Push crons (`push-reminders`, `push-weekly-digest`) : vérifier qu'ils balaient bien tous
   les utilisateurs et pas un seul, au moment d'ouvrir à d'autres.
 
-**À NE PAS construire maintenant :** inscription self-service, onboarding, facturation /
-plans / quotas, panneau admin, white-label, gestion d'équipe. YAGNI tant que la
-commercialisation n'est pas une décision prise.
+**À NE PAS construire maintenant :** inscription self-service (l'invitation reste le seul
+chemin), panneau admin, white-label, gestion d'équipe.
+
+> **Mis à jour le 19/09/2026.** Cette liste datait d'avant le chantier MVP, et elle le
+> contredisait : le chantier a précisément construit l'inscription sur invitation (T2) et les
+> plans + quotas (T5), donc la commercialisation est devenue une décision prise. Ce qui reste
+> hors périmètre est la liste ci-dessus, moins l'inscription sur invitation et la facturation.
 
 ---
 
