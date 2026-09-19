@@ -127,6 +127,20 @@ select public.invitation_creer('Abeille Blanche — dépôt-vente', 'contact@exe
 -- -> '7K2M-9QX4-ABCD'
 ```
 
+**Le chemin normal n'est plus le SQL.** Le site (`braaise.io`) porte un formulaire « demande ton
+accès » qui appelle l'edge function `demande-acces` : la demande est rangée dans `demandes_acces`,
+une notification part vers l'adresse d'administration (`reglages_produit.admin_email`) avec un
+**jeton de validation à usage unique**, et l'invitation n'est créée qu'au clic sur ce lien — le
+formulaire public ne peut pas fabriquer d'invitations. Le lien de validation n'agit pas tout seul
+au chargement (un antivirus ou un aperçu de mail ouvre les liens) : il ouvre une page, le bouton
+agit. Puis l'invitation part par mail avec le code **déjà dans le lien** : `/inscription?code=…`.
+
+Suivi de l'entonnoir :
+
+```sql
+select email, atelier, statut, invitation_code, created_at from public.demandes_acces order by created_at desc;
+```
+
 L'utilisatrice va sur `/inscription`, saisit le code, son email et un mot de passe (10 caractères
 minimum, avec minuscule, majuscule et chiffre — c'est la politique du service), et se retrouve
 connectée.

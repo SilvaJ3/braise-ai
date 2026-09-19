@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   erreurFormulaire,
   MOT_DE_PASSE_MIN,
@@ -12,14 +12,22 @@ import { supabase } from '../lib/supabase'
 // L'inscription se fait sur invitation : sans code, pas de compte (l'inscription publique est
 // fermée côté Supabase). Le code et l'email sont normalisés avant l'envoi — un code dicté au
 // téléphone arrive souvent en minuscules, avec des espaces.
+//
+// Le lien d'invitation porte le code (et l'adresse, quand l'invitation est nominative) : les
+// champs arrivent donc déjà remplis. C'est le seul intérêt de passer par un lien plutôt que par
+// un code recopié — et ça se voit : la page le dit.
 export default function Inscription() {
   const navigate = useNavigate()
-  const [code, setCode] = useState('')
-  const [email, setEmail] = useState('')
+  const [params] = useSearchParams()
+  const codeLien = params.get('code') ?? ''
+  const emailLien = params.get('email') ?? ''
+  const [code, setCode] = useState(() => normaliserCode(codeLien))
+  const [email, setEmail] = useState(() => normaliserEmail(emailLien))
   const [motDePasse, setMotDePasse] = useState('')
   const [confirmation, setConfirmation] = useState('')
   const [erreur, setErreur] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const vientDuLien = Boolean(codeLien || emailLien)
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -57,8 +65,9 @@ export default function Inscription() {
     <>
       <h1>Créer mon compte</h1>
       <p className="muted" style={{ marginTop: 0 }}>
-        Braaise s'ouvre sur invitation, pour rester utile à celles et ceux qui l'utilisent vraiment.
-        Il te faut le code que tu as reçu.
+        {vientDuLien
+          ? "Ton invitation est déjà remplie ci-dessous : il te reste à choisir un mot de passe, et c'est parti."
+          : "Braaise s'ouvre sur invitation, pour rester utile à celles et ceux qui l'utilisent vraiment. Il te faut le code que tu as reçu."}
       </p>
       <form className="card stack" onSubmit={submit}>
         <label htmlFor="code">Code d'invitation</label>

@@ -19,7 +19,13 @@ export type Mail = {
   to: string[]
   cc?: string[]
   subject: string
+  /**
+   * Version brute, toujours envoyée : c'est elle qui s'affiche si le client refuse le HTML, elle
+   * qui donne au mail son air de mail et non de publicité, et elle qui reste lisible en texte.
+   */
   text: string
+  /** Version mise en page (voir `mail-html.ts`). Facultative : sans elle, le brut suffit. */
+  html?: string
   attachments?: Piece[]
 }
 
@@ -75,6 +81,7 @@ export async function envoyerMail(cfg: MailerConfig, mail: Mail): Promise<{ id: 
     ...(mail.replyTo ? { reply_to: mail.replyTo } : {}),
     subject: mail.subject,
     text: mail.text,
+    ...(mail.html ? { html: mail.html } : {}),
     ...(mail.attachments?.length
       ? { attachments: mail.attachments.map((a) => ({ filename: a.filename, content: a.base64 })) }
       : {}),
