@@ -27,8 +27,12 @@ Découpage en tranches livrables (voir `PROSPECTION.md` côté pilotage) :
 | T3 — Tunnel d'accueil (activité, lieu, catalogue de départ) | Fait, déployé |
 | T4 — Accueil vide propre + libellés génériques | Fait, déployé |
 | T5 — Plan, quota mensuel inclus, journalisation des tokens | Fait, déployé |
-| T5 — Encaissement Stripe + CGU | À faire : bloqué par le numéro BCE pour **encaisser**. Le mode **test** ne l'est pas : le parcours complet (page de prix, Checkout, abonnement, échec de paiement, webhook) se déroule sans vérification d'entreprise, et la bascule en production se limite à la vérification + l'échange des clés. |
+| T5 bis — Encaissement Stripe + conditions générales | **Pas commencé — zéro ligne de code** (vérifié le 19/09 : aucun fichier de `src/` ne mentionne Stripe). Ce qui bloque, c'est **encaisser** : le numéro BCE, et un **compte Stripe dédié à Braaise** (la facturation doit être à sa structure). Le mode **test** ne bloque rien : page de prix, Checkout, abonnement, échec de paiement, webhook se développent et se vérifient sans vérification d'entreprise — la bascule en production se limite ensuite à la vérification et à l'échange des clés. |
 | T6 — Carte « Pour démarrer » sur l'accueil (étapes lues dans les données) | **Fait, déployé** — vérifié en production le 19/09 : la carte s'affiche sur l'accueil, `assistant_profil.demarrage_ferme_at` est en base (migration 0042 appliquée). 193 tests. |
+| Entrée par le site — demande d'accès → invitation → inscription | **Fait, déployé le 19/09.** Formulaire sur braaise.io, table `demandes_acces`, validation par un tap depuis le mail, page `/acces` sur le site (Supabase ne peut pas servir de HTML : sa passerelle réécrit en `text/plain`), code et adresse pré-remplis à l'inscription. Parcours testé de bout en bout. |
+| **Places de fondateur bornées** | **À faire, avant d'ouvrir.** Une invitation créée depuis le site donne aujourd'hui le plan `fondateur` sans compter les places : la promesse des dix premiers n'est pas tenue par le code. Petit à coder, mais c'est une promesse. |
+| **Écran « Demandes d'accès » dans l'app** | **À faire.** Aucun écran ne liste les invitations ni les demandes d'accès — la validation passe uniquement par le mail. |
+| **Installation PWA et notifications** (T8) | **À faire.** Comment se connecter, comment activer les notifications, comment ajouter Braaise à l'écran d'accueil. À ne pas confondre avec T7 : **T7 explique l'app, T8 explique comment l'installer.** |
 
 **Tarifs — décidés le 19/09/2026**, prix **HTVA** (un artisan assujetti récupère la TVA ; en
 franchise il paie 21 % de plus) :
@@ -41,6 +45,22 @@ franchise il paie 21 % de plus) :
 Ils vivent dans `_shared/compte.ts` (`PLANS`) et s'affichent dans « Mon compte ». **Reste à faire
 avant d'encaisser** : borner réellement les places de fondateur — aujourd'hui une invitation créée
 depuis le site donne toujours le plan `fondateur`, sans compter.
+
+## Ce qui n'attend que toi (tout le reste est côté développement)
+
+| Quoi | Pourquoi c'est toi, et pas le code |
+|---|---|
+| **Le numéro BCE** | Le seul vrai blocage de Stripe : sans lui, pas d'encaissement. |
+| **Un compte Stripe dédié à Braaise** | La facturation doit être à ta structure, pas à celle d'un tiers. |
+| **Une ligne DNS chez OVH** | `_dmarc.braaise.io` est **absent** (vérifié le 19/09). Première étape, en surveillance seule : `TXT @ _dmarc.braaise.io` = `v=DMARC1; p=none; rua=mailto:contact@braaise.io; fo=1` — on passe à `quarantine` quand les rapports sont propres, jamais avant. |
+| **L'adresse e-mail d'Alexandra** | Pour lui ouvrir son compte du mini-CMS. |
+| **Deux décisions** | Fusionner la branche `cms-pilote` en production (le site d'Au Coin du Feu) ? Publier le dépôt `mini-cms` sur ton GitHub ? |
+| **Ouvrir la préproduction du CMS** | La branche `cms-pilote` est déployée en aperçu (derrière le login de l'équipe Vercel). Rien n'est en production. |
+
+Le **mini-CMS** (photos éditables pour les vitrines clients) vit hors de ce dépôt : schéma, règles
+d'accès et les 12 emplacements d'Au Coin du Feu posés dans le projet Supabase existant le 19/09
+(**zéro euro de plus** — un projet dédié coûterait ~9 €/mois, le calcul est facturé par projet), site
+câblé par repli local, page d'édition et rapport mensuel restant à faire.
 
 ## Onboarding de premier usage (décision, T6 fait / T7 à faire)
 
@@ -438,7 +458,7 @@ non incluse ici.
 | Poste | Gratuit possible | Payant | Choix retenu |
 |---|---|---|---|
 | **Supabase** (DB, Auth, Storage, edge functions, cron) | Oui (0 €) | Pro **25 $/mois** | **Pro.** Le tier gratuit met le projet en pause après 7 j d'inactivité et n'a aucune sauvegarde — inacceptable pour un outil dont Alexandra dépend (rappels, crons). |
-| **Hébergement front** (le PWA) | **Oui (0 €)** — Cloudflare Pages, usage commercial autorisé | Vercel Pro 20 $/mois | **Cloudflare Pages (0 €).** Vercel Hobby interdit l'usage commercial dans ses CGU ; soit payer Vercel Pro, soit migrer sur Cloudflare. |
+| **Hébergement front** (le PWA) | 0 € possible (Cloudflare Pages, usage commercial autorisé) | Vercel Pro **20 $/mois** | **Vercel Pro — déjà payé** pour l'ensemble des projets (Braaise et les vitrines clients). Vercel facture **par siège, pas par projet** : ajouter un site ne coûte rien. Cloudflare Pages reste la sortie si un site dépasse le téraoctet inclus. |
 | **API Claude** (assistant : chat + bilan hebdo) | Non (à l'usage) | ~**2 à 10 €/mois** | Modèle **Sonnet** partout (chat + hebdo). Cron hebdo ≈ 0,20 €/mois. Chat ≈ 2-8 €/mois selon l'usage. Web search : 10 $ / 1000 recherches. |
 | **API Instagram / Meta** | **Oui (0 €)** | — | Graph API gratuite, pas d'abonnement. Coût = temps de dev uniquement. |
 | **Push notifications** | **Oui (0 €)** | — | Web Push (VAPID), pas de frais APNs/FCM. |
@@ -458,6 +478,13 @@ La partie Instagram n'ajoute **rien** au récurrent (juste du stockage d'images 
 
 Seul poste vraiment incompressible dès qu'Alexandra dépend de l'outil : **Supabase Pro
 25 $/mois**.
+
+**Relevé le 19/09/2026** sur les factures : Vercel Pro 21,81 €/mois et Supabase Pro 22,50 €/mois,
+soit **44,31 €/mois** — et **zéro heure** d'exploitation. C'est exactement ce qu'un serveur à soi
+devrait remplacer ; il coûterait 212 €/mois une fois les 4 h de maintenance comptées (le seuil est de
+**38 minutes par mois**, au-delà le serveur coûte plus cher). Le seul vrai levier d'économie est un
+**projet Supabase unique** pour tous les clients : le calcul est facturé **par projet** (le crédit de
+10 $ inclus n'en couvre qu'un). Détail et sources : `HEBERGEMENT-SERVEUR-VS-ABONNEMENTS.md`.
 
 ### Maintenance (temps, pas abonnement)
 
