@@ -30,6 +30,18 @@ Découpage en tranches livrables (voir `PROSPECTION.md` côté pilotage) :
 | T5 — Encaissement Stripe + CGU | À faire : bloqué par le numéro BCE pour **encaisser**. Le mode **test** ne l'est pas : le parcours complet (page de prix, Checkout, abonnement, échec de paiement, webhook) se déroule sans vérification d'entreprise, et la bascule en production se limite à la vérification + l'échange des clés. |
 | T6 — Carte « Pour démarrer » sur l'accueil (étapes lues dans les données) | **Fait, déployé** — vérifié en production le 19/09 : la carte s'affiche sur l'accueil, `assistant_profil.demarrage_ferme_at` est en base (migration 0042 appliquée). 193 tests. |
 
+**Tarifs — décidés le 19/09/2026**, prix **HTVA** (un artisan assujetti récupère la TVA ; en
+franchise il paie 21 % de plus) :
+
+- **Fondateur : 29 €/mois**, prix bloqué **2 ans**, pour les **10 premiers** comptes.
+- **Mensuel : 39 €/mois** ensuite.
+- **Annuel : 390 €/an** *(proposition, à confirmer)* — à 290 €/an il aurait été moins cher que le
+  tarif fondateur.
+
+Ils vivent dans `_shared/compte.ts` (`PLANS`) et s'affichent dans « Mon compte ». **Reste à faire
+avant d'encaisser** : borner réellement les places de fondateur — aujourd'hui une invitation créée
+depuis le site donne toujours le plan `fondateur`, sans compter.
+
 ## Onboarding de premier usage (décision, T6 fait / T7 à faire)
 
 Deux choses distinctes, souvent confondues :

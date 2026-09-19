@@ -10,9 +10,9 @@ export type Plan = 'essai' | 'fondateur' | 'mensuel' | 'annuel'
 export const PLANS: Record<Plan, { label: string; questions: number; imports: number; prix: string | null }> = {
   // Un essai doit suffire à juger l'outil, pas à s'en servir un mois entier à l'œil.
   essai: { label: 'Essai', questions: 40, imports: 3, prix: null },
-  fondateur: { label: 'Fondateur', questions: 150, imports: 20, prix: '19 €/mois à vie' },
-  mensuel: { label: 'Mensuel', questions: 150, imports: 20, prix: '29 €/mois' },
-  annuel: { label: 'Annuel', questions: 150, imports: 20, prix: '290 €/an' },
+  fondateur: { label: 'Fondateur', questions: 150, imports: 20, prix: '29 €/mois HTVA — 2 ans' },
+  mensuel: { label: 'Mensuel', questions: 150, imports: 20, prix: '39 €/mois HTVA' },
+  annuel: { label: 'Annuel', questions: 150, imports: 20, prix: '390 €/an HTVA' },
 }
 
 export function planValide(v: unknown): Plan {

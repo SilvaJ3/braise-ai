@@ -188,7 +188,7 @@ la main tant qu'il y a peu de comptes.
 
 1. Ouvrir un compte Stripe — **il faut un numéro d'entreprise (BCE)** : c'est le prérequis, pas
    le prestataire.
-2. Créer trois abonnements dans Produits : Fondateur 19 €/mois, Mensuel 29 €/mois, Annuel 290 €/an.
+2. Créer trois abonnements dans Produits : Fondateur 29 €/mois HTVA (prix bloqué 2 ans, 10 premiers comptes), Mensuel 39 €/mois HTVA, Annuel 390 €/an HTVA.
 3. Pour chacun, un **lien de paiement** en mode abonnement, à envoyer dans la conversation.
 4. Au paiement reçu, passer le compte au bon plan :
    `update public.assistant_profil set plan = 'fondateur', plan_depuis = now() where user_id = '…';`
