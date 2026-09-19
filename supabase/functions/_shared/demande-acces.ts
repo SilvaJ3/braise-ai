@@ -50,6 +50,21 @@ export function jeton(): string {
   return Array.from(octets, (o) => o.toString(16).padStart(2, '0')).join('')
 }
 
+/**
+ * Destinataires des notifications : une ou plusieurs adresses, séparées par une virgule ou un
+ * point-virgule. Plusieurs adresses servent à ne rien perdre pendant qu'une boîte se met en
+ * place — et on envoie à toutes, jamais à une seule au hasard.
+ */
+export function destinatairesAdmin(valeur: string): string[] {
+  const vues = new Set<string>()
+  for (const brut of valeur.split(/[,;]/)) {
+    const adresse = normaliserEmailDemande(brut)
+    if (!adresse || emailDemandeInvalide(adresse)) continue
+    vues.add(adresse)
+  }
+  return [...vues]
+}
+
 /** Échappe ce qui vient de l'extérieur avant de le poser dans une page HTML. */
 export function echapperHtml(v: string): string {
   return v

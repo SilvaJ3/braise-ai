@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   champTexte,
   dateLisible,
+  destinatairesAdmin,
   echapperHtml,
   emailDemandeInvalide,
   jeton,
@@ -55,6 +56,29 @@ describe('jeton', () => {
     const b = jeton()
     expect(a).toMatch(/^[0-9a-f]{32}$/)
     expect(a).not.toBe(b)
+  })
+})
+
+describe('destinatairesAdmin', () => {
+  it('accepte une adresse seule', () => {
+    expect(destinatairesAdmin('contact@braaise.io')).toEqual(['contact@braaise.io'])
+  })
+
+  it('accepte plusieurs adresses, quel que soit le séparateur et la casse', () => {
+    expect(destinatairesAdmin(' Contact@Braaise.io , junior@Exemple.be ')).toEqual([
+      'contact@braaise.io',
+      'junior@exemple.be',
+    ])
+    expect(destinatairesAdmin('a@b.be;c@d.be')).toEqual(['a@b.be', 'c@d.be'])
+  })
+
+  it('écarte les doublons et ce qui n’est pas une adresse', () => {
+    expect(destinatairesAdmin('a@b.be, A@B.be, pas-une-adresse, ,')).toEqual(['a@b.be'])
+  })
+
+  it('rend une liste vide plutôt qu’une adresse inventée', () => {
+    expect(destinatairesAdmin('')).toEqual([])
+    expect(destinatairesAdmin('n’importe quoi')).toEqual([])
   })
 })
 

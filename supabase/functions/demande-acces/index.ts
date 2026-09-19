@@ -16,6 +16,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 import {
   champTexte,
   dateLisible,
+  destinatairesAdmin,
   emailDemandeInvalide,
   jeton,
   mailInvitation,
@@ -66,15 +67,21 @@ type LigneDemande = {
  * Adresse de notification et base des liens. Le défaut n'est pas là pour faire joli : sans lui,
  * une table illisible enverrait une invitation vers une URL cassée.
  */
-async function reglages(): Promise<{ adminEmail: string; appUrl: string }> {
+async function reglages(): Promise<{ adminEmails: string[]; replyTo: string; appUrl: string }> {
   const { data, error } = await admin
     .from('reglages_produit')
     .select('cle, valeur')
     .in('cle', ['admin_email', 'app_url'])
   if (error) console.error('[demande-acces] reglages', error)
   const lus = new Map((data ?? []).map((r) => [r.cle as string, r.valeur as string]))
+  // `admin_email` accepte plusieurs adresses séparées par une virgule : le temps qu'une boîte se
+  // mette en place, la notification part vers les deux et rien ne se perd.
+  const destinataires = destinatairesAdmin(ADMIN_EMAIL_ENV || lus.get('admin_email') || '')
+  const adminEmails = destinataires.length ? destinataires : ['contact@braaise.io']
   return {
-    adminEmail: ADMIN_EMAIL_ENV || lus.get('admin_email') || 'contact@braaise.io',
+    adminEmails,
+    // Les réponses à nos mails doivent arriver à une seule adresse : la première.
+    replyTo: adminEmails[0],
     appUrl: (APP_URL_ENV || lus.get('app_url') || 'https://braise-ai.vercel.app').replace(/\/+$/, ''),
   }
 }
@@ -206,7 +213,7 @@ async function recevoirDemande(req: Request): Promise<Response> {
         // La personne répond à ce mail : sa réponse doit arriver à l'administrateur.
         fromName: 'Braaise',
         replyTo: email,
-        to: [reglage.adminEmail],
+        to: reglage.adminEmails,
         subject: mail.subject,
         text: mail.text,
         html: mailHtml(mail.mise),
@@ -288,7 +295,7 @@ async function traiterValidation(req: Request, t: string): Promise<{ statut: num
       { apiKey: RESEND_API_KEY, domain: MAIL_DOMAIN },
       {
         fromName: 'Braaise',
-        replyTo: reglage.adminEmail,
+        replyTo: reglage.replyTo,
         to: [ligne.email],
         subject: mail.subject,
         text: mail.text,
