@@ -169,7 +169,7 @@ export function mailInvitation(
         ],
       },
       note: "Si tu n'es pas à l'origine de cette demande, tu peux ignorer ce message.",
-      pied: 'Braaise — l’assistant des artisanes qui vendent en boutiques. Réponds à ce mail si tu as une question.',
+      pied: 'Braaise — l’assistant des artisans qui vendent en boutiques. Réponds à ce mail si tu as une question.',
       resume: 'Ton invitation : ton compte t’attend, le code est déjà rempli.',
     },
   }

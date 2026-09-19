@@ -100,6 +100,11 @@ export function mailHtml(m: MailMise): string {
     ? `<tr><td align="center" style="padding:18px 8px 0;font-family:${SANS};font-size:12px;line-height:1.55;color:${DOUX};">${echapper(m.pied)}</td></tr>`
     : ''
 
+  // Toujours un peu d'air sous le dernier bloc : un mail dont le texte touche le bord du cadre a
+  // l'air tronqué, même quand il ne l'est pas.
+  const basDeCadre =
+    '<tr><td style="height:16px;line-height:16px;font-size:0;">&nbsp;</td></tr>'
+
   // Résumé invisible : il ne doit rien laisser dans le corps du mail (d'où les zéros de hauteur).
   const resume = m.resume
     ? `<div style="display:none;font-size:1px;color:${FOND};line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">${echapper(m.resume)}</div>`
@@ -117,7 +122,7 @@ export function mailHtml(m: MailMise): string {
 ${resume}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${FOND};">
   <tr>
-    <td align="center" style="padding:30px 12px 34px;">
+    <td align="center" style="padding:30px 12px 42px;">
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:${CARTE};border:1px solid ${BORD};border-radius:16px;">
         <tr>
           <td style="padding:28px 32px 6px;font-family:${SANS};font-size:12px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:${DOUX};">${echapper(m.expediteur)}</td>
@@ -129,6 +134,7 @@ ${resume}
         ${encadre}
         ${cta}
         ${note}
+        ${basDeCadre}
       </table>
       ${pied}
     </td>

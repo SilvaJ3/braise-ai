@@ -72,6 +72,13 @@ describe('mailHtml', () => {
     expect(html).toContain('display:none')
   })
 
+  it('laisse de l’air sous le dernier bloc, et du champ sous le cadre', () => {
+    const html = mailHtml({ ...base, note: 'Une note', pied: 'Braaise' })
+    // La ligne d'espacement vient après la note, avant la fin du cadre.
+    expect(html.indexOf('height:16px')).toBeGreaterThan(html.indexOf('Une note'))
+    expect(html.indexOf('height:16px')).toBeLessThan(html.indexOf('Braaise</td>'))
+  })
+
   it('n’ajoute ni note ni pied quand il n’y en a pas', () => {
     const html = mailHtml(base)
     expect(html).not.toContain('word-break:break-all')
