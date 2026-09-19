@@ -23,25 +23,25 @@ main{padding:18px 20px 44px}
 h2{font:600 15px/1.3 Georgia,serif;margin:26px 0 10px}
 .intro{background:var(--bandeau);border-radius:10px;padding:13px 15px;font-size:13.5px;margin:0 0 6px}
 .aide{color:var(--gris);font-size:12.5px;margin:6px 0 0}
-table{width:100%;border-collapse:collapse;font-size:14px}
+table{width:100%;border-collapse:collapse;font-size:14px;margin:0 0 16px}
 th{background:var(--bandeau);text-align:left;font:600 11.5px/1.3 helvetica,sans-serif;
-   letter-spacing:.04em;text-transform:uppercase;color:#41553f;padding:8px 6px}
+   letter-spacing:.04em;text-transform:uppercase;color:#41553f;padding:11px 9px}
 th.d,td.d{text-align:right}
 tbody tr:nth-child(odd){background:var(--zebre)}
-td{padding:10px 6px;border-bottom:1px solid var(--trait);vertical-align:top}
+td{padding:14px 9px;border-bottom:1px solid var(--trait);vertical-align:middle}
 .piece{display:block;font-weight:600}
-.sous{display:block;color:var(--gris);font-size:12px;margin-top:1px}
-input[type=number]{width:62px;padding:7px 8px;border:1px solid #cfd4cb;border-radius:7px;
-   font:inherit;font-size:14px;text-align:right}
-input[type=text],textarea{width:100%;padding:9px 10px;border:1px solid #cfd4cb;border-radius:8px;
-   font:inherit;font-size:14px}
-.mouvement{margin-top:6px;font-size:12.5px;color:var(--gris)}
-.mouvement input{margin:0 4px}
+.sous{display:block;color:var(--gris);font-size:12.5px;margin-top:2px}
+input[type=number]{width:88px;padding:11px 12px;border:1px solid #cfd4cb;border-radius:9px;
+   font:inherit;font-size:16px;text-align:right;min-height:46px}
+input[type=text],textarea{width:100%;padding:12px;border:1px solid #cfd4cb;border-radius:9px;
+   font:inherit;font-size:16px;margin:0 0 4px}
+.mouvement{margin:2px 0 4px;font-size:13px;color:var(--gris);line-height:1.9}
+.mouvement input{margin:0 6px;width:76px}
 button{font:inherit;cursor:pointer}
 .principal{width:100%;background:var(--vert);color:#fff;border:0;border-radius:9px;
    padding:14px;font-size:15px;font-weight:600;margin-top:18px}
 .secondaire{width:100%;background:#fff;color:var(--vert);border:1px solid var(--vert);
-   border-radius:9px;padding:13px;font-size:15px;font-weight:600;margin-top:12px}
+   border-radius:9px;padding:15px;font-size:15px;font-weight:600;margin-top:16px}
 .message{margin:10px 0 0;font-size:13.5px}
 .message.ok{color:var(--vert)}
 .message.ko{color:var(--ko)}
@@ -50,6 +50,22 @@ button{font:inherit;cursor:pointer}
 .note{color:var(--gris);font-size:12px;margin-top:26px;padding-top:14px;border-top:1px solid var(--trait)}
 select{width:100%;padding:10px;border:1px solid #cfd4cb;border-radius:8px;font:inherit}
 .carte{border:1px solid var(--trait);border-radius:11px;padding:14px;margin-bottom:14px}
+.pas{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.pas button{width:36px;height:36px;border-radius:50%;border:1px solid var(--vert);background:#fff;
+  color:var(--vert);font-size:17px;line-height:1;padding:0;display:flex;align-items:center;
+  justify-content:center;cursor:pointer}
+.pas button.plus{background:var(--vert);color:#fff}
+.pas input[type=number]{width:56px;text-align:center;padding:8px 4px;font-size:16px;min-height:38px;
+  border-radius:999px}
+.pas.mini{gap:6px}
+.pas.mini button{width:30px;height:30px;font-size:15px}
+.pas.mini input[type=number]{width:46px;padding:5px 2px;font-size:15px;min-height:32px;border-radius:999px}
+.repartition{margin:4px 0 2px;font-size:13px;color:var(--gris)}
+.repartition-titre{margin-bottom:6px}
+.repartition-ligne{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:7px;max-width:300px}
+.repartition-ligne span{font-size:13px}
+.bon-lignes{margin:10px 0 12px;padding-left:18px;font-size:13.5px;color:#3a3a38}
+.bon-lignes li{margin:2px 0}
 </style>
 </head>
 <body>
@@ -77,6 +93,10 @@ const contenu = document.getElementById('contenu')
 const $ = (id) => document.getElementById(id)
 const eur = (n) => (Math.round((Number(n) + Number.EPSILON) * 100) / 100)
   .toLocaleString('fr-BE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
+const dateCourte = (iso) => {
+  try { return new Date(iso).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long' }) }
+  catch { return '' }
+}
 const mois = (iso) => {
   try { return new Date(iso).toLocaleDateString('fr-BE', { month: 'long', year: 'numeric' }) }
   catch { return '' }
@@ -107,7 +127,7 @@ function afficher() {
   const p = etat.partenaires.find((x) => x.partenaire_id === partenaireCourant) || etat.partenaires[0]
   const plusieurs = etat.partenaires.length > 1
 
-  if (!p || !p.pieces.length) {
+  if (!p || (!p.pieces.length && !(p.a_confirmer || []).length)) {
     contenu.innerHTML = '<p class="aide">Aucune pièce en dépôt pour le moment.</p>'
     return
   }
@@ -116,6 +136,21 @@ function afficher() {
     <p class="intro">Bonjour. Comptez ce qu'il vous reste : l'application en déduit ce qui est
        parti. Rien ne s'envoie sans que vous cliquiez.</p>
 
+    ${(p.a_confirmer || []).length ? `
+      <h2>${p.a_confirmer.length > 1 ? 'Des bons à confirmer' : 'Un bon à confirmer'}</h2>
+      <p class="aide">C'est votre confirmation qui fait entrer ces pièces dans votre stock — pas
+         l'envoi du bon par l'artisane.</p>
+      ${p.a_confirmer.map((b) => `
+        <div class="carte">
+          <span class="piece">${b.numero ? 'Bon n° ' + b.numero : 'Bon'} — ${dateCourte(b.date)}</span>
+          <span class="sous">${b.pieces} pièce${b.pieces > 1 ? 's' : ''} au total</span>
+          <ul class="bon-lignes">
+            ${b.lignes.map((l) => `<li>${l.designation} — ${l.quantite}</li>`).join('')}
+          </ul>
+          <button class="secondaire" data-bon="${b.bon_id}">J'ai bien reçu ce bon</button>
+          <p class="message" data-retour="${b.bon_id}"></p>
+        </div>`).join('')}` : ''}
+
     ${plusieurs ? `
       <h2>Artisan</h2>
       <select id="selecteur">
@@ -123,16 +158,22 @@ function afficher() {
       </select>` : ''}
 
     <h2>${p.artisan} — chez ${p.boutique}</h2>
+    <p class="aide">À gauche, ce qui devrait rester d'après les bons de dépôt et vos relevés.
+       À droite, ce que vous comptez — c'est la différence qui nous dit ce qui est parti.</p>
     <table>
-      <thead><tr><th>Pièce</th><th class="d">L'app en attend</th><th class="d">Il vous en reste</th></tr></thead>
+      <thead><tr><th>Pièce</th><th class="d">Il devrait<br>en rester</th><th class="d">Il vous en<br>reste</th></tr></thead>
       <tbody>
         ${p.pieces.map((pc) => `
           <tr data-cle="${pc.cle}">
             <td><span class="piece">${pc.designation}</span>
                 <span class="sous">${eur(pc.prix)} pièce</span></td>
             <td class="d">${pc.reste}</td>
-            <td class="d"><input type="number" min="0" step="1" value="${pc.reste}"
-                     data-role="compte" aria-label="Ce qu'il vous reste de ${pc.designation}"></td>
+            <td class="d"><div class="pas">
+              <button type="button" class="moins" aria-label="Une de moins">−</button>
+              <input type="number" min="0" step="1" value="${pc.reste}" data-role="compte"
+                     aria-label="Ce qu'il vous reste de ${pc.designation}">
+              <button type="button" class="plus" aria-label="Une de plus">+</button>
+            </div></td>
           </tr>
           <tr data-detail="${pc.cle}" style="display:none;background:#fff">
             <td colspan="3"><div class="mouvement" data-role="detail"></div></td>
@@ -147,16 +188,21 @@ function afficher() {
     <p class="message" id="retour"></p>
 
     <h2>Ce qu'il me faudrait</h2>
-    <p class="aide">Comptez ${p.delai_semaines} semaine${p.delai_semaines > 1 ? 's' : ''} de fabrication
-       et de livraison. Laissez vide ce dont vous n'avez pas besoin.</p>
+    <p class="aide">Les quantités sont déjà remplies avec ce que vous avez reçu la dernière fois :
+       ajustez, ou mettez à zéro ce dont vous n'avez pas besoin. Comptez
+       ${p.delai_semaines} semaine${p.delai_semaines > 1 ? 's' : ''} de fabrication et de livraison.</p>
     <table>
       <thead><tr><th>Pièce</th><th class="d">Quantité</th></tr></thead>
       <tbody>
         ${p.pieces.map((pc) => `
           <tr data-commande="${pc.cle}">
             <td><span class="piece">${pc.designation}</span></td>
-            <td class="d"><input type="number" min="0" step="1" value="" placeholder="0"
-                     data-role="demande" aria-label="Quantité souhaitée pour ${pc.designation}"></td>
+            <td class="d"><div class="pas">
+              <button type="button" class="moins" aria-label="Une de moins">−</button>
+              <input type="number" min="0" step="1" value="${pc.derniere_quantite || 0}"
+                     data-role="demande" aria-label="Quantité souhaitée pour ${pc.designation}">
+              <button type="button" class="plus" aria-label="Une de plus">+</button>
+            </div></td>
           </tr>`).join('')}
       </tbody>
     </table>
@@ -187,9 +233,29 @@ function afficher() {
     detailLigne(champ)
   }
 
+  cablerPas(contenu)
+
+  for (const b of contenu.querySelectorAll('button[data-bon]')) {
+    b.addEventListener('click', () => confirmer(b))
+  }
   $('envoyer').addEventListener('click', envoyer)
   $('commander').addEventListener('click', commander)
   chargerHistorique()
+}
+
+/** Le pas-à-pas : un appui, un cran. Le champ reste saisissable au clavier pour les grands
+ *  nombres — compter 15 pièces à coups de « + » serait une punition. */
+function cablerPas(racine) {
+  for (const bouton of racine.querySelectorAll('.pas button')) {
+    if (bouton.dataset.cable) continue
+    bouton.dataset.cable = '1'
+    bouton.addEventListener('click', () => {
+      const champ = bouton.parentElement.querySelector('input')
+      const cran = bouton.classList.contains('plus') ? 1 : -1
+      champ.value = String(Math.max(0, Number(champ.value || 0) + cran))
+      champ.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+  }
 }
 
 function pieceDe(cle) {
@@ -215,14 +281,51 @@ function detailLigne(champ) {
   detail.style.display = ''
   if (compte < attendu) {
     const ecart = attendu - compte
-    zone.innerHTML = `Il en manque <b>${ecart}</b> :
-      vendues <input type="number" min="0" step="1" value="${ecart}" data-role="ventes" data-cle="${cle}"> ·
-      reprises <input type="number" min="0" step="1" value="0" data-role="reprises" data-cle="${cle}">
-      <span class="sous">Les vendues sont facturées, les reprises non.</span>`
+    zone.innerHTML = `
+      <div class="repartition">
+        <div class="repartition-titre">Il en manque <b>${ecart}</b> :</div>
+        <div class="repartition-ligne">
+          <span>vendues — facturées</span>
+          <div class="pas mini">
+            <button type="button" class="moins" aria-label="Une vente de moins">−</button>
+            <input type="number" min="0" step="1" value="${ecart}" data-role="ventes" data-cle="${cle}"
+                   aria-label="Vendues">
+            <button type="button" class="plus" aria-label="Une vente de plus">+</button>
+          </div>
+        </div>
+        <div class="repartition-ligne">
+          <span>reprises — non facturées</span>
+          <div class="pas mini">
+            <button type="button" class="moins" aria-label="Une reprise de moins">−</button>
+            <input type="number" min="0" step="1" value="0" data-role="reprises" data-cle="${cle}"
+                   aria-label="Reprises">
+            <button type="button" class="plus" aria-label="Une reprise de plus">+</button>
+          </div>
+        </div>
+      </div>
+      <span class="sous">Le total reste juste tout seul : une vente de plus, c'est une reprise de moins.</span>`
+
+    // Une vente de plus, c'est une reprise de moins : la somme colle toujours à l'écart, donc
+    // l'envoi ne peut pas être refusé pour un total faux.
+    const champVentes = zone.querySelector('input[data-role=ventes]')
+    const champReprises = zone.querySelector('input[data-role=reprises]')
+    cablerPas(zone)
+    const borne = (n) => Math.min(Math.max(Number(n) || 0, 0), ecart)
+    champVentes.addEventListener('input', () => {
+      const v = borne(champVentes.value)
+      champVentes.value = String(v)
+      champReprises.value = String(ecart - v)
+    })
+    champReprises.addEventListener('input', () => {
+      const r = borne(champReprises.value)
+      champReprises.value = String(r)
+      champVentes.value = String(ecart - r)
+    })
   } else {
     const ecart = compte - attendu
-    zone.innerHTML = `Il y en a <b>${ecart}</b> de plus : c'est une livraison que l'artisane n'a pas
-      encore enregistrée ? <span class="sous">Ce sera noté comme une entrée, sans facturation.</span>`
+    zone.innerHTML = `<div class="repartition">Il y en a <b>${ecart}</b> de plus : c'est une livraison
+      que l'artisane n'a pas encore enregistrée ?</div>
+      <span class="sous">Ce sera noté comme une entrée, sans facturation.</span>`
   }
 }
 
@@ -255,6 +358,22 @@ function collecter() {
     lignes.push({ cle, ventes, reprises })
   }
   return { lignes, erreur }
+}
+
+async function confirmer(bouton) {
+  const bon = bouton.dataset.bon
+  const retour = contenu.querySelector(`p[data-retour="${CSS.escape(bon)}"]`)
+  bouton.disabled = true
+  const { data, error } = await supabase.rpc('boutique_confirmer_bon', { jeton_param: jeton, bon_param: bon })
+  if (error || data?.erreur) {
+    bouton.disabled = false
+    retour.className = 'message ko'
+    retour.textContent = 'La confirmation n\'est pas passée. Réessayez.'
+    return
+  }
+  retour.className = 'message ok'
+  retour.textContent = 'Merci. Ces pièces sont maintenant dans votre stock.'
+  await demarrer()
 }
 
 async function envoyer() {
