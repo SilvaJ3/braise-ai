@@ -1,19 +1,21 @@
 import { useMemo, useState } from 'react'
-import { joursAvecCommande } from '../lib/calendrier'
+import { joursAvecCommande, pastillesDuJour, type Famille } from '../lib/calendrier'
 import { ymd } from '../lib/dates'
-import { STATUS_LABEL, STATUS_ORDER } from '../lib/labels'
-import type { Commande, ContentEntry, ContentStatus } from '../lib/supabase'
+import type { Commande, ContentEntry } from '../lib/supabase'
 
-const STATUS_COLOR: Record<ContentStatus, string> = {
-  idee: '#b0a498',
-  a_faire: '#e0932f',
-  planifie: '#b5451b',
-  publie: '#4f9d5d',
+/**
+ * Une couleur par FAMILLE, jamais par statut. Le statut (idée, à faire, planifié, publié) est
+ * écrit en toutes lettres dans la liste du jour et filtrable dans la vue Liste : le répéter en
+ * quatre couleurs dans une grille de sept colonnes rendait la lecture impossible sans la légende,
+ * et faisait porter une information par la couleur seule.
+ *
+ * Ce qui reste, et que la couleur ne peut pas dire, est porté par la forme : une pastille creuse
+ * signale qu'il reste quelque chose à publier ce jour-là.
+ */
+const FAMILLE_COLOR: Record<Famille, string> = {
+  contenu: '#4f9d5d',
+  commande: '#4a7396',
 }
-
-/** Bleu ardoise : la seule teinte froide de la grille, pour une échéance de commande — ni un
- *  statut de publication, ni un rappel. Elle doit se distinguer des quatre couleurs chaudes. */
-const COMMANDE_COLOR = '#4a7396'
 
 const WEEKDAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
 const MONTHS = [
@@ -39,11 +41,11 @@ export default function MonthCalendar({
   })
 
   const byDay = useMemo(() => {
-    const m = new Map<string, ContentStatus[]>()
+    const m = new Map<string, ContentEntry[]>()
     for (const e of entries) {
       if (!e.date) continue
       const list = m.get(e.date) ?? []
-      list.push(e.status)
+      list.push(e)
       m.set(e.date, list)
     }
     return m
@@ -61,14 +63,11 @@ export default function MonthCalendar({
   for (let i = 0; i < firstWeekday; i++) cells.push(null)
   for (let d = 1; d <= daysInMonth; d++) cells.push(ymd(new Date(year, month, d)))
 
-  function dotColors(date: string): string[] {
-    const statuses = byDay.get(date)
-    const couleurs = statuses
-      ? STATUS_ORDER.filter((s) => statuses.includes(s)).map((s) => STATUS_COLOR[s])
-      : []
-    // L'échéance d'une commande s'ajoute aux statuts du jour : un même jour peut porter les deux.
-    if (commandesParJour.has(date)) couleurs.push(COMMANDE_COLOR)
-    return couleurs
+  function dotColors(date: string): Array<{ couleur: string; creux: boolean }> {
+    return pastillesDuJour(byDay.get(date) ?? [], commandesParJour, date).map((p) => ({
+      couleur: FAMILLE_COLOR[p.famille],
+      creux: p.creux,
+    }))
   }
 
   return (
@@ -111,8 +110,15 @@ export default function MonthCalendar({
             >
               <span>{Number(date.slice(-2))}</span>
               <span className="cal-dots">
-                {dotColors(date).slice(0, 5).map((c, j) => (
-                  <i key={j} style={{ background: c }} />
+                {dotColors(date).map(({ couleur, creux }) => (
+                  <i
+                    key={couleur}
+                    style={
+                      creux
+                        ? { background: 'transparent', boxShadow: `inset 0 0 0 1.5px ${couleur}` }
+                        : { background: couleur }
+                    }
+                  />
                 ))}
               </span>
             </button>
@@ -121,13 +127,22 @@ export default function MonthCalendar({
       </div>
 
       <div className="row cal-legend">
-        {STATUS_ORDER.map((s) => (
-          <span key={s} className="muted">
-            <i className="cal-dot" style={{ background: STATUS_COLOR[s] }} /> {STATUS_LABEL[s]}
-          </span>
-        ))}
+        {/* Trois entrées, pas cinq : deux familles et la forme qui dit s'il reste à publier. */}
         <span className="muted">
-          <i className="cal-dot" style={{ background: COMMANDE_COLOR }} /> Commande
+          <i
+            className="cal-dot"
+            style={{
+              background: 'transparent',
+              boxShadow: `inset 0 0 0 2px ${FAMILLE_COLOR.contenu}`,
+            }}
+          />{' '}
+          À publier
+        </span>
+        <span className="muted">
+          <i className="cal-dot" style={{ background: FAMILLE_COLOR.contenu }} /> Publié
+        </span>
+        <span className="muted">
+          <i className="cal-dot" style={{ background: FAMILLE_COLOR.commande }} /> Commande
         </span>
       </div>
     </div>
