@@ -23,9 +23,8 @@ import {
   mailNotification,
   MESSAGES_DEMANDE,
   normaliserEmailDemande,
-  pageSuite,
-  pageValidation,
-  type Suite,
+  type ResultatValidation,
+  type VueDemande,
 } from '../_shared/demande-acces.ts'
 import { envoyerMail } from '../_shared/mailer.ts'
 import { mailHtml } from '../_shared/mail-html.ts'
@@ -51,6 +50,7 @@ const MAIL_DOMAIN = Deno.env.get('MAIL_DOMAIN')?.trim() || 'braaise.io'
 // qui se change sans redéploiement.
 const ADMIN_EMAIL_ENV = Deno.env.get('ADMIN_EMAIL')?.trim()
 const APP_URL_ENV = Deno.env.get('APP_URL')?.trim()
+const SITE_URL_ENV = Deno.env.get('SITE_URL')?.trim()
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY)
 
@@ -67,11 +67,16 @@ type LigneDemande = {
  * Adresse de notification et base des liens. Le défaut n'est pas là pour faire joli : sans lui,
  * une table illisible enverrait une invitation vers une URL cassée.
  */
-async function reglages(): Promise<{ adminEmails: string[]; replyTo: string; appUrl: string }> {
+async function reglages(): Promise<{
+  adminEmails: string[]
+  replyTo: string
+  appUrl: string
+  siteUrl: string
+}> {
   const { data, error } = await admin
     .from('reglages_produit')
     .select('cle, valeur')
-    .in('cle', ['admin_email', 'app_url'])
+    .in('cle', ['admin_email', 'app_url', 'site_url'])
   if (error) console.error('[demande-acces] reglages', error)
   const lus = new Map((data ?? []).map((r) => [r.cle as string, r.valeur as string]))
   // `admin_email` accepte plusieurs adresses séparées par une virgule : le temps qu'une boîte se
@@ -82,21 +87,17 @@ async function reglages(): Promise<{ adminEmails: string[]; replyTo: string; app
     adminEmails,
     // Les réponses à nos mails doivent arriver à une seule adresse : la première.
     replyTo: adminEmails[0],
+    // L'app (le lien d'inscription) et le site (la page de validation) ne sont pas au même endroit.
     appUrl: (APP_URL_ENV || lus.get('app_url') || 'https://braise-ai.vercel.app').replace(/\/+$/, ''),
+    siteUrl: (SITE_URL_ENV || lus.get('site_url') || 'https://www.braaise.io').replace(/\/+$/, ''),
   }
 }
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...CORS, 'content-type': 'application/json' },
-  })
-}
-
-function pageHtml(r: { statut: number; html: string }): Response {
-  return new Response(r.html, {
-    status: r.statut,
-    headers: { ...CORS, 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+    // Jamais de cache : ces réponses portent une demande nominative et un état qui vient de changer.
+    headers: { ...CORS, 'content-type': 'application/json', 'cache-control': 'no-store' },
   })
 }
 
@@ -199,7 +200,7 @@ async function recevoirDemande(req: Request): Promise<Response> {
     email,
     atelier,
     message,
-    lien: `${SUPABASE_URL}/functions/v1/demande-acces?t=${jetonValidation}`,
+    lien: `${reglage.siteUrl}/acces?t=${jetonValidation}`,
     recueLe: dateLisible(data.created_at),
     ip: ipDe(req),
     dejaCompte,
@@ -244,11 +245,14 @@ async function parJeton(t: string): Promise<LigneDemande | null> {
   return data
 }
 
-/** « Valider » et « refuser » ne sont pas des liens : ce sont deux boutons d'un même formulaire. */
-async function traiterValidation(req: Request, t: string): Promise<{ statut: number; html: string }> {
+/**
+ * « Valider » et « refuser » viennent de deux boutons d'une même page. La fonction ne rend que
+ * le résultat : c'est le site qui l'affiche (voir le commentaire de `VueDemande`).
+ */
+async function traiterValidation(req: Request, t: string): Promise<ResultatValidation> {
   const ligne = await parJeton(t)
-  if (!ligne) return pageSuite({ cas: 'jeton_inconnu' })
-  if (ligne.statut !== 'nouvelle') return pageSuite({ cas: 'deja_traitee' })
+  if (!ligne) return { cas: 'jeton_inconnu' }
+  if (ligne.statut !== 'nouvelle') return { cas: 'deja_traitee' }
 
   const form = await req.formData().catch(() => null)
   const action = form?.get('action')
@@ -262,12 +266,12 @@ async function traiterValidation(req: Request, t: string): Promise<{ statut: num
       .eq('statut', 'nouvelle')
     if (error) {
       console.error('[demande-acces] refus', error)
-      return pageSuite({ cas: 'erreur' })
+      return { cas: 'erreur' }
     }
-    return pageSuite({ cas: 'refusee', email: ligne.email })
+    return { cas: 'refusee', email: ligne.email }
   }
 
-  if (action !== 'valider') return pageSuite({ cas: 'erreur' })
+  if (action !== 'valider') return { cas: 'erreur' }
 
   // Note d'origine : l'administrateur doit pouvoir retrouver d'où vient ce code.
   const note = `Demande du site${ligne.atelier ? ` — ${ligne.atelier}` : ''}`.slice(0, 200)
@@ -282,7 +286,7 @@ async function traiterValidation(req: Request, t: string): Promise<{ statut: num
 
   if (errCode || typeof code !== 'string') {
     console.error('[demande-acces] invitation_creer', errCode)
-    return pageSuite({ cas: 'erreur' })
+    return { cas: 'erreur' }
   }
 
   const reglage = await reglages()
@@ -306,7 +310,7 @@ async function traiterValidation(req: Request, t: string): Promise<{ statut: num
     // Le code existe mais n'est jamais parti : on garde le jeton pour pouvoir réessayer, et on
     // le dit — un « c'est envoyé » faux serait pire que l'erreur.
     console.error('[demande-acces] invitation', e)
-    return pageSuite({ cas: 'erreur' })
+    return { cas: 'erreur' }
   }
 
   const { error: errMaj } = await admin
@@ -315,7 +319,7 @@ async function traiterValidation(req: Request, t: string): Promise<{ statut: num
     .eq('id', ligne.id)
   if (errMaj) console.error('[demande-acces] trace', errMaj)
 
-  return pageSuite({ cas: 'validee', email: ligne.email, code })
+  return { cas: 'validee', email: ligne.email, code }
 }
 
 Deno.serve(async (req) => {
@@ -323,32 +327,41 @@ Deno.serve(async (req) => {
 
   const t = new URL(req.url).searchParams.get('t')?.trim() ?? ''
 
-  // Sans jeton : c'est le site qui parle.
+  // Sans jeton : c'est le site qui envoie une demande.
   if (!t) {
     if (req.method !== 'POST') return json({ error: 'POST uniquement' }, 405)
     return recevoirDemande(req)
   }
 
   // Un jeton a une forme connue : inutile d'aller en base pour une chaîne qui n'en est pas un.
-  if (t.length < 16 || t.length > 64) return pageHtml(pageSuite({ cas: 'jeton_inconnu' }))
+  if (t.length < 16 || t.length > 64) {
+    const vue: VueDemande = { etat: 'inconnu' }
+    return json(vue)
+  }
 
   if (req.method === 'GET') {
     const ligne = await parJeton(t)
-    if (!ligne) return pageHtml(pageSuite({ cas: 'jeton_inconnu' }))
-    if (ligne.statut !== 'nouvelle') return pageHtml(pageSuite({ cas: 'deja_traitee' }))
-    return pageHtml(
-      pageValidation({
-        email: ligne.email,
-        atelier: ligne.atelier,
-        message: ligne.message,
-        jeton: t,
-        recueLe: dateLisible(ligne.created_at),
-        dejaCompte: await compteExiste(ligne.email),
-      }),
-    )
+    if (!ligne) {
+      const vue: VueDemande = { etat: 'inconnu' }
+      return json(vue)
+    }
+    if (ligne.statut !== 'nouvelle') {
+      const vue: VueDemande = { etat: 'deja_traitee' }
+      return json(vue)
+    }
+    const vue: VueDemande = {
+      etat: 'nouvelle',
+      email: ligne.email,
+      atelier: ligne.atelier,
+      message: ligne.message,
+      recueLe: dateLisible(ligne.created_at),
+      // Avertir, jamais décider : c'est à l'administrateur de juger.
+      dejaCompte: await compteExiste(ligne.email),
+    }
+    return json(vue)
   }
 
-  if (req.method === 'POST') return pageHtml(await traiterValidation(req, t))
+  if (req.method === 'POST') return json(await traiterValidation(req, t))
 
   return json({ error: 'GET ou POST uniquement' }, 405)
 })

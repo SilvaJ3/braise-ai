@@ -3,14 +3,11 @@ import {
   champTexte,
   dateLisible,
   destinatairesAdmin,
-  echapperHtml,
   emailDemandeInvalide,
   jeton,
   mailInvitation,
   mailNotification,
   normaliserEmailDemande,
-  pageSuite,
-  pageValidation,
 } from './demande-acces.ts'
 
 describe('champTexte', () => {
@@ -82,14 +79,9 @@ describe('destinatairesAdmin', () => {
   })
 })
 
-describe('echapperHtml', () => {
-  it('neutralise ce qui pourrait sortir de son cadre', () => {
-    expect(echapperHtml('<script>alert("x")</script>')).toBe(
-      '&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;',
-    )
-    expect(echapperHtml("Atelier d'Angèle & Cie")).toBe('Atelier d&#39;Angèle &amp; Cie')
-  })
-})
+/** Ce qui a été retiré d'ici : les pages HTML. Une edge function Supabase ne peut pas servir de
+ *  HTML (la passerelle impose `text/plain` + un CSP `sandbox`, le navigateur montre la source).
+ *  La page vit sur le site ; la fonction ne rend que du JSON — voir `VueDemande`. */
 
 describe('dateLisible', () => {
   it('rend une date en français, heure de Bruxelles', () => {
@@ -152,60 +144,5 @@ describe('mailInvitation', () => {
   })
 })
 
-describe('pageValidation', () => {
-  const base = {
-    email: 'marie@atelier.be',
-    atelier: 'Atelier du Coin',
-    message: 'Bonjour',
-    jeton: 'a'.repeat(32),
-    recueLe: '19 septembre 2026 à 11:30',
-  }
-
-  it('propose les deux gestes, sans agir elle-même', () => {
-    const p = pageValidation(base)
-    expect(p.statut).toBe(200)
-    expect(p.html).toContain('name="action" value="valider"')
-    expect(p.html).toContain('name="action" value="refuser"')
-    expect(p.html).toContain('method="post"')
-    expect(p.html).toContain("Rien n'est envoyé tant que tu n'as pas cliqué.")
-  })
-
-  it('échappe ce qui vient du demandeur', () => {
-    const p = pageValidation({ ...base, message: '<img src=x onerror=alert(1)>' })
-    expect(p.html).not.toContain('<img src=x')
-    expect(p.html).toContain('&lt;img src=x')
-  })
-
-  it('avertit sans décider quand un compte existe déjà', () => {
-    const p = pageValidation({ ...base, dejaCompte: true })
-    expect(p.html).toContain('a déjà un compte Braaise')
-    // Le bouton reste : c'est l'administrateur qui juge.
-    expect(p.html).toContain('name="action" value="valider"')
-  })
-})
-
-describe('pageSuite', () => {
-  it('annonce l’invitation et le code créé', () => {
-    const p = pageSuite({ cas: 'validee', email: 'marie@atelier.be', code: 'ABCD-EFGH-JKLM' })
-    expect(p.statut).toBe(200)
-    expect(p.html).toContain('Invitation envoyée')
-    expect(p.html).toContain('ABCD-EFGH-JKLM')
-  })
-
-  it('dit clairement qu’un refus n’envoie rien', () => {
-    const p = pageSuite({ cas: 'refusee', email: 'marie@atelier.be' })
-    expect(p.html).toContain("Rien n'a été envoyé")
-  })
-
-  it('ne propose rien pour un jeton déjà servi', () => {
-    const p = pageSuite({ cas: 'deja_traitee' })
-    expect(p.html).toContain('Déjà traité')
-    expect(p.html).not.toContain('name="action"')
-  })
-
-  it('marque l’erreur en 500, sans faire croire à un envoi', () => {
-    const p = pageSuite({ cas: 'erreur' })
-    expect(p.statut).toBe(500)
-    expect(p.html).toContain("rien n'a été envoyé")
-  })
-})
+/* Les tests des pages HTML ont été retirés avec elles : la fonction ne rend plus que du JSON, et
+   c'est le site qui affiche. Ces textes se vérifient désormais dans le composant du site. */

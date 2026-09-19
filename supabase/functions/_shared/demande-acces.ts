@@ -65,16 +65,6 @@ export function destinatairesAdmin(valeur: string): string[] {
   return [...vues]
 }
 
-/** Échappe ce qui vient de l'extérieur avant de le poser dans une page HTML. */
-export function echapperHtml(v: string): string {
-  return v
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
 export type DemandeRecue = {
   email: string
   atelier: string | null
@@ -190,120 +180,29 @@ export function mailInvitation(
   }
 }
 
-/** Enveloppe commune des pages servies par la fonction : sobres, sans ressource externe. */
-function page(titre: string, corps: string): string {
-  return `<!doctype html>
-<html lang="fr">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="robots" content="noindex" />
-<title>${echapperHtml(titre)}</title>
-<style>
-  :root { color-scheme: light; }
-  body { margin: 0; background: #f6f3ee; color: #2b2b2b;
-         font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  main { max-width: 34rem; margin: 0 auto; padding: 3rem 1.25rem 4rem; }
-  h1 { font-size: 1.35rem; margin: 0 0 .4rem; }
-  .carte { background: #fff; border: 1px solid #e3ddd4; border-radius: 14px; padding: 1.25rem 1.25rem 1.5rem; }
-  dl { margin: .75rem 0 0; }
-  dt { font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: #7a736a; }
-  dd { margin: .1rem 0 .8rem; }
-  .actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1.25rem; }
-  button { font: inherit; padding: .6rem 1rem; border-radius: 10px; cursor: pointer; }
-  .valider { background: #4a7396; color: #fff; border: 1px solid #4a7396; }
-  .refuser { background: #fff; color: #2b2b2b; border: 1px solid #cbc3b8; }
-  .note { color: #6f6861; font-size: .88rem; margin-top: 1rem; }
-  .muted { color: #6f6861; }
-</style>
-</head>
-<body>
-<main>
-${corps}
-</main>
-</body>
-</html>`
+/**
+ * La page de validation ne vit pas ici. Une edge function Supabase ne peut pas servir de HTML :
+ * la passerelle réécrit l'en-tête en `text/plain` et impose un CSP `sandbox` — le navigateur
+ * affiche alors la source au lieu de la page (constaté en production le 19/09). Elle vit donc
+ * sur le site (`braaise.io/acces`), et la fonction ne rend que **des données**.
+ */
+export type EtatDemande = 'nouvelle' | 'deja_traitee' | 'inconnu'
+
+/** Ce que la page de validation reçoit pour afficher la demande et permettre de décider. */
+export type VueDemande = {
+  etat: EtatDemande
+  email?: string
+  atelier?: string | null
+  message?: string | null
+  recueLe?: string
+  /** Vrai si l'adresse a déjà un compte : avertir, jamais décider à la place de l'admin. */
+  dejaCompte?: boolean
 }
 
-const P = (v: string) => `<p>${v}</p>`
-
-/** Page de confirmation : elle n'agit pas, elle demande. */
-export function pageValidation(
-  d: DemandeRecue & { jeton: string; recueLe: string; dejaCompte?: boolean },
-): { statut: number; html: string } {
-  const lignes = [
-    `<dt>Email</dt><dd>${echapperHtml(d.email)}</dd>`,
-    d.atelier ? `<dt>Atelier</dt><dd>${echapperHtml(d.atelier)}</dd>` : '',
-    d.message ? `<dt>Message</dt><dd>${echapperHtml(`« ${d.message} »`)}</dd>` : '',
-    `<dt>Reçue le</dt><dd>${echapperHtml(d.recueLe)}</dd>`,
-  ].join('')
-
-  // Avertir, pas décider : si un compte existe déjà, c'est à l'administrateur de juger — il
-  // sait s'il s'agit de la même personne (une seconde adresse, un essai) ou pas.
-  const avertissement = d.dejaCompte
-    ? `<p class="note" style="color:#8a5a1e">Cette adresse a déjà un compte Braaise. Lui envoyer
-       une invitation n'a d'intérêt que si c'est une autre personne.</p>`
-    : ''
-
-  const corps = `
-<h1>Demande d'accès</h1>
-<div class="carte">
-  <p class="muted" style="margin-top:0">Rien n'est envoyé tant que tu n'as pas cliqué.</p>
-  <dl>${lignes}</dl>
-  ${avertissement}
-  <form method="post" class="actions">
-    <button class="valider" type="submit" name="action" value="valider">Envoyer l'invitation</button>
-    <button class="refuser" type="submit" name="action" value="refuser">Refuser</button>
-  </form>
-  <p class="note">Valider crée un code d'invitation nominatif et envoie le lien à cette adresse.</p>
-</div>`
-  return { statut: 200, html: page("Demande d'accès — Braaise", corps) }
-}
-
-export type Suite =
+/** Ce que la fonction répond après un clic. La page en tire le texte à afficher. */
+export type ResultatValidation =
   | { cas: 'validee'; email: string; code: string }
   | { cas: 'refusee'; email: string }
   | { cas: 'deja_traitee' }
   | { cas: 'jeton_inconnu' }
   | { cas: 'erreur' }
-
-/** Page finale : elle dit ce qui vient de se passer, et ne propose plus rien. */
-export function pageSuite(s: Suite): { statut: number; html: string } {
-  let titre: string
-  let corps: string
-  switch (s.cas) {
-    case 'validee':
-      titre = 'Invitation envoyée'
-      corps =
-        P(`L'invitation part à <strong>${echapperHtml(s.email)}</strong>.`) +
-        P(`Code créé : <code>${echapperHtml(s.code)}</code>. Il attend la personne dans son mail.`)
-      break
-    case 'refusee':
-      titre = 'Demande refusée'
-      corps =
-        P(`Rien n'a été envoyé à <strong>${echapperHtml(s.email)}</strong>.`) +
-        P('Si tu veux lui répondre toi-même, son adresse est dans le mail de notification.')
-      break
-    case 'deja_traitee':
-      titre = 'Déjà traité'
-      corps = P('Cette demande a déjà été validée ou refusée : aucun second envoi.')
-      break
-    case 'jeton_inconnu':
-      titre = 'Lien expiré'
-      corps =
-        P('Ce lien ne correspond plus à une demande en attente — il a déjà servi.') +
-        P('Tu peux retrouver les demandes dans la table <code>demandes_acces</code>.')
-      break
-    case 'erreur':
-      titre = "Ça n'est pas passé"
-      corps =
-        P("Quelque chose a échoué de mon côté : la demande est intacte, rien n'a été envoyé.") +
-        P('Réessaie dans un instant.')
-      break
-  }
-
-  return {
-    statut: s.cas === 'erreur' ? 500 : 200,
-    html: page(`${titre} — Braaise`, `<h1>${titre}</h1><div class="carte">${corps}</div>`),
-  }
-}
