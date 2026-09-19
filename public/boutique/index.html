@@ -72,6 +72,9 @@ select{width:100%;padding:10px;border:1px solid #cfd4cb;border-radius:8px;font:i
    border-radius:9px;padding:13px;font-size:14px;font-weight:600;margin-top:10px}
 .contest{margin-top:12px;padding-top:12px;border-top:1px solid var(--trait)}
 .contest label{display:block;font-size:13px;color:var(--gris);margin:0 0 6px}
+/* Une pièce ajoutée depuis le catalogue de l'artisane : elle se retire aussi simplement. */
+.retirer{display:block;margin-top:3px;background:none;border:0;padding:0;color:var(--ko);
+  font:inherit;font-size:12.5px;text-decoration:underline;cursor:pointer}
 </style>
 </head>
 <body>
@@ -135,7 +138,14 @@ function afficher() {
   const p = etat.partenaires.find((x) => x.partenaire_id === partenaireCourant) || etat.partenaires[0]
   const plusieurs = etat.partenaires.length > 1
 
-  if (!p || (!p.pieces.length && !(p.a_confirmer || []).length)) {
+  if (!p) {
+    contenu.innerHTML = '<p class="aide">Aucune pièce en dépôt pour le moment.</p>'
+    return
+  }
+  // Ce que l'artisane propose à la vente : de quoi demander une pièce qu'on n'a jamais reçue.
+  const catalogue = p.catalogue || []
+
+  if (!p.pieces.length && !(p.a_confirmer || []).length && !catalogue.length) {
     contenu.innerHTML = '<p class="aide">Aucune pièce en dépôt pour le moment.</p>'
     return
   }
@@ -179,6 +189,7 @@ function afficher() {
         ${etat.partenaires.map((x) => `<option value="${x.partenaire_id}" ${x.partenaire_id === p.partenaire_id ? 'selected' : ''}>${x.artisan}</option>`).join('')}
       </select>` : ''}
 
+    ${p.pieces.length ? `
     <h2>${p.artisan} — chez ${p.boutique}</h2>
     <p class="aide">À gauche, ce qui devrait rester d'après les bons de dépôt et vos relevés.
        À droite, ce que vous comptez — c'est la différence qui nous dit ce qui est parti.</p>
@@ -207,27 +218,29 @@ function afficher() {
     <textarea id="note" rows="2" placeholder="Par exemple : la vitrine a été refaite cette semaine."></textarea>
 
     <button class="principal" id="envoyer">Envoyer mon relevé</button>
-    <p class="message" id="retour"></p>
+    <p class="message" id="retour"></p>` : `
+    <h2>${p.artisan} — chez ${p.boutique}</h2>
+    <p class="aide">Rien à compter pour l'instant : aucune pièce n'est encore arrivée chez vous.
+       Le comptage s'ouvrira à votre premier bon confirmé.</p>`}
 
     <h2>Ce qu'il me faudrait</h2>
     <p class="aide">Les quantités sont déjà remplies avec ce que vous avez reçu la dernière fois :
-       ajustez, ou mettez à zéro ce dont vous n'avez pas besoin. Comptez
+       ajustez, ou mettez à zéro ce dont vous n'avez pas besoin. Une pièce que vous n'avez encore
+       jamais reçue ? Ajoutez-la depuis la liste de l'artisane, pour la tester. Comptez
        ${p.delai_semaines} semaine${p.delai_semaines > 1 ? 's' : ''} de fabrication et de livraison.</p>
     <table>
       <thead><tr><th>Pièce</th><th class="d">Quantité</th></tr></thead>
-      <tbody>
-        ${p.pieces.map((pc) => `
-          <tr data-commande="${pc.cle}">
-            <td><span class="piece">${pc.designation}</span></td>
-            <td class="d"><div class="pas">
-              <button type="button" class="moins" aria-label="Une de moins">−</button>
-              <input type="number" min="0" step="1" value="${pc.derniere_quantite || 0}"
-                     data-role="demande" aria-label="Quantité souhaitée pour ${pc.designation}">
-              <button type="button" class="plus" aria-label="Une de plus">+</button>
-            </div></td>
-          </tr>`).join('')}
+      <tbody id="lignes-commande">
+        ${p.pieces.map((pc) => ligneCommande(pc.cle, pc.designation, pc.derniere_quantite || 0, false)).join('')}
       </tbody>
     </table>
+    ${catalogue.length ? `
+      <select id="ajouter-piece" aria-label="Ajouter une pièce de l'artisane à ma demande">
+        <option value="">+ Ajouter une pièce…</option>
+        ${catalogue.map((c) => `<option value="${c.cle}" data-nom="${echapper(c.nom)}">${echapper(c.nom)}${c.prix != null ? ' · ' + eur(c.prix) : ''}</option>`).join('')}
+      </select>
+      <p class="aide">Ces pièces viennent du catalogue de l'artisane : celles qu'elle ne vous a
+         encore jamais confiées. La demander ne la commande pas — l'artisane confirme toujours.</p>` : ''}
     <textarea id="note-commande" rows="2" placeholder="Une précision sur votre demande (facultatif)"></textarea>
     <button class="secondaire" id="commander">Demander un réassort</button>
     <p class="message" id="retour-commande"></p>
@@ -268,8 +281,11 @@ function afficher() {
   for (const b of contenu.querySelectorAll('button[data-envoyer-conteste]')) {
     b.addEventListener('click', () => contester(b))
   }
-  $('envoyer').addEventListener('click', envoyer)
+  const boutonEnvoi = $('envoyer')      // absent quand il n'y a rien à compter
+  if (boutonEnvoi) boutonEnvoi.addEventListener('click', envoyer)
   $('commander').addEventListener('click', commander)
+  const ajout = $('ajouter-piece')
+  if (ajout) ajout.addEventListener('change', () => ajouterPiece(ajout))
   chargerHistorique()
 }
 
@@ -478,6 +494,53 @@ async function envoyer() {
   await demarrer()
 }
 
+/** Une ligne du réassort. Les pièces déjà reçues portent la quantité de la dernière fois ; celles
+ *  ajoutées depuis le catalogue de l'artisane partent à 1 et peuvent être retirées. */
+function ligneCommande(cle, designation, quantite, ajoutee) {
+  return `
+    <tr data-commande="${cle}"${ajoutee ? ' data-ajoutee="1"' : ''}>
+      <td><span class="piece">${echapper(designation)}</span>${ajoutee
+        ? '<button type="button" class="retirer">Retirer</button>' : ''}</td>
+      <td class="d"><div class="pas">
+        <button type="button" class="moins" aria-label="Une de moins">−</button>
+        <input type="number" min="0" step="1" value="${quantite}" data-role="demande"
+               aria-label="Quantité souhaitée pour ${echapper(designation)}">
+        <button type="button" class="plus" aria-label="Une de plus">+</button>
+      </div></td>
+    </tr>`
+}
+
+/** Ajouter une pièce du catalogue : on pose sa ligne, et on désactive l'option — on ne demande pas
+ *  deux fois la même chose dans le même envoi. */
+function ajouterPiece(select) {
+  const option = select.selectedOptions[0]
+  if (!option || !select.value) return
+  const cle = select.value
+  const corps = $('lignes-commande')
+  corps.insertAdjacentHTML('beforeend',
+    ligneCommande(cle, option.dataset.nom || option.textContent, 1, true))
+  const ligne = corps.querySelector(`tr[data-commande="${CSS.escape(cle)}"]`)
+  ligne.querySelector('.retirer').addEventListener('click', () => {
+    ligne.remove()
+    option.disabled = false
+    select.value = ''
+  })
+  cablerPas(corps)
+  option.disabled = true
+  select.value = ''
+  ligne.querySelector('input[data-role=demande]').focus()
+}
+
+/** La demande est partie : on remet le formulaire à zéro. */
+function viderDemande() {
+  for (const champ of contenu.querySelectorAll('input[data-role=demande]')) champ.value = ''
+  for (const ligne of contenu.querySelectorAll('tr[data-ajoutee]')) ligne.remove()
+  for (const option of contenu.querySelectorAll('#ajouter-piece option')) option.disabled = false
+  const select = $('ajouter-piece')
+  if (select) select.value = ''
+  $('note-commande').value = ''
+}
+
 async function commander() {
   const bouton = $('commander')
   const retour = $('retour-commande')
@@ -505,8 +568,7 @@ async function commander() {
   }
   retour.className = 'message ok'
   retour.textContent = 'Votre demande est arrivée chez l\'artisane. Elle la confirmera.'
-  for (const champ of contenu.querySelectorAll('input[data-role=demande]')) champ.value = ''
-  $('note-commande').value = ''
+  viderDemande()
 }
 
 async function chargerHistorique() {
