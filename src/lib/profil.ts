@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from './supabase'
+import { functionErrorMessage } from './push'
+import type { FrequenceAbonnement } from './abonnement'
 import type { Plan, UsageMois } from '../../supabase/functions/_shared/compte'
 
 // Profil de compte : ce que le tunnel d'accueil remplit, et ce que l'assistant lit pour savoir à
@@ -117,5 +119,42 @@ export function useTerminerOnboarding() {
       if (error) throw error
     },
     onSuccess: invalider,
+  })
+}
+
+/**
+ * Ouvrir la page de paiement Stripe pour ce compte.
+ *
+ * La carte ne passe jamais par l'app : Stripe héberge la page, et l'écran ne fait qu'ouvrir
+ * l'adresse rendue. La fréquence (`mois` ou `an`) est la seule décision qui remonte au serveur —
+ * le prix, la remise fondateur et le client Stripe se décident là-bas (`stripe-checkout`).
+ */
+export function useOuvrirPaiement() {
+  return useMutation({
+    mutationFn: async (frequence: FrequenceAbonnement): Promise<string> => {
+      const { data, error } = await supabase.functions.invoke('stripe-checkout', {
+        body: { frequence },
+      })
+      if (error) throw new Error(await functionErrorMessage(error))
+      const url = (data as { url?: string } | null)?.url
+      if (!url) throw new Error('Le paiement n’a pas pu être ouvert.')
+      return url
+    },
+  })
+}
+
+/**
+ * Ouvrir le portail Stripe du compte : changer de carte, télécharger les factures, résilier.
+ *
+ * Un compte qui n'a jamais rien payé n'a rien à y gérer : la fonction répond alors `url: null`
+ * (et non une erreur) — l'écran n'ouvre rien et le dit.
+ */
+export function useOuvrirPortail() {
+  return useMutation({
+    mutationFn: async (): Promise<string | null> => {
+      const { data, error } = await supabase.functions.invoke('stripe-portal', { body: {} })
+      if (error) throw new Error(await functionErrorMessage(error))
+      return (data as { url?: string | null } | null)?.url ?? null
+    },
   })
 }

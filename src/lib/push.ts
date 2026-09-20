@@ -83,7 +83,11 @@ export async function functionErrorMessage(error: unknown): Promise<string> {
   if (ctx && typeof ctx.json === 'function') {
     try {
       const body = await ctx.clone().json()
-      if (body?.error) return String(body.error)
+      // Deux orthographes coexistent dans nos fonctions : `error` (relevé, import…) et `erreur`
+      // (stripe-checkout, stripe-portal). Sans la seconde, l'artisan lirait « Edge Function
+      // returned a non-2xx status code » à la place de la phrase écrite pour lui.
+      const message = body?.error ?? body?.erreur
+      if (message) return String(message)
     } catch {
       /* ignore */
     }

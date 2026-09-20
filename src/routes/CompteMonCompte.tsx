@@ -1,4 +1,6 @@
-import { useNavigate } from 'react-router-dom'
+import { useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   FONCTION_LABEL,
   coutConsommation,
@@ -7,9 +9,19 @@ import {
   quotaImports,
   quotaQuestions,
   type Consommation,
+  type Plan,
   type UsageParFonction,
 } from '../../supabase/functions/_shared/compte'
-import { useMonCompte } from '../lib/profil'
+import {
+  alerteTarif,
+  etatAbonnement,
+  formuleFacturee,
+  libelleSouscription,
+  messagePaiement,
+  noteFondateur,
+  type FrequenceAbonnement,
+} from '../lib/abonnement'
+import { useMonCompte, useOuvrirPaiement, useOuvrirPortail } from '../lib/profil'
 
 const nb = (n: number) => Math.round(n).toLocaleString('fr-BE')
 const euros = (n: number) => `${n.toFixed(2).replace('.', ',')} €`
@@ -23,6 +35,24 @@ const jetons = (u: UsageParFonction): number =>
 export default function CompteMonCompte() {
   const navigate = useNavigate()
   const { data, isLoading, isError } = useMonCompte()
+  const [params] = useSearchParams()
+  const qc = useQueryClient()
+  const paiement = useOuvrirPaiement()
+  const portail = useOuvrirPortail()
+
+  // Au retour de la page de paiement, le webhook de Stripe n'a pas toujours fini d'écrire : on
+  // relit le compte deux fois plutôt que d'afficher « aucun abonnement » juste après avoir payé.
+  const retourPaiement = params.get('paiement')
+  useEffect(() => {
+    if (retourPaiement !== 'ok') return
+    const relire = () => qc.invalidateQueries({ queryKey: ['mon-compte'] })
+    const t1 = setTimeout(relire, 2_000)
+    const t2 = setTimeout(relire, 6_000)
+    return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
+    }
+  }, [retourPaiement, qc])
 
   if (isLoading) {
     return (
@@ -91,11 +121,21 @@ export default function CompteMonCompte() {
         {data.plan === 'essai' && (
           <p className="muted" style={{ margin: '6px 0 0' }}>
             Tu es en essai. Les formules payantes incluent {PLANS.mensuel.questions} questions par
-            mois et {PLANS.mensuel.imports} imports de fichiers — écris-moi quand tu veux passer à
-            l'une d'elles.
+            mois et {PLANS.mensuel.imports} imports de fichiers — l'abonnement se prend juste en
+            dessous, sans passer par moi.
           </p>
         )}
       </div>
+
+      <Abonnement
+        plan={data.plan}
+        statut={data.abonnement_statut}
+        fin={data.abonnement_fin}
+        prixCentimes={data.abonnement_prix_centimes}
+        paiement={paiement}
+        portail={portail}
+        retour={messagePaiement(params.get('paiement'))}
+      />
 
       <h2>Ce mois-ci ({moisLisible})</h2>
       <div className="card">
@@ -155,9 +195,128 @@ export default function CompteMonCompte() {
       </div>
 
       <p className="muted" style={{ fontSize: '0.85rem' }}>
-        Le plan, les quotas et le paiement se règlent à la main pour l'instant : envoie-moi un
-        message et c'est fait le jour même.
+        Le paiement se règle depuis cet écran. Les quotas, eux, se règlent encore à la main :
+        envoie-moi un message si tu en veux plus.
       </p>
+    </>
+  )
+}
+
+
+/**
+ * L'abonnement : où en est le paiement, ce qu'il faut faire, et les deux portes vers Stripe.
+ *
+ * Rien du parcours de paiement n'est réimplémenté ici : le bouton ouvre la page hébergée par
+ * Stripe (la carte ne traverse jamais l'app) et le portail est celui de Stripe aussi. L'écran ne
+ * décide que de ce qu'il montre, et cette décision est dans `lib/abonnement.ts` — pure, donc
+ * éprouvée sans navigateur.
+ */
+function Abonnement({
+  plan,
+  statut,
+  fin,
+  prixCentimes,
+  paiement,
+  portail,
+  retour,
+}: {
+  plan: Plan
+  statut: unknown
+  fin: string | null
+  prixCentimes: number | null
+  paiement: ReturnType<typeof useOuvrirPaiement>
+  portail: ReturnType<typeof useOuvrirPortail>
+  retour: ReturnType<typeof messagePaiement>
+}) {
+  const etat = etatAbonnement(statut, { fin })
+  const facture = formuleFacturee(prixCentimes)
+  const alerte = alerteTarif(plan, prixCentimes)
+  const note = etat.peutSouscrire ? noteFondateur(plan) : null
+  const erreur = paiement.error?.message ?? portail.error?.message ?? null
+  const rienAGerer = portail.isSuccess && !portail.data
+
+  const souscrire = async (frequence: FrequenceAbonnement) => {
+    // `assign` et non une navigation interne : la page suivante est celle de Stripe, hors de l'app.
+    const url = await paiement.mutateAsync(frequence).catch(() => null)
+    if (url) window.location.assign(url)
+  }
+
+  const gerer = async () => {
+    const url = await portail.mutateAsync().catch(() => null)
+    if (url) window.location.assign(url)
+  }
+
+  return (
+    <>
+      <h2>Abonnement</h2>
+
+      {retour && (
+        <div className="banner">
+          <p style={{ margin: 0 }}>{retour.texte}</p>
+        </div>
+      )}
+
+      <div className="card">
+        <div className="row">
+          <strong>{etat.badge}</strong>
+          <div className="spacer" />
+          {facture && <span className="badge">{facture.libelle}</span>}
+        </div>
+
+        <p className="muted" style={{ margin: '6px 0 0' }}>
+          {etat.phrase}
+        </p>
+
+        {alerte && (
+          <p className="muted" style={{ margin: '6px 0 0' }}>
+            {alerte}
+          </p>
+        )}
+
+        {etat.peutSouscrire && (
+          <>
+            <p className="muted" style={{ margin: '10px 0 0', fontSize: '0.85rem' }}>
+              Le paiement s'ouvre sur une page Stripe : ta carte ne passe pas par l'app, et tu peux
+              résilier d'ici quand tu veux. Prix hors TVA.
+            </p>
+            {note && (
+              <p className="muted" style={{ margin: '6px 0 0', fontSize: '0.85rem' }}>
+                {note}
+              </p>
+            )}
+            <div className="row" style={{ marginTop: 10 }}>
+              <button
+                className="primary"
+                disabled={paiement.isPending}
+                onClick={() => souscrire('mois')}
+              >
+                {paiement.isPending ? 'Ouverture…' : libelleSouscription('mois', plan)}
+              </button>
+              <button disabled={paiement.isPending} onClick={() => souscrire('an')}>
+                {libelleSouscription('an', plan)}
+              </button>
+            </div>
+          </>
+        )}
+
+        {etat.peutGerer && (
+          <button className="link" style={{ marginTop: 10 }} disabled={portail.isPending} onClick={gerer}>
+            {portail.isPending ? 'Ouverture…' : 'Changer de carte, voir mes factures ou résilier'}
+          </button>
+        )}
+
+        {rienAGerer && (
+          <p className="muted" style={{ margin: '6px 0 0' }}>
+            Rien à gérer pour l'instant : aucun paiement n'a encore eu lieu sur ce compte.
+          </p>
+        )}
+
+        {erreur && (
+          <p className="muted" style={{ margin: '8px 0 0' }}>
+            {erreur}
+          </p>
+        )}
+      </div>
     </>
   )
 }
