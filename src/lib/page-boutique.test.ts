@@ -44,10 +44,32 @@ describe('page boutique (public/boutique/index.html)', () => {
     expect(page).toContain('q <= 0) continue')
   })
 
-  it('lit le jeton dans le chemin (`/boutique/<jeton>`), et garde les anciennes formes', () => {
-    expect(page).toContain('function jetonDeLAdresse()')
-    expect(page).toContain('segments.indexOf(\'boutique\')')
-    expect(page).toContain("new URLSearchParams(location.search).get('t')")
-    expect(page).toContain('location.hash.slice(1)')
+  // On exécute la fonction telle qu'elle est écrite dans la page, avec une adresse fabriquée :
+  // c'est la seule façon de savoir ce que la boutique reçoit vraiment, sans navigateur.
+  function jetonDe(url: string): string {
+    const depart = page.indexOf('function jetonDeLAdresse()')
+    expect(depart).toBeGreaterThan(-1)
+    const source = page.slice(depart)
+    const corps = source.slice(0, source.indexOf('\n}') + 2)
+    const u = new URL(url)
+    const lire = new Function('location', `${corps}\nreturn jetonDeLAdresse()`) as (l: unknown) => string
+    return lire({ pathname: u.pathname, search: u.search, hash: u.hash })
+  }
+
+  it('lit le jeton dans le chemin de l’adresse définitive', () => {
+    expect(jetonDe('https://www.braaise.io/boutique/abc123')).toBe('abc123')
+    expect(jetonDe('https://www.braaise.io/boutique/abc123/')).toBe('abc123')
+    expect(jetonDe('https://www.braaise.io/boutique/abc123?t=autre')).toBe('abc123')
+  })
+
+  it('garde les anciennes formes : le paramètre, le fragment, et rien du tout', () => {
+    expect(jetonDe('https://braise-ai.vercel.app/boutique/?t=abc123')).toBe('abc123')
+    expect(jetonDe('https://braise-ai.vercel.app/boutique/#abc123')).toBe('abc123')
+    expect(jetonDe('https://braise-ai.vercel.app/boutique/')).toBe('')
+  })
+
+  it('décode le jeton du chemin, et ne casse pas sur un encodage bizarre', () => {
+    expect(jetonDe('https://www.braaise.io/boutique/a%2Bb%2Fc')).toBe('a+b/c')
+    expect(jetonDe('https://www.braaise.io/boutique/%E0%A4%A')).toBe('%E0%A4%A')
   })
 })
