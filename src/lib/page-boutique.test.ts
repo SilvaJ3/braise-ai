@@ -12,7 +12,7 @@ import page from '../../public/boutique/index.html?raw'
  * bloc sans s'en apercevoir.
  */
 describe('page boutique (public/boutique/index.html)', () => {
-  it('propose les pièces du catalogue de l’artisane, en plus de celles déjà reçues', () => {
+  it('propose les pièces du catalogue de l’artisan, en plus de celles déjà reçues', () => {
     expect(page).toContain('id="ajouter-piece"')
     expect(page).toContain('${catalogue.length ?')
     expect(page).toContain('data-nom=')

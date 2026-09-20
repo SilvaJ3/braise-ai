@@ -9,6 +9,7 @@ import {
   fmtDateCourte,
   fmtEuro,
   fmtQte,
+  labelTotal,
   titreBon,
   totalDoc,
   totalLigne,
@@ -206,6 +207,21 @@ export function renderDepotPdf(d: DepotDoc): Uint8Array {
   doc.rect(M, y, 38, 2.5, VERT)
   y += 22
 
+  // Le résumé avant le détail, comme sur une facture de fournisseur : le nombre de pièces et le
+  // montant se lisent au premier regard, et le tableau ligne par ligne reste juste en dessous —
+  // rien n'est perdu, mais personne n'est obligé de faire le total de tête pour savoir où il en est.
+  const nbPieces = d.lignes.reduce((s, l) => s + l.quantite, 0)
+  const hResume = 28
+  doc.rect(M, y, A4.width - 2 * M, hResume, BANDEAU)
+  doc.rect(M, y, 3, hResume, VERT)
+  doc.text(M + 14, y + 18, `${fmtQte(nbPieces)} pièce${nbPieces > 1 ? 's' : ''}`, {
+    size: 10.5, font: FONT.sansBold, color: TEXTE,
+  })
+  doc.text(A4.width - M - 14, y + 18, `${labelTotal(d.mode)} : ${fmtEuro(totalDoc(d.lignes))}`, {
+    size: 10.5, font: FONT.sansBold, align: 'right', color: VERT,
+  })
+  y += hResume + 20
+
   // Deux colonnes d'identification.
   const colD = 330
   eyebrow(doc, M, y, 'Point de vente')
@@ -248,7 +264,7 @@ export function renderDepotPdf(d: DepotDoc): Uint8Array {
   // Total général
   doc.line(M, y, A4.width - M, y, 1.2, TRAIT_EPAIS)
   y += 10
-  doc.text(COL_PU, y, 'TOTAL', { size: 11, font: FONT.sansBold, align: 'right', color: TEXTE, tracking: em(11, 0.06) })
+  doc.text(COL_PU, y, labelTotal(d.mode), { size: 11, font: FONT.sansBold, align: 'right', color: TEXTE, tracking: em(11, 0.06) })
   doc.text(COL_TOTAL - 8, y, fmtEuro(totalDoc(d.lignes)), { size: 11, font: FONT.sansBold, align: 'right', color: VERT })
   y += 30
 

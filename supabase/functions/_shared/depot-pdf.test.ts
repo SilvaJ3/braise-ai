@@ -66,6 +66,23 @@ describe('renderDepotPdf', () => {
     expect(texte).toContain('245 €') // total
   })
 
+  it('affiche le résumé en tête — total TTC et nombre de pièces — sans retirer le détail', async () => {
+    const { texte } = await readPdf(renderDepotPdf(base))
+    expect(texte).toContain('15 pièces')
+    expect(texte).toContain('Total (prix de vente TTC) : 245 €')
+    // Le résumé ne remplace rien : les lignes et leurs montants sont toujours là.
+    expect(texte).toContain('Coffret brûleur')
+    expect(texte).toContain('80 €')
+  })
+
+  it('nomme le total comme les autres pièces du dossier, dans les deux modes', async () => {
+    const vente = await readPdf(renderDepotPdf(base))
+    expect(vente.texte).toContain('Total (prix de vente TTC)')
+    const livraison = await readPdf(renderDepotPdf({ ...base, mode: 'achat_ferme' }))
+    expect(livraison.texte).toContain('Total livré (prix de vente TTC)')
+    expect(livraison.texte).not.toContain('Total (prix de vente TTC) :')
+  })
+
   it('conserve les accents et l’apostrophe typographique', async () => {
     const { texte } = await readPdf(renderDepotPdf(base))
     expect(texte).toContain('Suspension parfumée')

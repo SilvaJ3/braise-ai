@@ -67,12 +67,12 @@ select{width:100%;padding:10px;border:1px solid #cfd4cb;border-radius:8px;font:i
 .bon-lignes{margin:10px 0 12px;padding-left:18px;font-size:13.5px;color:#3a3a38}
 .bon-lignes li{margin:2px 0}
 /* Signaler un bon : la même chose qu'une confirmation ratée, mais dite avec des mots. Le bon,
-   lui, n'est pas modifié — c'est un message à l'artisane, et la page le dit à l'écran. */
+   lui, n'est pas modifié — c'est un message à l'artisan, et la page le dit à l'écran. */
 .signaler{width:100%;background:#fff;color:var(--ko);border:1px solid var(--ko);
    border-radius:9px;padding:13px;font-size:14px;font-weight:600;margin-top:10px}
 .contest{margin-top:12px;padding-top:12px;border-top:1px solid var(--trait)}
 .contest label{display:block;font-size:13px;color:var(--gris);margin:0 0 6px}
-/* Une pièce ajoutée depuis le catalogue de l'artisane : elle se retire aussi simplement. */
+/* Une pièce ajoutée depuis le catalogue de l'artisan : elle se retire aussi simplement. */
 .retirer{display:block;margin-top:3px;background:none;border:0;padding:0;color:var(--ko);
   font:inherit;font-size:12.5px;text-decoration:underline;cursor:pointer}
 </style>
@@ -114,7 +114,7 @@ const mois = (iso) => {
 }
 
 if (!jeton) {
-  contenu.innerHTML = '<p class="message ko">Ce lien est incomplet. Demandez à l\'artisane de vous le renvoyer.</p>'
+  contenu.innerHTML = '<p class="message ko">Ce lien est incomplet. Demandez à l\'artisan de vous le renvoyer.</p>'
 } else {
   demarrer()
 }
@@ -125,7 +125,7 @@ let partenaireCourant = null
 async function demarrer() {
   const { data, error } = await supabase.rpc('boutique_etat', { jeton_param: jeton })
   if (error || !data || data.erreur) {
-    contenu.innerHTML = '<p class="message ko">Ce lien n\'est plus valable. Demandez-en un nouveau à l\'artisane.</p>'
+    contenu.innerHTML = '<p class="message ko">Ce lien n\'est plus valable. Demandez-en un nouveau à l\'artisan.</p>'
     return
   }
   etat = data
@@ -142,7 +142,7 @@ function afficher() {
     contenu.innerHTML = '<p class="aide">Aucune pièce en dépôt pour le moment.</p>'
     return
   }
-  // Ce que l'artisane propose à la vente : de quoi demander une pièce qu'on n'a jamais reçue.
+  // Ce que l'artisan propose à la vente : de quoi demander une pièce qu'on n'a jamais reçue.
   const catalogue = p.catalogue || []
 
   if (!p.pieces.length && !(p.a_confirmer || []).length && !catalogue.length) {
@@ -157,8 +157,8 @@ function afficher() {
     ${(p.a_confirmer || []).length ? `
       <h2>${p.a_confirmer.length > 1 ? 'Des bons à confirmer' : 'Un bon à confirmer'}</h2>
       <p class="aide">C'est votre confirmation qui fait entrer ces pièces dans votre stock — pas
-         l'envoi du bon par l'artisane. Si un bon ne correspond pas, dites-le : c'est un message
-         pour l'artisane, le bon n'est pas modifié.</p>
+         l'envoi du bon par l'artisan. Si un bon ne correspond pas, dites-le : c'est un message
+         pour l'artisan, le bon n'est pas modifié.</p>
       ${p.a_confirmer.map((b) => `
         <div class="carte">
           <span class="piece">${b.numero ? 'Bon n° ' + b.numero : 'Bon'} — ${dateCourte(b.date)}</span>
@@ -170,7 +170,7 @@ function afficher() {
           <p class="message" data-retour="${b.bon_id}"></p>
           ${b.conteste ? `
             <p class="message ko">Vous avez signalé : « ${echapper(b.message_conteste || '')} ».
-               L'artisane le verra avant de répondre.</p>` : ''}
+               L'artisan le verra avant de répondre.</p>` : ''}
           <button class="signaler" data-contester="${b.bon_id}" aria-expanded="false">
             ${b.conteste ? 'Signaler autre chose' : 'Ce bon ne correspond pas'}
           </button>
@@ -178,7 +178,7 @@ function afficher() {
             <label for="mot-${b.bon_id}">Qu'est-ce qui ne correspond pas ?</label>
             <textarea id="mot-${b.bon_id}" rows="3"
               placeholder="Par exemple : il manque une bougie, ou une pièce n'est pas sur le bon."></textarea>
-            <button class="principal" data-envoyer-conteste="${b.bon_id}">Envoyer à l'artisane</button>
+            <button class="principal" data-envoyer-conteste="${b.bon_id}">Envoyer à l'artisan</button>
             <p class="message" data-retour-conteste="${b.bon_id}"></p>
           </div>
         </div>`).join('')}` : ''}
@@ -214,7 +214,7 @@ function afficher() {
       </tbody>
     </table>
 
-    <h2>Un mot pour l'artisane (facultatif)</h2>
+    <h2>Un mot pour l'artisan (facultatif)</h2>
     <textarea id="note" rows="2" placeholder="Par exemple : la vitrine a été refaite cette semaine."></textarea>
 
     <button class="principal" id="envoyer">Envoyer mon relevé</button>
@@ -226,7 +226,7 @@ function afficher() {
     <h2>Ce qu'il me faudrait</h2>
     <p class="aide">Les quantités sont déjà remplies avec ce que vous avez reçu la dernière fois :
        ajustez, ou mettez à zéro ce dont vous n'avez pas besoin. Une pièce que vous n'avez encore
-       jamais reçue ? Ajoutez-la depuis la liste de l'artisane, pour la tester. Comptez
+       jamais reçue ? Ajoutez-la depuis la liste de l'artisan, pour la tester. Comptez
        ${p.delai_semaines} semaine${p.delai_semaines > 1 ? 's' : ''} de fabrication et de livraison.</p>
     <table>
       <thead><tr><th>Pièce</th><th class="d">Quantité</th></tr></thead>
@@ -235,12 +235,12 @@ function afficher() {
       </tbody>
     </table>
     ${catalogue.length ? `
-      <select id="ajouter-piece" aria-label="Ajouter une pièce de l'artisane à ma demande">
+      <select id="ajouter-piece" aria-label="Ajouter une pièce de l'artisan à ma demande">
         <option value="">+ Ajouter une pièce…</option>
         ${catalogue.map((c) => `<option value="${c.cle}" data-nom="${echapper(c.nom)}">${echapper(c.nom)}${c.prix != null ? ' · ' + eur(c.prix) : ''}</option>`).join('')}
       </select>
-      <p class="aide">Ces pièces viennent du catalogue de l'artisane : celles qu'elle ne vous a
-         encore jamais confiées. La demander ne la commande pas — l'artisane confirme toujours.</p>` : ''}
+      <p class="aide">Ces pièces viennent du catalogue de l'artisan : celles qu'il ne vous a
+         encore jamais confiées. La demander ne la commande pas — l'artisan confirme toujours.</p>` : ''}
     <textarea id="note-commande" rows="2" placeholder="Une précision sur votre demande (facultatif)"></textarea>
     <button class="secondaire" id="commander">Demander un réassort</button>
     <p class="message" id="retour-commande"></p>
@@ -249,10 +249,10 @@ function afficher() {
     <div id="historique"><p class="aide">Chargement…</p></div>
 
     <p class="note">
-      <b>Signaler un bon ne le modifie pas</b> : c'est un message, et l'artisane seule décide de
-      ce qu'elle en fait. <b>Ceci ne remplace aucun document contractuel.</b> Les bons signés restent les pièces qui
-      font foi ; cet espace sert à suivre la relation entre l'artisane et la boutique, et à vous
-      éviter de tout noter à la main. Ce lien est le vôtre : l'artisane peut le désactiver à tout
+      <b>Signaler un bon ne le modifie pas</b> : c'est un message, et l'artisan seul décide de
+      ce qu'il en fait. <b>Ceci ne remplace aucun document contractuel.</b> Les bons signés restent les pièces qui
+      font foi ; cet espace sert à suivre la relation entre l'artisan et la boutique, et à vous
+      éviter de tout noter à la main. Ce lien est le vôtre : l'artisan peut le désactiver à tout
       moment, et il ne montre que vos pièces — jamais celles des autres boutiques.
     </p>`
 
@@ -370,7 +370,7 @@ function detailLigne(champ) {
   } else {
     const ecart = compte - attendu
     zone.innerHTML = `<div class="repartition">Il y en a <b>${ecart}</b> de plus : c'est une livraison
-      que l'artisane n'a pas encore enregistrée ?</div>
+      que l'artisan n'a pas encore enregistrée ?</div>
       <span class="sous">Ce sera noté comme une entrée, sans facturation.</span>`
   }
 }
@@ -432,7 +432,7 @@ function ouvrirContestation(bouton) {
   if (!ouvert) zone.querySelector('textarea').focus()
 }
 
-/** « Ce bon ne correspond pas » : un message à l'artisane. Le bon n'est pas touché — l'artisane
+/** « Ce bon ne correspond pas » : un message à l'artisan. Le bon n'est pas touché — l'artisan
  *  décide de ce qu'elle en fait (un nouveau bon, une reprise, une correction de stock). */
 async function contester(bouton) {
   const bon = bouton.dataset.envoyerConteste
@@ -442,7 +442,7 @@ async function contester(bouton) {
 
   if (message.length < 3) {
     retour.className = 'message ko'
-    retour.textContent = "Écrivez une phrase, que l'artisane sache quoi regarder."
+    retour.textContent = "Écrivez une phrase, que l'artisan sache quoi regarder."
     return
   }
 
@@ -489,13 +489,13 @@ async function envoyer() {
     ? `C'est envoyé. ${eur(data.facturable)} de ventes déclarées cette fois.`
     : 'C\'est envoyé. Aucune vente facturable cette fois.'
   if (data.alerte) {
-    retour.textContent += ' Une ligne dépasse ce que l\'artisane avait déposé : elle le verra.'
+    retour.textContent += ' Une ligne dépasse ce que l\'artisan avait déposé : il le verra.'
   }
   await demarrer()
 }
 
 /** Une ligne du réassort. Les pièces déjà reçues portent la quantité de la dernière fois ; celles
- *  ajoutées depuis le catalogue de l'artisane partent à 1 et peuvent être retirées. */
+ *  ajoutées depuis le catalogue de l'artisan partent à 1 et peuvent être retirées. */
 function ligneCommande(cle, designation, quantite, ajoutee) {
   return `
     <tr data-commande="${cle}"${ajoutee ? ' data-ajoutee="1"' : ''}>
@@ -567,7 +567,7 @@ async function commander() {
     return
   }
   retour.className = 'message ok'
-  retour.textContent = 'Votre demande est arrivée chez l\'artisane. Elle la confirmera.'
+  retour.textContent = 'Votre demande est arrivée chez l\'artisan. Il la confirmera.'
   viderDemande()
 }
 
