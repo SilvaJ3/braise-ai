@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { useBesoinMatiereSignale } from './atelier'
+import { alertesBoutiques, type AlerteBoutique } from './boutique-etat'
+import { useMesBoutiquesEtat } from './boutiques'
 import { useCommandes } from './commandes'
 import { ymd } from './dates'
 import { useEntries } from './entries'
@@ -115,15 +117,30 @@ function useSuggestionsCount(): number {
   return data
 }
 
+/**
+ * Ce que les boutiques attendent de l'artisane : un relevé à valider, un bon à confirmer, un
+ * message à lire, un réassort à traiter. Rien n'est envoyé ni stocké pour ça — la cloche le déduit
+ * de ce qui existe déjà (voir `alertesBoutiques`), comme le reste de ses notifications.
+ */
+export function useAlertesBoutiques(): AlerteBoutique[] {
+  const { data: etats = [] } = useMesBoutiquesEtat()
+  const { data: commandes = [] } = useCommandes()
+  return useMemo(
+    () => alertesBoutiques(etats, commandes.filter((c) => c.type === 'boutique' && c.statut === 'demande')),
+    [etats, commandes],
+  )
+}
+
 /** Nombre total affiché sur la cloche : rappels + commandes proches de l'échéance +
- * suggestions assistant + 1 si besoin matière (un compte agrégé, pas le détail — le détail
- * vit dans Atelier et dans Notifications). Ne monte volontairement pas useBesoinsMatiere :
- * la cloche est présente sur tous les écrans protégés, elle se contente d'un comptage
- * (voir useBesoinMatiereSignale). */
+ * suggestions assistant + ce que les boutiques attendent + 1 si besoin matière (un compte agrégé,
+ * pas le détail — le détail vit dans Atelier et dans Notifications). Ne monte volontairement pas
+ * useBesoinsMatiere : la cloche est présente sur tous les écrans protégés, elle se contente d'un
+ * comptage (voir useBesoinMatiereSignale). */
 export function useNotificationsCount(): number {
   const rappels = useRappelsDus()
   const commandes = useCommandesAAlerter()
   const suggestions = useSuggestionsCount()
   const besoinMatiere = useBesoinMatiereSignale()
-  return rappels.length + commandes.length + suggestions + (besoinMatiere ? 1 : 0)
+  const boutiques = useAlertesBoutiques()
+  return rappels.length + commandes.length + suggestions + boutiques.length + (besoinMatiere ? 1 : 0)
 }

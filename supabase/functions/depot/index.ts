@@ -21,6 +21,7 @@ import {
   type ModeVente,
 } from '../_shared/depot-doc.ts'
 import { renderDepotPdf } from '../_shared/depot-pdf.ts'
+import { baseLienBoutique, lienBoutique } from '../_shared/lien-boutique.ts'
 import { envoyerMail } from '../_shared/mailer.ts'
 
 const CORS = {
@@ -170,6 +171,44 @@ const toBase64 = (bytes: Uint8Array): string => {
 }
 
 /**
+ * L'adresse de la boutique, telle qu'elle la retrouvera dans le pied du mail. Le lien est créé au
+ * premier bon (c'est la même logique que le bouton « Copier le lien » de l'écran) — SAUF si
+ * l'accès a été coupé exprès : un bon ne doit pas rouvrir en douce ce que l'artisane a fermé.
+ *
+ * Une adresse introuvable ne bloque pas l'envoi : le mail part sans lien, et le dit.
+ */
+async function lienDeLaBoutique(userId: string, boutiqueId: string | null): Promise<string> {
+  if (!boutiqueId) return ''
+
+  const { data: partenaire } = await admin
+    .from('boutique_lien_partenaires')
+    .select('actif')
+    .eq('user_id', userId)
+    .eq('boutique_id', boutiqueId)
+    .maybeSingle()
+  if (partenaire && partenaire.actif === false) return ''
+
+  const { data, error } = await admin.rpc('lien_boutique_assurer', {
+    p_user: userId,
+    p_boutique: boutiqueId,
+  })
+  if (error) {
+    console.error('lien_boutique_assurer', error.message)
+    return ''
+  }
+  const jeton = (data as { jeton?: string } | null)?.jeton
+  if (!jeton) return ''
+
+  const { data: reglage } = await admin
+    .from('reglages_produit')
+    .select('valeur')
+    .eq('cle', 'app_url')
+    .maybeSingle()
+  const base = baseLienBoutique(reglage?.valeur as string | undefined)
+  return base ? lienBoutique(base, jeton) : ''
+}
+
+/**
  * Numéro AAAA-NNN, attribué par la base de façon atomique.
  *
  * Avant : un count(*) des bons de l'année suivi d'une écriture. Deux signatures concurrentes
@@ -284,6 +323,7 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>): Pro
     .eq('id', row.id)
 
   try {
+    const lien = await lienDeLaBoutique(userId, row.boutique_id)
     await envoyerMail(
       { apiKey: RESEND_API_KEY, domain: MAIL_DOMAIN },
       {
@@ -293,7 +333,7 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>): Pro
         to,
         cc,
         subject: emailSubject(doc),
-        text: emailBody(doc),
+        text: emailBody(doc, { lien }),
         attachments: [{ filename: pdfFilename(doc), base64: toBase64(pdf) }],
       },
     )
