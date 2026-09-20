@@ -94,6 +94,12 @@ export type UsageMois = {
   /** Répartition par usage (chat, bilan, import) : ce que le total ne dit pas. */
   detail: UsageParFonction[]
   mois: string
+  /** Où en est le **paiement** (0049) — une autre question que le plan, qui dit à quoi on a droit. */
+  abonnement_statut: 'aucun' | 'actif' | 'en_retard' | 'resilie'
+  /** Fin de la période en cours, écrite par `stripe-webhook` (null = jamais rien payé). */
+  abonnement_fin: string | null
+  /** Ce qui est réellement prélevé, remise déduite, en centimes (null = inconnu). */
+  abonnement_prix_centimes: number | null
 }
 
 /** Une ligne du détail mensuel : quel usage, quelle quantité. */
