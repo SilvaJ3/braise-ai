@@ -5,6 +5,7 @@ import {
   euros,
   frequenceValide,
   montantEffectif,
+  prendLeCompte,
   prixPour,
   statutDepuisStripe,
   type IdentifiantsStripe,
@@ -122,6 +123,35 @@ describe('ce qu’on écrit sur le compte depuis un abonnement', () => {
     expect(champs.abonnement_fin).toBeNull()
     expect(champs.abonnement_prix_centimes).toBeNull()
     expect(champs.abonnement_statut).toBe('actif')
+  })
+})
+
+describe('ce qui a le droit d’écrire sur le compte', () => {
+  it('un abonnement déjà suivi écrit toujours', () => {
+    expect(prendLeCompte({ id: 'sub_1', status: 'active' }, 'sub_1')).toBe(true)
+    expect(prendLeCompte({ id: 'sub_1', status: 'canceled' }, 'sub_1')).toBe(true)
+  })
+
+  it('un abonnement payé reprend le compte, même si un autre était suivi (re-souscription)', () => {
+    expect(prendLeCompte({ id: 'sub_2', status: 'active' }, 'sub_1')).toBe(true)
+    expect(prendLeCompte({ id: 'sub_2', status: 'past_due' }, 'sub_1')).toBe(true)
+    expect(prendLeCompte({ id: 'sub_2', status: 'unpaid' }, 'sub_1')).toBe(true)
+  })
+
+  it('un essai de paiement refusé ne prend pas le compte — le défaut constaté le 20/09', () => {
+    expect(prendLeCompte({ id: 'sub_2', status: 'incomplete' }, null)).toBe(false)
+    expect(prendLeCompte({ id: 'sub_2', status: 'incomplete' }, 'sub_1')).toBe(false)
+    expect(prendLeCompte({ id: 'sub_2', status: 'incomplete_expired' }, 'sub_1')).toBe(false)
+  })
+
+  it('la fin d’un abonnement qu’on ne suit pas ne touche pas le compte', () => {
+    expect(prendLeCompte({ id: 'sub_2', status: 'canceled' }, 'sub_1')).toBe(false)
+    expect(prendLeCompte({ id: 'sub_2', status: 'canceled' }, null)).toBe(false)
+  })
+
+  it('sans identifiant, on n’écrit rien', () => {
+    expect(prendLeCompte({ id: null, status: 'active' }, null)).toBe(false)
+    expect(prendLeCompte({}, null)).toBe(false)
   })
 })
 

@@ -12,7 +12,7 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@17'
-import { champsDepuisAbonnement } from '../_shared/stripe.ts'
+import { champsDepuisAbonnement, prendLeCompte } from '../_shared/stripe.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -29,13 +29,17 @@ async function majDepuisAbonnement(stripe: Stripe, abonnementId: string, userIdC
   // Le compte est retrouvé par l'identifiant du client Stripe — c'est le lien posé au paiement.
   const clientId = typeof sub.customer === 'string' ? sub.customer : sub.customer?.id
   let userId = userIdConnu ?? null
-  if (!userId && clientId) {
+  let suivi: string | null = null
+  if (clientId) {
     const { data } = await admin
       .from('assistant_profil')
-      .select('user_id')
+      .select('user_id, stripe_subscription_id')
       .eq('stripe_customer_id', clientId)
       .maybeSingle()
-    userId = (data?.user_id as string | undefined) ?? null
+    if (data) {
+      userId = userId ?? ((data.user_id as string | undefined) ?? null)
+      suivi = (data.stripe_subscription_id as string | null) ?? null
+    }
   }
   if (!userId && clientId) {
     console.error('[stripe-webhook] aucun compte pour ce client', clientId, sub.id)
@@ -43,6 +47,12 @@ async function majDepuisAbonnement(stripe: Stripe, abonnementId: string, userIdC
   }
   if (!userId) {
     console.error('[stripe-webhook] abonnement sans compte identifiable', sub.id)
+    return
+  }
+
+  // Un abonnement qui n'a pas sa place sur le compte n'y écrit rien (voir `prendLeCompte`).
+  if (!prendLeCompte(sub, suivi)) {
+    console.log('[stripe-webhook] écarté', sub.id, sub.status, '| le compte suit', suivi ?? 'aucun')
     return
   }
 

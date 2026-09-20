@@ -96,6 +96,37 @@ export function champsDepuisAbonnement(sub: AbonnementStripe): {
   }
 }
 
+/**
+ * Un abonnement a-t-il le droit d'écrire sur le compte ?
+ *
+ * Constaté le 20/09/2026 en exerçant le parcours d'achat pour de vrai : un paiement **refusé** crée
+ * quand même un abonnement chez Stripe, en statut `incomplete` (la première facture n'est jamais
+ * payée). Le webhook l'écrivait sur le compte comme les autres, si bien qu'une carte refusée
+ * remplaçait l'abonnement en cours et affichait « en retard » sur un compte qui paie. Même piège
+ * avec un abonnement qu'on ne suit pas et qui se termine : sa résiliation marquait le compte
+ * « résilié ».
+ *
+ * La règle, donc : un abonnement déjà suivi écrit toujours ; un autre écrit s'il a été payé
+ * (`active`, `trialing`, `past_due`, `unpaid` — un abonnement qui reprend après une résiliation doit
+ * pouvoir reprendre le compte) ; un abonnement jamais payé (`incomplete`, `incomplete_expired`) ou
+ * déjà terminé (`canceled`) n'écrit pas s'il n'est pas celui qu'on suit.
+ */
+export function prendLeCompte(
+  sub: AbonnementStripe,
+  abonnementSuivi: string | null | undefined,
+): boolean {
+  if (!sub.id) return false
+  if (sub.id === abonnementSuivi) return true
+  switch (sub.status) {
+    case 'incomplete':
+    case 'incomplete_expired':
+    case 'canceled':
+      return false
+    default:
+      return true
+  }
+}
+
 /** Le montant en euros, écrit comme on l'écrit à un artisan : « 29 € », « 390 € ». */
 export function euros(centimes: number | null | undefined): string | null {
   if (typeof centimes !== 'number') return null
