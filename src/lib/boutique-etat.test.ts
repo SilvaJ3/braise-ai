@@ -48,24 +48,24 @@ function releve(partiel: Partial<ReleveBoutique>): ReleveBoutique {
 }
 
 describe('le lien de la boutique', () => {
-  it('se construit sur braaise.io', () => {
-    expect(lienBoutiqueUrl('abc123', 'https://braaise.io')).toBe('https://braaise.io/boutique/?t=abc123')
+  // L'adresse est la même pour tout le monde, et elle ne dépend plus de la page courante : c'est
+  // l'adresse définitive. Le côté serveur (`supabase/functions/_shared/lien-boutique.test.ts`)
+  // affirme la même chaîne — si l'une des deux dérive, un test tombe.
+  it('porte l’adresse définitive, quel que soit l’endroit d’où on la lit', () => {
+    expect(lienBoutiqueUrl('abc123')).toBe('https://www.braaise.io/boutique/abc123')
   })
 
-  it('ne double pas la barre oblique d’une adresse qui finit par /', () => {
-    expect(lienBoutiqueUrl('abc123', 'https://braise-test.vercel.app/')).toBe(
-      'https://braise-test.vercel.app/boutique/?t=abc123',
-    )
-  })
-
-  it('reste relatif quand il n’y a pas d’origine (hors navigateur)', () => {
-    expect(lienBoutiqueUrl('abc123')).toBe('/boutique/?t=abc123')
+  it('a une seule barre oblique entre la base et le chemin', () => {
+    expect(lienBoutiqueUrl('abc123', 'https://exemple.be/')).toBe('https://exemple.be/boutique/abc123')
+    expect(lienBoutiqueUrl('abc123', 'https://exemple.be//')).toBe('https://exemple.be/boutique/abc123')
   })
 
   it('encode un jeton qui contient des caractères réservés', () => {
-    expect(lienBoutiqueUrl('a+b/c', 'https://braaise.io')).toBe(
-      'https://braaise.io/boutique/?t=a%2Bb%2Fc',
-    )
+    expect(lienBoutiqueUrl('a+b/c')).toBe('https://www.braaise.io/boutique/a%2Bb%2Fc')
+  })
+
+  it('ne fabrique pas d’adresse bancale quand il n’y a pas de jeton', () => {
+    expect(lienBoutiqueUrl('')).toBe('https://www.braaise.io')
   })
 })
 

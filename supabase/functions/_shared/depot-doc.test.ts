@@ -121,9 +121,9 @@ describe('mail', () => {
 
   it('le lien de la boutique est dans le pied, une fois, et rien ne change sans lui', () => {
     const sans = emailBody(doc())
-    expect(sans).not.toContain('boutique/?t=')
+    expect(sans).not.toContain('/boutique/')
 
-    const lien = 'https://exemple.be/boutique/?t=abc123'
+    const lien = 'https://www.braaise.io/boutique/abc123'
     const avec = emailBody(doc(), { lien })
     expect(avec).toContain(lien)
     expect(avec).toContain('gardez-la')

@@ -15,7 +15,9 @@ precacheAndRoute(self.__WB_MANIFEST)
 // franchement s'ils ne sont pas joignables.
 registerRoute(
   new NavigationRoute(createHandlerBoundToURL('index.html'), {
-    denylist: [/^\/api/, /supabase/],
+    // `/boutique/<jeton>` est une page statique a part, pas une route de l'app : elle doit
+    // venir du reseau, sinon le shell de l'app s'affiche a la place de l'espace de la boutique.
+    denylist: [/^\/api/, /supabase/, /^\/boutique/],
   }),
 )
 self.skipWaiting()

@@ -110,8 +110,8 @@ function urlBoutique(base: string, b: BoutiqueRappel): string {
 /** Le mode `apercu` : ce qui partirait, sans rien envoyer ni réserver. */
 async function handleApercu(mois: string, type: TypeRappel | null) {
   const types: TypeRappel[] = type ? [type] : ['rappel', 'relance']
-  const reglage = await reglages(['app_url', 'rappels_boutiques_actifs'])
-  const base = baseLienBoutique(reglage.app_url)
+  const reglage = await reglages(['site_url', 'rappels_boutiques_actifs'])
+  const base = baseLienBoutique(reglage.site_url)
   const sortie = []
   for (const t of types) {
     const res = await lister(t, mois, { reserver: false, nouveaux: true })
@@ -141,8 +141,8 @@ async function handleApercu(mois: string, type: TypeRappel | null) {
 async function handleEssai(mois: string, typeDemande: TypeRappel | null, email: string) {
   if (!RESEND_API_KEY) return json({ error: 'RESEND_API_KEY absente' }, 500)
   const type: TypeRappel = typeDemande ?? 'rappel'
-  const reglage = await reglages(['app_url'])
-  const base = baseLienBoutique(reglage.app_url)
+  const reglage = await reglages(['site_url'])
+  const base = baseLienBoutique(reglage.site_url)
   const res = await lister(type, mois, { reserver: false, nouveaux: true })
   if (res.erreur) return json({ error: res.erreur }, 500)
 
@@ -172,8 +172,8 @@ async function handleEssai(mois: string, typeDemande: TypeRappel | null, email: 
 
 /** Le mode `quotidien` : le seul qui envoie à une boutique. Armé par un réglage. */
 async function handleQuotidien(mois: string, jour: number) {
-  const reglage = await reglages(['app_url', 'rappels_boutiques_actifs'])
-  const base = baseLienBoutique(reglage.app_url)
+  const reglage = await reglages(['site_url', 'rappels_boutiques_actifs'])
+  const base = baseLienBoutique(reglage.site_url)
   const dujour = typeRappelDuJour(jour)
 
   if (reglage.rappels_boutiques_actifs !== 'oui') {
@@ -187,7 +187,7 @@ async function handleQuotidien(mois: string, jour: number) {
   }
 
   if (!RESEND_API_KEY) return json({ error: 'RESEND_API_KEY absente' }, 500)
-  if (!base) return json({ error: "l'adresse de la page (reglages_produit.app_url) est introuvable" }, 500)
+  if (!base) return json({ error: "l'adresse de la page (reglages_produit.site_url) est introuvable" }, 500)
 
   const resultats = []
   for (const type of ['rappel', 'relance'] as TypeRappel[]) {

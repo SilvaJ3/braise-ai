@@ -43,4 +43,11 @@ describe('page boutique (public/boutique/index.html)', () => {
   it('n’envoie que des quantités strictement positives', () => {
     expect(page).toContain('q <= 0) continue')
   })
+
+  it('lit le jeton dans le chemin (`/boutique/<jeton>`), et garde les anciennes formes', () => {
+    expect(page).toContain('function jetonDeLAdresse()')
+    expect(page).toContain('segments.indexOf(\'boutique\')')
+    expect(page).toContain("new URLSearchParams(location.search).get('t')")
+    expect(page).toContain('location.hash.slice(1)')
+  })
 })
