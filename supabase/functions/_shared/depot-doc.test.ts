@@ -118,6 +118,20 @@ describe('mail', () => {
     expect(b).toContain('Note : Livré en main propre.')
     expect(b).toContain('Braaise')
   })
+
+  it('le lien de la boutique est dans le pied, une fois, et rien ne change sans lui', () => {
+    const sans = emailBody(doc())
+    expect(sans).not.toContain('boutique/?t=')
+
+    const lien = 'https://exemple.be/boutique/?t=abc123'
+    const avec = emailBody(doc(), { lien })
+    expect(avec).toContain(lien)
+    expect(avec).toContain('gardez-la')
+    // Le lien ne remplace rien : le corps d'avant est toujours là, dans l'ordre.
+    expect(avec.indexOf(lien)).toBeGreaterThan(avec.indexOf('Total (prix de vente TTC) : 165 €'))
+    expect(avec.indexOf(lien)).toBeLessThan(avec.indexOf('Pour toute question'))
+    expect(avec).toContain('Braaise')
+  })
 })
 
 describe('mode de vente', () => {

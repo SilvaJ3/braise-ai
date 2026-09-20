@@ -171,3 +171,81 @@ export function resumeReleve(r: ReleveBoutique): string {
 export function estNouveau(c: ContestationBoutique): boolean {
   return c.vu_le === null
 }
+
+/**
+ * Ce qu'une boutique attend de l'artisane — la matière de la notification dans l'app.
+ *
+ * Rien n'est stocké pour ça : tout se déduit de ce qui existe déjà (une déclaration au statut
+ * `declaree`, un bon jamais confirmé, un message non lu, une demande de réassort en attente). C'est
+ * le choix de l'app depuis le début — la cloche compte des faits, elle ne tient pas un journal de
+ * notifications. Conséquence assumée : une alerte traitée disparaît d'elle-même, et il n'y a rien
+ * à « marquer comme lu ».
+ */
+export type AlerteBoutique = {
+  boutiqueId: string
+  boutique: string
+  /** `releve` : à valider. `signalement` : un bon contesté. `reassort` : une demande. `bon` : à confirmer. */
+  quoi: 'releve' | 'signalement' | 'reassort' | 'bon'
+  texte: string
+}
+
+export function alertesBoutiques(
+  etats: BoutiqueEtat[],
+  demandes: { boutique_id: string | null }[] = [],
+): AlerteBoutique[] {
+  const out: AlerteBoutique[] = []
+
+  for (const e of etats) {
+    const aValider = e.declarations.filter((r) => r.statut === 'declaree')
+    if (aValider.length) {
+      out.push({
+        boutiqueId: e.id,
+        boutique: e.nom,
+        quoi: 'releve',
+        texte:
+          aValider.length === 1
+            ? `Un relevé de ${periodeLisible(aValider[0].periode)} à valider`
+            : `${aValider.length} relevés à valider`,
+      })
+    }
+    if (e.contestations_non_vues > 0) {
+      out.push({
+        boutiqueId: e.id,
+        boutique: e.nom,
+        quoi: 'signalement',
+        texte:
+          e.contestations_non_vues === 1
+            ? 'Elle a signalé un bon'
+            : `${e.contestations_non_vues} bons signalés`,
+      })
+    }
+    if (e.bons_en_attente_de_confirmation > 0) {
+      const n = e.bons_en_attente_de_confirmation
+      out.push({
+        boutiqueId: e.id,
+        boutique: e.nom,
+        quoi: 'bon',
+        texte: `${n} bon${n > 1 ? 's' : ''} en attente de sa confirmation`,
+      })
+    }
+  }
+
+  // Les demandes de réassort vivent dans les commandes (type `boutique`, statut `demande`) : elles
+  // arrivent déjà là où elle travaille, et la notification ne fait que le dire plus tôt.
+  const parBoutique = new Map<string, number>()
+  for (const c of demandes) {
+    if (c.boutique_id) parBoutique.set(c.boutique_id, (parBoutique.get(c.boutique_id) ?? 0) + 1)
+  }
+  for (const [id, nb] of parBoutique) {
+    const etat = etats.find((e) => e.id === id)
+    if (!etat) continue
+    out.push({
+      boutiqueId: id,
+      boutique: etat.nom,
+      quoi: 'reassort',
+      texte: nb === 1 ? 'Elle demande un réassort' : `${nb} demandes de réassort`,
+    })
+  }
+
+  return out
+}

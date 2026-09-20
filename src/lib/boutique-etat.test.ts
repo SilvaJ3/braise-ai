@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   STATUT_RELEVE_LABEL,
   TEXTE_ECART,
+  alertesBoutiques,
   estNouveau,
   jourDeIso,
   lienBoutiqueUrl,
@@ -9,6 +10,7 @@ import {
   periodeLisible,
   resumeReleve,
   totalRestant,
+  type BoutiqueEtat,
   type ContestationBoutique,
   type PieceBoutique,
   type ReleveBoutique,
@@ -160,5 +162,63 @@ describe('un signalement de la boutique', () => {
   it('est nouveau tant que l’artisane ne l’a pas ouvert', () => {
     expect(estNouveau(base)).toBe(true)
     expect(estNouveau({ ...base, vu_le: '2026-09-19T21:00:00+00:00' })).toBe(false)
+  })
+})
+
+describe('ce que les boutiques attendent', () => {
+  function etat(over: Partial<BoutiqueEtat> = {}): BoutiqueEtat {
+    return {
+      id: 'b1',
+      nom: 'Lära Concept Store',
+      mode: 'depot_vente',
+      jeton: 'jeton',
+      lien_actif: true,
+      bons_en_attente_de_confirmation: 0,
+      pieces: [],
+      declarations: [],
+      contestations: [],
+      contestations_non_vues: 0,
+      ...over,
+    }
+  }
+
+  it('rien à signaler quand tout est traité', () => {
+    expect(alertesBoutiques([etat()], [])).toEqual([])
+  })
+
+  it('un relevé reçu se voit, et se nomme par son mois', () => {
+    const a = alertesBoutiques([etat({ declarations: [releve({ periode: '2026-08-01' })] })], [])
+    expect(a).toHaveLength(1)
+    expect(a[0].quoi).toBe('releve')
+    expect(a[0].texte).toBe('Un relevé de août 2026 à valider')
+    expect(a[0].boutiqueId).toBe('b1')
+    expect(a[0].boutique).toBe('Lära Concept Store')
+  })
+
+  it('un relevé déjà validé ou écarté ne réclame plus rien', () => {
+    expect(alertesBoutiques([etat({ declarations: [releve({ statut: 'validee' })] })], [])).toEqual([])
+    expect(alertesBoutiques([etat({ declarations: [releve({ statut: 'corrigee' })] })], [])).toEqual([])
+  })
+
+  it('un bon à confirmer, un signalement non lu, une demande de réassort : trois alertes', () => {
+    const un = etat({
+      bons_en_attente_de_confirmation: 2,
+      contestations_non_vues: 1,
+    })
+    const a = alertesBoutiques([un], [{ boutique_id: 'b1' }])
+    expect(a.map((x) => x.quoi).sort()).toEqual(['bon', 'reassort', 'signalement'])
+    expect(a.find((x) => x.quoi === 'bon')?.texte).toBe('2 bons en attente de sa confirmation')
+    expect(a.find((x) => x.quoi === 'signalement')?.texte).toBe('Elle a signalé un bon')
+    expect(a.find((x) => x.quoi === 'reassort')?.texte).toBe('Elle demande un réassort')
+  })
+
+  it('une demande de réassort sans boutique connue ne fabrique pas d’alerte', () => {
+    expect(alertesBoutiques([etat()], [{ boutique_id: 'inconnue' }, { boutique_id: null }])).toEqual([])
+  })
+
+  it('les demandes d’une même boutique sont groupées', () => {
+    const a = alertesBoutiques([etat()], [{ boutique_id: 'b1' }, { boutique_id: 'b1' }])
+    expect(a).toHaveLength(1)
+    expect(a[0].texte).toBe('2 demandes de réassort')
   })
 })

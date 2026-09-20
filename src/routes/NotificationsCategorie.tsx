@@ -1,7 +1,7 @@
 import { AnimatePresence, motion, MotionConfig } from 'framer-motion'
 import { type ReactNode, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ChevronDownIcon, EyeIcon, FlameIcon, SparkleIcon, StoreIcon } from '../components/icons'
+import { ChevronDownIcon, ChevronRightIcon, EyeIcon, FlameIcon, SparkleIcon, StoreIcon } from '../components/icons'
 import { useBesoinsMatiere, fmtQty } from '../lib/atelier'
 import { useGenerateIdeas, useMarkSuggestion, useSuggestions } from '../lib/assistant'
 import { useBoutiques } from '../lib/boutiques'
@@ -10,14 +10,15 @@ import { fmtDateCourte } from '../lib/depots'
 import { logEvent } from '../lib/events'
 import { Highlight } from '../lib/highlight'
 import { MODE_LABEL, STATUS_LABEL } from '../lib/labels'
-import { useCommandesAAlerter, useDismissReminder, useDismissedReminders, useRappelsDus } from '../lib/notifications'
+import { useAlertesBoutiques, useCommandesAAlerter, useDismissReminder, useDismissedReminders, useRappelsDus } from '../lib/notifications'
 import { useSuiviMatiere } from '../lib/reglages'
 import type { AssistantSuggestion } from '../lib/supabase'
 
-type Categorie = 'rappels' | 'commandes' | 'atelier' | 'assistant'
+type Categorie = 'rappels' | 'commandes' | 'boutiques' | 'atelier' | 'assistant'
 const TITRES: Record<Categorie, string> = {
   rappels: 'Rappels',
   commandes: 'Commandes',
+  boutiques: 'Ce que tes boutiques attendent',
   atelier: 'Atelier',
   assistant: "L'assistant te propose",
 }
@@ -139,6 +140,30 @@ function CommandesDetail() {
           <span className="muted" style={{ display: 'block', margin: '6px 0 0' }}>
             Pour le {fmtDateCourte(c.date_echeance)}
             {c.type === 'boutique' ? ` · ${MODE_LABEL[boutiqueMode.get(c.boutique_id ?? '') ?? 'depot_vente']}` : ' · Commande personnelle'}
+          </span>
+        </Link>
+      ))}
+    </>
+  )
+}
+
+function BoutiquesDetail() {
+  const alertes = useAlertesBoutiques()
+
+  if (alertes.length === 0) return <p className="empty">Rien à traiter côté boutiques.</p>
+  return (
+    <>
+      {alertes.map((a) => (
+        // La fiche de la boutique fait le travail (valider un relevé, confirmer un bon, couper un
+        // lien) : la notification ne fait que dire qu'il y a quelque chose à y faire.
+        <Link className="card" key={`${a.boutiqueId}-${a.quoi}`} to={`/boutiques/${a.boutiqueId}`}>
+          <span className="row">
+            <strong>{a.boutique}</strong>
+            <span className="spacer" />
+            <ChevronRightIcon size={16} />
+          </span>
+          <span className="muted" style={{ display: 'block', margin: '6px 0 0' }}>
+            {a.texte}
           </span>
         </Link>
       ))}
@@ -271,6 +296,7 @@ export default function NotificationsCategorie() {
 
       {cat === 'rappels' && <RappelsDetail />}
       {cat === 'commandes' && <CommandesDetail />}
+      {cat === 'boutiques' && <BoutiquesDetail />}
       {cat === 'atelier' && <AtelierDetail />}
       {cat === 'assistant' && <AssistantDetail />}
     </>

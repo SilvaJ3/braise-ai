@@ -91,6 +91,13 @@ export function fmtDateCourte(iso: string): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso
 }
 
+/** "2026-09-01" → "septembre 2026". Une période illisible s'affiche telle quelle. */
+export function moisLisible(periode: string): string {
+  const m = /^(\d{4})-(\d{2})/.exec(periode ?? '')
+  if (!m) return periode ?? ''
+  return `${MOIS[Number(m[2]) - 1] ?? m[2]} ${m[1]}`
+}
+
 /** Montant en euros, format belge : 40 € / 12,50 € */
 export function fmtEuro(n: number): string {
   const v = Math.round((Number(n) + Number.EPSILON) * 100) / 100
@@ -129,7 +136,7 @@ export function emailSubject(doc: DepotDoc): string {
   return `${titreBon(doc.mode)}${ref} — ${doc.emetteur.nom || 'dépôt-vente'} — ${fmtDateCourte(doc.date_depot)}`
 }
 
-export function emailBody(doc: DepotDoc): string {
+export function emailBody(doc: DepotDoc, options?: { lien?: string }): string {
   const lignes = doc.lignes.map((l) => `  • ${l.designation} — ${fmtQte(l.quantite)} × ${fmtEuro(l.prix_unitaire)}`)
   const parts = [
     `Bonjour,`,
@@ -146,6 +153,17 @@ export function emailBody(doc: DepotDoc): string {
     MODE_MENTION[doc.mode],
   ]
   if (doc.notes?.trim()) parts.push('', `Note : ${doc.notes.trim()}`)
+  // Le lien de la boutique, dans le pied et toujours le même : c'est là qu'elle compte ses pièces
+  // et qu'elle demande un réassort. Un lien dans chaque mail serait du bruit ; le même à chaque
+  // fois devient une habitude (décision du 19/09).
+  if (options?.lien) {
+    parts.push(
+      '',
+      `Vos pièces, ce qu'il vous en reste, et vos demandes de réassort :`,
+      options.lien,
+      `C'est toujours la même adresse — gardez-la.`,
+    )
+  }
   parts.push(
     '',
     `Pour toute question, répondez simplement à ce message.`,
