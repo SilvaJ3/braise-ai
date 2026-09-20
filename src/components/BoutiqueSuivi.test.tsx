@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import type { BoutiqueEtat } from '../lib/boutique-etat'
+import type { BoutiqueEtat, ReleveAEmettre, ReleveEmis } from '../lib/boutique-etat'
 import type { Boutique } from '../lib/supabase'
 
 // L'écran de suivi est monté pour de vrai, avec des données réalistes, et on regarde le HTML
@@ -12,8 +12,10 @@ import type { Boutique } from '../lib/supabase'
 // Supabase, qui exige des variables d'environnement : ce banc d'essai ne doit demander ni base,
 // ni configuration.
 
-const { etatCourant } = vi.hoisted(() => ({
+const { etatCourant, releveCourant, emisCourants } = vi.hoisted(() => ({
   etatCourant: { valeur: null as unknown as BoutiqueEtat },
+  releveCourant: { valeur: null as ReleveAEmettre | null },
+  emisCourants: { valeur: [] as ReleveEmis[] },
 }))
 
 vi.mock('../lib/boutiques', () => ({
@@ -31,6 +33,16 @@ vi.mock('../lib/boutiques', () => ({
     error: null,
   }),
   useMarquerContestationVue: () => ({ mutate: vi.fn(), isPending: false }),
+}))
+
+// Le relevé facturable parle au réseau (fonction edge + table des relevés émis) : remplacé ici,
+// comme le reste. Ce qu'on vérifie, c'est ce qui s'écrit à l'écran.
+vi.mock('../lib/releves', () => ({
+  useReleveAEmettre: () => ({ data: releveCourant.valeur, isLoading: false, isError: false, error: null }),
+  useRelevesEmis: () => ({ data: emisCourants.valeur, isLoading: false, isError: false, error: null }),
+  useEmettreReleve: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false, isError: false, error: null }),
+  apercuReleve: vi.fn(),
+  urlPdfReleve: vi.fn(),
 }))
 
 vi.mock('../lib/depots', () => ({
@@ -86,9 +98,35 @@ function texte(html: string): string {
     .replace(/&amp;/g, '&')
 }
 
-function rendre(partiel: Partial<BoutiqueEtat> = {}, qui: Boutique = boutique): string {
+function rendre(
+  partiel: Partial<BoutiqueEtat> = {},
+  qui: Boutique = boutique,
+  releve: ReleveAEmettre | null = null,
+  emis: ReleveEmis[] = [],
+): string {
   etatCourant.valeur = etat(partiel)
+  releveCourant.valeur = releve
+  emisCourants.valeur = emis
   return texte(renderToStaticMarkup(<BoutiqueSuivi boutique={qui} />))
+}
+
+/** Ce que la base rend pour ce qu'il reste à facturer (forme de `releve_a_emettre()`). */
+function aFacturer(partiel: Partial<ReleveAEmettre> = {}): ReleveAEmettre {
+  return {
+    boutique: { id: 'b1', nom: boutique.nom, adresse: '10 rue des Rosiers, Paris', email: null, mode: 'depot_vente' },
+    lignes: [],
+    total_ventes: 0,
+    nb_pieces: 0,
+    nb_reprises: 0,
+    valeur_reprises: 0,
+    nb_declarations: 0,
+    a_valider: 0,
+    periode_debut: null,
+    periode_fin: null,
+    dernier_numero: null,
+    dernier_emis_le: null,
+    ...partiel,
+  }
 }
 
 describe('la fiche d’une boutique, côté artisane', () => {
@@ -310,5 +348,113 @@ describe('la fiche d’une boutique, côté artisane', () => {
     const html = rendre({}, { ...boutique, id: 'autre' })
 
     expect(html).toBe('')
+  })
+})
+
+describe('le relevé facturable, côté artisane', () => {
+  it('montre ce qui reste à facturer, pièce par pièce, et le total des ventes', () => {
+    const html = rendre(
+      {},
+      boutique,
+      aFacturer({
+        lignes: [
+          { cle: 'nom:bougie ambre', produit_id: null, designation: 'Bougie ambre', prix_unitaire: 28, ventes: 2, reprises: 0, montant: 56 },
+          { cle: 'nom:bougie cèdre', produit_id: null, designation: 'Bougie cèdre', prix_unitaire: 32, ventes: 1, reprises: 1, montant: 32 },
+        ],
+        total_ventes: 88,
+        nb_pieces: 3,
+        nb_reprises: 1,
+        valeur_reprises: 32,
+        nb_declarations: 1,
+        periode_debut: '2026-09-18',
+        periode_fin: '2026-09-18',
+      }),
+    )
+
+    expect(html).toContain('Relevé facturable')
+    expect(html).toContain('88 € à facturer')
+    expect(html).toContain('Bougie ambre')
+    expect(html).toContain('2 × 28 €')
+    expect(html).toContain('56 €')
+    expect(html).toContain('du 18/09/2026')
+    expect(html).toContain('1 relevé reçu')
+    expect(html).toContain('3 pièces vendues · 1 reprise (non facturée)')
+    // La reprise est montrée, et dite hors facturation.
+    expect(html).toContain('mouvement de stock, hors facturation')
+    // Ce que le document n'est pas.
+    expect(html).toContain("sert de base à la facture")
+    expect(html).toContain('>Voir le relevé<')
+    expect(html).toContain('>Émettre le relevé<')
+  })
+
+  it('prévient qu’un relevé reçu non validé compte quand même', () => {
+    const html = rendre(
+      {},
+      boutique,
+      aFacturer({
+        lignes: [{ cle: 'p', produit_id: null, designation: 'Fondant', prix_unitaire: 6, ventes: 1, reprises: 0, montant: 6 }],
+        total_ventes: 6,
+        nb_pieces: 1,
+        a_valider: 1,
+      }),
+    )
+
+    expect(html).toContain("Un relevé reçu n'est pas encore validé")
+    expect(html).toContain('comptent quand même dans ce montant')
+  })
+
+  it('ne propose rien à facturer quand rien n’a bougé', () => {
+    const html = rendre({}, boutique, aFacturer({ nb_declarations: 1 }))
+
+    expect(html).toContain("Rien à facturer pour l'instant")
+    expect(html).toContain('Le montant se construit avec ce qu’elle déclare'.replace('’', "'"))
+    expect(html).not.toContain('>Émettre le relevé<')
+  })
+
+  it('rappelle le dernier relevé émis, et laisse rouvrir son PDF', () => {
+    const html = rendre(
+      {},
+      boutique,
+      aFacturer({ dernier_numero: 'REL-2026-001', dernier_emis_le: '2026-09-20T08:00:00+00:00' }),
+      [
+        {
+          id: 'r1',
+          numero: 'REL-2026-001',
+          emis_le: '2026-09-20T08:00:00+00:00',
+          periode_debut: '2026-09-18',
+          periode_fin: '2026-09-18',
+          total_ventes: 88,
+          valeur_reprises: 32,
+          nb_declarations: 1,
+          pdf_path: 'u1/releves/releve-REL-2026-001.pdf',
+        },
+      ],
+    )
+
+    expect(html).toContain('dernier relevé : REL-2026-001')
+    expect(html).toContain('Relevés émis')
+    expect(html).toContain('REL-2026-001')
+    expect(html).toContain('20/09/2026')
+    expect(html).toContain('32 € de reprises, non facturées')
+    expect(html).toContain('Ouvrir le PDF')
+  })
+
+  it('dit la vérité quand le PDF d’un relevé émis n’a pas été rangé', () => {
+    const html = rendre({}, boutique, aFacturer(), [
+      {
+        id: 'r1',
+        numero: 'REL-2026-002',
+        emis_le: '2026-09-20T08:00:00+00:00',
+        periode_debut: '2026-09-18',
+        periode_fin: '2026-09-18',
+        total_ventes: 56,
+        valeur_reprises: 0,
+        nb_declarations: 1,
+        pdf_path: null,
+      },
+    ])
+
+    expect(html).toContain("Le PDF n'a pas été rangé")
+    expect(html).not.toContain('Ouvrir le PDF')
   })
 })

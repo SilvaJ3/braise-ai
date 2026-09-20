@@ -8,6 +8,7 @@
 // `reste` ici n'est que le résultat du calcul fait côté base (déposé + entré − vendu − repris).
 
 import type { ModeVente } from '../../supabase/functions/_shared/depot-doc'
+import type { ReleveLigne } from '../../supabase/functions/_shared/releve-doc'
 
 export type PieceBoutique = {
   cle: string
@@ -92,6 +93,7 @@ export const MESSAGES_ERREUR: Record<string, string> = {
   lien_invalide: "Ce lien n'est plus valable.",
   bon_inconnu: "Ce bon n'est pas rattaché à cette boutique.",
   message_vide: 'Il manque le message.',
+  rien_a_facturer: 'Rien à facturer : aucune vente déclarée depuis le dernier relevé.',
 }
 
 export function messageErreur(code: string): string {
@@ -248,4 +250,42 @@ export function alertesBoutiques(
   }
 
   return out
+}
+
+// --- Le relevé facturable (0063) --------------------------------------------------------------
+//
+// Ce que l'artisane peut facturer à une boutique aujourd'hui : les déclarations reçues depuis le
+// dernier relevé, agrégées pièce par pièce. La forme est celle rendue par `releve_a_emettre()` ;
+// les phrases viennent de `_shared/releve-doc.ts`, partagées avec le PDF — l'écran et le document
+// ne peuvent pas dire deux choses différentes.
+
+export type ReleveAEmettre = {
+  boutique: { id: string; nom: string; adresse: string | null; email: string | null; mode: ModeVente }
+  lignes: ReleveLigne[]
+  total_ventes: number
+  nb_pieces: number
+  nb_reprises: number
+  valeur_reprises: number
+  nb_declarations: number
+  /** Déclarations comptées pas encore validées : elles comptent, l'écran le dit. */
+  a_valider: number
+  periode_debut: string | null
+  periode_fin: string | null
+  /** Le dernier relevé émis pour cette boutique, s'il y en a un. */
+  dernier_numero: string | null
+  dernier_emis_le: string | null
+}
+
+/** Un relevé déjà émis : le document remis, tel qu'il a été figé. */
+export type ReleveEmis = {
+  id: string
+  numero: string
+  emis_le: string
+  periode_debut: string
+  periode_fin: string
+  total_ventes: number
+  valeur_reprises: number
+  nb_declarations: number
+  /** Chemin du PDF rangé (bucket `depots`), null si le rangement a échoué. */
+  pdf_path: string | null
 }

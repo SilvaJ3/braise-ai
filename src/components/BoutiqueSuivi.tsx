@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { apercuReleve, useEmettreReleve, useReleveAEmettre, useRelevesEmis, urlPdfReleve } from '../lib/releves'
 import {
   STATUT_RELEVE_EXPLICATION,
   STATUT_RELEVE_LABEL,
@@ -18,6 +19,14 @@ import {
   useMesBoutiquesEtat,
 } from '../lib/boutiques'
 import { fmtDateCourte, fmtEuro, fmtQte } from '../lib/depots'
+import {
+  LIBELLE_TOTAL,
+  MENTION_RELEVE,
+  avertissements,
+  couvertureReleve,
+  libellePeriode,
+  resumeVentes,
+} from '../../supabase/functions/_shared/releve-doc'
 import type { Boutique } from '../lib/supabase'
 import Skeleton from './Skeleton'
 
@@ -46,6 +55,7 @@ export default function BoutiqueSuivi({ boutique }: { boutique: Boutique }) {
       <Stock boutique={boutique} etat={etat} />
       <Signale etat={etat} />
       <Releves etat={etat} />
+      <ReleveFacturable boutique={boutique} />
       <Lien boutique={boutique} etat={etat} />
     </>
   )
@@ -261,6 +271,204 @@ function Releves({ etat }: { etat: BoutiqueEtat }) {
           )}
         </div>
       ))}
+    </>
+  )
+}
+
+/**
+ * Ce qu'elle peut facturer à cette boutique, et le document qui le dit.
+ *
+ * Le calcul vient de la base (`releve_a_emettre`, migration 0063), pas d'un second calcul dans
+ * l'écran : le montant affiché ici et celui du PDF sont le même. Émettre est un acte — le relevé
+ * reçoit un numéro et ces ventes ne comptent plus dans le suivant — donc il se confirme.
+ */
+function ReleveFacturable({ boutique }: { boutique: Boutique }) {
+  const releve = useReleveAEmettre(boutique.id)
+  const emis = useRelevesEmis(boutique.id)
+  const emettre = useEmettreReleve()
+  const [apercu, setApercu] = useState<{ url: string; filename: string } | null>(null)
+  const [busy, setBusy] = useState<'' | 'apercu' | 'emission'>('')
+  const [erreur, setErreur] = useState<string | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (apercu) URL.revokeObjectURL(apercu.url)
+    }
+  }, [apercu])
+
+  async function voir() {
+    setBusy('apercu')
+    setErreur(null)
+    try {
+      if (apercu) URL.revokeObjectURL(apercu.url)
+      const r = await apercuReleve(boutique.id)
+      setApercu({ url: r.url, filename: r.filename })
+    } catch (e) {
+      setErreur((e as Error).message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function emettreLe() {
+    if (
+      !confirm(
+        `Émettre le relevé de « ${boutique.nom} » ? Il reçoit un numéro, et ces ventes ne seront plus comptées dans le prochain relevé.`,
+      )
+    ) {
+      return
+    }
+    setBusy('emission')
+    setErreur(null)
+    try {
+      if (apercu) URL.revokeObjectURL(apercu.url)
+      const r = await emettre.mutateAsync(boutique.id)
+      setApercu({ url: r.url, filename: r.filename })
+    } catch (e) {
+      setErreur((e as Error).message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function ouvrir(path: string) {
+    const url = await urlPdfReleve(path)
+    if (url) window.open(url, '_blank', 'noreferrer')
+  }
+
+  const données = releve.data
+  const total = données?.total_ventes ?? 0
+  const avertissements_ = données ? avertissements(données) : []
+
+  return (
+    <>
+      <h2>Relevé facturable</h2>
+
+      {releve.isLoading && <Skeleton rows={2} />}
+      {releve.isError && <p className="muted">{(releve.error as Error).message}</p>}
+
+      {données && (
+        <div className="card">
+          <div className="row">
+            <strong>
+              {total > 0 ? `${fmtEuro(total)} à facturer` : "Rien à facturer pour l'instant"}
+            </strong>
+            <span className="spacer" />
+            {données.dernier_numero && (
+              <span className="badge">dernier relevé : {données.dernier_numero}</span>
+            )}
+          </div>
+
+          {données.lignes.length === 0 ? (
+            <p className="muted" style={{ margin: '8px 0 0' }}>
+              Le montant se construit avec ce qu'elle déclare. Un relevé émis repart de zéro pour la
+              période suivante.
+            </p>
+          ) : (
+            <>
+              <p className="muted" style={{ margin: '6px 0 0' }}>
+                {libellePeriode(données)} · {couvertureReleve(données)} · {resumeVentes(données)}
+              </p>
+
+              {données.lignes.map((l) => (
+                <div className="row" key={`${l.cle}-${l.prix_unitaire}`} style={{ marginTop: 6 }}>
+                  <span>{l.designation}</span>
+                  <span className="muted">
+                    {' '}
+                    {fmtQte(l.ventes)} × {fmtEuro(l.prix_unitaire)}
+                  </span>
+                  <span className="spacer" />
+                  <strong>{fmtEuro(l.montant)}</strong>
+                </div>
+              ))}
+
+              {données.nb_reprises > 0 && (
+                <p className="muted" style={{ margin: '8px 0 0' }}>
+                  {fmtQte(données.nb_reprises)} reprise{données.nb_reprises > 1 ? 's' : ''} (
+                  {fmtEuro(données.valeur_reprises)}) : mouvement de stock, hors facturation.
+                </p>
+              )}
+
+              {avertissements_.map((a) => (
+                <p className="muted" key={a} style={{ margin: '6px 0 0' }}>
+                  {a}
+                </p>
+              ))}
+
+              <div className="row" style={{ marginTop: 10 }}>
+                <button disabled={busy !== ''} onClick={voir}>
+                  {busy === 'apercu' ? '…' : 'Voir le relevé'}
+                </button>
+                <button disabled={busy !== '' || total <= 0} onClick={emettreLe}>
+                  {busy === 'emission' ? '…' : 'Émettre le relevé'}
+                </button>
+                <div className="spacer" />
+                <span className="muted">{LIBELLE_TOTAL}</span>
+              </div>
+
+              <p className="muted" style={{ margin: '8px 0 0' }}>
+                {MENTION_RELEVE}
+              </p>
+            </>
+          )}
+
+          {erreur && (
+            <p className="muted" style={{ margin: '8px 0 0', color: 'var(--accent)' }}>
+              {erreur}
+            </p>
+          )}
+        </div>
+      )}
+
+      {apercu && (
+        <div className="card">
+          <div className="row">
+            <strong>{apercu.filename}</strong>
+            <div className="spacer" />
+            <a href={apercu.url} target="_blank" rel="noreferrer">
+              Ouvrir ↗
+            </a>
+            <button className="link" onClick={() => setApercu(null)}>
+              Fermer
+            </button>
+          </div>
+          <iframe
+            title="Relevé facturable"
+            src={apercu.url}
+            style={{ width: '100%', height: 520, marginTop: 8, border: 0 }}
+          />
+        </div>
+      )}
+
+      {(emis.data?.length ?? 0) > 0 && (
+        <>
+          <h2>Relevés émis</h2>
+          {emis.data?.map((r) => (
+            <div className="card" key={r.id}>
+              <div className="row">
+                <strong>{r.numero}</strong>
+                <span className="muted">· le {jourDeIso(r.emis_le)}</span>
+                <span className="spacer" />
+                <strong>{fmtEuro(r.total_ventes)}</strong>
+              </div>
+              <p className="muted" style={{ margin: '6px 0 0' }}>
+                {libellePeriode(r)} · {couvertureReleve(r)}
+                {r.valeur_reprises > 0 &&
+                  ` · ${fmtEuro(r.valeur_reprises)} de reprises, non facturées`}
+              </p>
+              {r.pdf_path ? (
+                <button className="link" onClick={() => ouvrir(r.pdf_path as string)}>
+                  Ouvrir le PDF
+                </button>
+              ) : (
+                <p className="muted" style={{ margin: '6px 0 0' }}>
+                  Le PDF n'a pas été rangé — le relevé, lui, est bien émis.
+                </p>
+              )}
+            </div>
+          ))}
+        </>
+      )}
     </>
   )
 }
