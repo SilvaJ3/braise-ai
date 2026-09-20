@@ -101,16 +101,25 @@ export function messageErreur(code: string): string {
 }
 
 /**
- * L'adresse que la boutique ouvre. Le jeton est la seule authentification, il tient dans l'URL :
- * c'est aussi pour ça qu'il se coupe d'un clic (`couper_lien_boutique`) sans rien perdre des
- * pièces ni de l'historique.
+ * L'adresse que la boutique ouvre — **une seule, pour tout le monde**.
  *
- * `base` n'est là que pour les tests : en vrai, on prend l'origine de la page courante — la
- * préversion Vercel aussi bien que braaise.io.
+ * Le jeton est la seule authentification, il tient dans l'URL : c'est aussi pour ça qu'il se coupe
+ * d'un clic (`couper_lien_boutique`) sans rien perdre des pièces ni de l'historique.
+ *
+ * Elle ne suit plus l'origine de la page courante : une artisane sur une préversion Vercel, un mail
+ * parti du serveur et le lien déjà chez la boutique doivent porter la **même** adresse, sinon la
+ * boutique en garde deux. C'est `https://www.braaise.io/boutique/<jeton>` (sans `www`, le site
+ * redirige). Le serveur fabrique exactement la même (`supabase/functions/_shared/lien-boutique.ts`,
+ * base `reglages_produit.site_url`), et les deux suites de tests l'affirment sur la même chaîne.
+ *
+ * `origine` n'est là que pour les tests.
  */
-export function lienBoutiqueUrl(jeton: string, base?: string): string {
-  const origine = base ?? (typeof location === 'undefined' ? '' : location.origin)
-  return `${origine.replace(/\/+$/, '')}/boutique/?t=${encodeURIComponent(jeton)}`
+export const ORIGINE_BOUTIQUE = 'https://www.braaise.io'
+
+export function lienBoutiqueUrl(jeton: string, origine: string = ORIGINE_BOUTIQUE): string {
+  const base = String(origine ?? '').trim().replace(/\/+$/, '')
+  const j = String(jeton ?? '').trim()
+  return j ? `${base}/boutique/${encodeURIComponent(j)}` : base
 }
 
 function arrondi(n: number): number {
