@@ -8,7 +8,7 @@ import {
   type PartenaireRappel,
 } from './rappel-boutique'
 
-const LIEN = 'https://braise-ai.vercel.app/boutique/?t=jeton-de-demonstration'
+const LIEN = 'https://www.braaise.io/boutique/jeton-de-demonstration'
 
 function partenaire(over: Partial<PartenaireRappel> = {}): PartenaireRappel {
   return {

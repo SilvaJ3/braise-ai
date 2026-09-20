@@ -199,10 +199,12 @@ async function lienDeLaBoutique(userId: string, boutiqueId: string | null): Prom
   const jeton = (data as { jeton?: string } | null)?.jeton
   if (!jeton) return ''
 
+  // Le lien de la boutique pointe le **site** (celui qui sert la page), pas l'app : c'est la seule
+  // adresse que la boutique garde — voir `_shared/lien-boutique.ts`.
   const { data: reglage } = await admin
     .from('reglages_produit')
     .select('valeur')
-    .eq('cle', 'app_url')
+    .eq('cle', 'site_url')
     .maybeSingle()
   const base = baseLienBoutique(reglage?.valeur as string | undefined)
   return base ? lienBoutique(base, jeton) : ''

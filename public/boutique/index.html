@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Le jeton est dans l'adresse : cette page ne doit jamais se retrouver dans un moteur. -->
+<meta name="robots" content="noindex, nofollow">
 <title>Vos pièces en dépôt</title>
 <style>
 /* La page que la boutique ouvre depuis son lien. Aucun compte, aucun mot de passe : le jeton de
@@ -97,7 +99,20 @@ const CLE_PUBLIQUE = 'sb_publishable_k-84JsMb8QmX70s6Gh3FGw_iaEc-hyE'
 const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2')
 const supabase = createClient(SUPABASE_URL, CLE_PUBLIQUE)
 
-const jeton = new URLSearchParams(location.search).get('t') || location.hash.slice(1)
+/* Le jeton vient du chemin : `/boutique/<jeton>` est l'adresse définitive. Les deux autres formes
+   restent lues — les liens déjà transmis à une boutique ne doivent pas mourir. */
+function jetonDeLAdresse() {
+  const segments = location.pathname.split('/').filter(Boolean)
+  const apres = segments.indexOf('boutique') + 1
+  const dansLeChemin = apres > 0 ? (segments[apres] || '') : ''
+  const utile = dansLeChemin === 'index.html' ? '' : dansLeChemin
+  try {
+    return decodeURIComponent(utile || new URLSearchParams(location.search).get('t') || location.hash.slice(1))
+  } catch {
+    return utile || new URLSearchParams(location.search).get('t') || location.hash.slice(1)
+  }
+}
+const jeton = jetonDeLAdresse()
 const contenu = document.getElementById('contenu')
 const $ = (id) => document.getElementById(id)
 const echapper = (t) => String(t ?? '').replace(/[&<>"']/g, (c) =>

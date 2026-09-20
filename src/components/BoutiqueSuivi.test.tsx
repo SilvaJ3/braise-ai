@@ -273,7 +273,7 @@ describe('la fiche d’une boutique, côté artisane', () => {
   it('donne le lien à transmettre, et de quoi le couper', () => {
     const html = rendre()
 
-    expect(html).toContain(`/boutique/?t=${JETON}`)
+    expect(html).toContain(`https://www.braaise.io/boutique/${JETON}`)
     expect(html).toContain('Copier le lien')
     expect(html).toContain("Couper l'accès")
     // Ce que le lien n'est pas : un document contractuel.
