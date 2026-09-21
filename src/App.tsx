@@ -16,6 +16,7 @@ import CompteMonCompte from './routes/CompteMonCompte'
 import CompteMotDePasse from './routes/CompteMotDePasse'
 import CompteNotifications from './routes/CompteNotifications'
 import Commande from './routes/Commande'
+import Demandes from './routes/Demandes'
 import Depot from './routes/Depot'
 import Inscription from './routes/Inscription'
 import Login from './routes/Login'
@@ -83,6 +84,9 @@ export default function App() {
         <Route path="/compte/apparence" element={<CompteApparence />} />
         <Route path="/compte/notifications" element={<CompteNotifications />} />
         <Route path="/compte/mot-de-passe" element={<CompteMotDePasse />} />
+        {/* Réservé à l'administration : la garde est dans l'écran, et le serveur refuse de toute
+            façon de rendre les demandes à un compte qui n'administre pas. */}
+        <Route path="/compte/demandes" element={<Demandes />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <BottomNav />

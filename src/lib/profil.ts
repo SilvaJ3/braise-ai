@@ -2,7 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from './supabase'
 import { functionErrorMessage } from './push'
 import type { FrequenceAbonnement } from './abonnement'
+import type { ActionDemande, DemandeAcces } from './demandes-acces'
 import type { Plan, UsageMois } from '../../supabase/functions/_shared/compte'
+import type { ResultatValidation } from '../../supabase/functions/_shared/demande-acces'
 
 // Profil de compte : ce que le tunnel d'accueil remplit, et ce que l'assistant lit pour savoir à
 // qui il parle. Distinct de la « voix de marque » (texte libre, éditable dans Compte), qui vit
@@ -156,5 +158,73 @@ export function useOuvrirPortail() {
       if (error) throw new Error(await functionErrorMessage(error))
       return (data as { url?: string | null } | null)?.url ?? null
     },
+  })
+}
+
+/**
+ * Ce compte administre-t-il le produit ? Le serveur seul le sait (`est_admin()`, migration 0065) :
+ * l'écran ne décide pas qui a le droit de voir les demandes, il demande.
+ *
+ * Une erreur compte pour « non » : un écran d'administration qui s'ouvre par défaut sur un doute
+ * vaut moins qu'une ligne de menu qui manque.
+ */
+export function useEstAdmin() {
+  return useQuery({
+    queryKey: ['est-admin'],
+    staleTime: 10 * 60_000,
+    queryFn: async (): Promise<boolean> => {
+      const { data, error } = await supabase.rpc('est_admin')
+      if (error) throw error
+      return data === true
+    },
+  })
+}
+
+/**
+ * Les demandes d'accès, lues par un administrateur (`demandes_acces_admin()`, migration 0065).
+ * La table elle-même n'est lisible par personne côté client : c'est la fonction qui décide, et
+ * elle rend le jeton des demandes encore à traiter — c'est lui qui permet d'agir.
+ */
+export function useDemandesAcces(actif = true) {
+  return useQuery({
+    queryKey: ['demandes-acces'],
+    enabled: actif,
+    queryFn: async (): Promise<DemandeAcces[]> => {
+      const { data, error } = await supabase.rpc('demandes_acces_admin', { p_limite: 50 })
+      if (error) throw error
+      return (data ?? []) as DemandeAcces[]
+    },
+  })
+}
+
+/**
+ * Valider ou refuser une demande. Le geste passe par l'edge function `demande-acces` — le même
+ * chemin que le bouton du mail — et non par une écriture en base : c'est elle qui crée
+ * l'invitation nominative, applique le plafond des places de fondateur et envoie le lien.
+ *
+ * Le jeton voyage dans l'adresse (`?t=`), la forme que la fonction connaît ; l'action est le seul
+ * champ du formulaire.
+ */
+export function useTraiterDemande() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      action,
+      jeton,
+    }: {
+      action: ActionDemande
+      jeton: string
+    }): Promise<ResultatValidation> => {
+      const form = new FormData()
+      form.set('action', action)
+      const { data, error } = await supabase.functions.invoke(
+        `demande-acces?t=${encodeURIComponent(jeton)}`,
+        { body: form },
+      )
+      if (error) throw new Error(await functionErrorMessage(error))
+      return data as ResultatValidation
+    },
+    // L'écran relit la liste plutôt que de deviner le nouvel état : c'est la base qui tranche.
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['demandes-acces'] }),
   })
 }

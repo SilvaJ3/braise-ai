@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { ChevronRightIcon, LogoutIcon } from '../components/icons'
 import { useAuth } from '../lib/auth'
+import { useEstAdmin } from '../lib/profil'
 import { supabase } from '../lib/supabase'
 
 // Menu d'ensemble : chaque réglage a sa propre page, pour que celle-ci reste courte.
@@ -13,8 +14,18 @@ const ENTREES = [
   { to: '/compte/mot-de-passe', label: 'Mot de passe', hint: 'Changer ton mot de passe' },
 ]
 
+// Une entrée qui n'existe que pour l'administration : le serveur seul dit qui administre
+// (`est_admin()`), donc la ligne apparaît après sa réponse — jamais par défaut.
+const ENTREE_ADMIN = {
+  to: '/compte/demandes',
+  label: 'Demandes d’accès',
+  hint: 'Valider ou refuser sans passer par le mail',
+}
+
 export default function Compte() {
   const { session } = useAuth()
+  const admin = useEstAdmin()
+  const entrees = admin.data === true ? [...ENTREES, ENTREE_ADMIN] : ENTREES
 
   return (
     <>
@@ -22,7 +33,7 @@ export default function Compte() {
       <p className="muted">{session?.user.email}</p>
 
       <div className="card" style={{ padding: 0 }}>
-        {ENTREES.map((e, i) => (
+        {entrees.map((e, i) => (
           <Link
             key={e.to}
             to={e.to}
