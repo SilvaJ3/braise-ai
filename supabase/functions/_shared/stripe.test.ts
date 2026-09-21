@@ -5,6 +5,7 @@ import {
   euros,
   frequenceValide,
   montantEffectif,
+  parametresSession,
   prendLeCompte,
   prixPour,
   statutDepuisStripe,
@@ -161,5 +162,58 @@ describe('l’écriture des montants', () => {
     expect(euros(39000)).toBe('390 €')
     expect(euros(2950)).toBe('29,50 €')
     expect(euros(null)).toBeNull()
+  })
+})
+
+describe('les paramètres de la session de paiement', () => {
+  const base = {
+    frequence: 'mois' as const,
+    ids: IDS,
+    client: 'cus_essai',
+    utilisateurId: 'user_1',
+    url: 'https://braise-ai.vercel.app',
+    plan: 'mensuel' as unknown,
+  }
+
+  it('demande la TVA à Stripe — c’est la décision du 21/09', () => {
+    expect(parametresSession(base).automatic_tax).toEqual({ enabled: true })
+  })
+
+  it('enregistre l’adresse saisie sur le client, sinon les renouvellements ne sont pas taxés', () => {
+    expect(parametresSession(base).customer_update).toEqual({ address: 'auto' })
+    expect(parametresSession(base).customer).toBe('cus_essai')
+  })
+
+  it('prend le prix de la fréquence choisie', () => {
+    expect(parametresSession({ ...base, frequence: 'an' }).line_items).toEqual([
+      { price: 'price_annuel', quantity: 1 },
+    ])
+    expect(parametresSession(base).line_items).toEqual([{ price: 'price_mensuel', quantity: 1 }])
+  })
+
+  it('n’applique le coupon fondateur qu’au mensuel d’un fondateur', () => {
+    expect(parametresSession({ ...base, plan: 'fondateur' }).discounts).toEqual([
+      { coupon: 'coupon_fondateur' },
+    ])
+    expect(parametresSession({ ...base, plan: 'fondateur', frequence: 'an' }).discounts).toBeUndefined()
+    expect(parametresSession({ ...base, plan: 'mensuel' }).discounts).toBeUndefined()
+  })
+
+  it('rattache la session et l’abonnement au compte connecté', () => {
+    const p = parametresSession(base)
+    expect(p.client_reference_id).toBe('user_1')
+    expect(p.subscription_data).toEqual({ metadata: { user_id: 'user_1' } })
+  })
+
+  it('revient au bon endroit selon que le paiement aboutit ou non', () => {
+    const p = parametresSession(base)
+    expect(p.success_url).toBe('https://braise-ai.vercel.app/compte/mon-compte?paiement=ok')
+    expect(p.cancel_url).toBe('https://braise-ai.vercel.app/compte/mon-compte?paiement=annule')
+  })
+
+  it('supporte une adresse d’application terminée par une barre oblique', () => {
+    const p = parametresSession({ ...base, url: 'https://braise-ai.vercel.app/' })
+    expect(p.success_url).toBe('https://braise-ai.vercel.app/compte/mon-compte?paiement=ok')
+    expect(p.cancel_url).toBe('https://braise-ai.vercel.app/compte/mon-compte?paiement=annule')
   })
 })

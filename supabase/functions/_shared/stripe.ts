@@ -133,3 +133,68 @@ export function euros(centimes: number | null | undefined): string | null {
   const entier = centimes / 100
   return Number.isInteger(entier) ? `${entier} €` : `${entier.toFixed(2).replace('.', ',')} €`
 }
+
+/**
+ * Les paramètres de la session de paiement, assemblés ici — donc vérifiables sans clé, sans compte
+ * et sans réseau, comme le reste de ce fichier.
+ *
+ * Deux réglages ne sont pas décoratifs :
+ *  · `automatic_tax` — la TVA est calculée par Stripe d'après l'adresse du client et les
+ *    enregistrements fiscaux du compte (décision de JSB du 21/09) ;
+ *  · `customer_update.address: 'auto'` — sans lui, l'adresse saisie dans le tunnel sert au premier
+ *    paiement puis est jetée, et les factures de renouvellement repartent à zéro de taxe. C'est la
+ *    fiche client qu'il faut remplir, pas seulement la session.
+ *
+ * Ce que la TVA vaut réellement ne se décide pas ici : cela dépend des réglages fiscaux du compte
+ * (`/v1/tax/settings`) et du `tax_behavior` des prix. Le 22/09, mesuré : les deux prix sont en
+ * `tax_behavior: unspecified` et le compte n'a ni siège ni enregistrement — la taxe calculée est
+ * donc nulle (3 900 → 3 900 centimes). Voir `stripe-taxe-2026-09-22.md`.
+ */
+export type ParametresSession = {
+  mode: 'subscription'
+  customer: string
+  customer_update: { address: 'auto' }
+  automatic_tax: { enabled: boolean }
+  line_items: Array<{ price: string; quantity: number }>
+  discounts?: Array<{ coupon: string }>
+  client_reference_id: string
+  subscription_data: { metadata: { user_id: string } }
+  success_url: string
+  cancel_url: string
+}
+
+/**
+ * L'adresse de retour du tunnel, pour ne pas l'écrire deux fois — et pour que l'adresse de
+ * l'application, quelle que soit la façon dont elle est saisie en base, ne donne jamais `//` dans
+ * l'URL de retour (Stripe refuse une `success_url` malformée, et l'erreur serait obscure).
+ */
+export function adresseRetour(url: string, retour: 'ok' | 'annule'): string {
+  return `${url.replace(/\/+$/, '')}/compte/mon-compte?paiement=${retour}`
+}
+
+export function parametresSession(opts: {
+  frequence: Frequence
+  ids: IdentifiantsStripe
+  client: string
+  utilisateurId: string
+  url: string
+  plan: unknown
+}): ParametresSession {
+  return {
+    mode: 'subscription',
+    customer: opts.client,
+    // L'adresse saisie dans le tunnel est enregistrée sur le client Stripe : c'est elle qui portera
+    // la TVA des factures suivantes.
+    customer_update: { address: 'auto' },
+    automatic_tax: { enabled: true },
+    line_items: [{ price: prixPour(opts.frequence, opts.ids), quantity: 1 }],
+    // Le tarif fondateur est appliqué tout seul : il n'y a pas de code à saisir.
+    discounts: appliqueCouponFondateur(opts.plan, opts.frequence)
+      ? [{ coupon: opts.ids.couponFondateur }]
+      : undefined,
+    client_reference_id: opts.utilisateurId,
+    subscription_data: { metadata: { user_id: opts.utilisateurId } },
+    success_url: adresseRetour(opts.url, 'ok'),
+    cancel_url: adresseRetour(opts.url, 'annule'),
+  }
+}

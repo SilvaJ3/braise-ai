@@ -3,7 +3,9 @@
 // Le Checkout est hébergé par Stripe : la carte ne traverse jamais notre code, et l'application n'a
 // donc pas besoin de clé publique. Ce qui se décide ici, et seulement ici :
 //   · quel prix — mensuel ou annuel, selon ce que la personne a choisi ;
-//   · si le tarif fondateur s'applique — abonnement mensuel d'un compte `fondateur` uniquement.
+//   · si le tarif fondateur s'applique — abonnement mensuel d'un compte `fondateur` uniquement ;
+//   · la TVA — `automatic_tax` demandée à Stripe, et l'adresse saisie enregistrée sur le client
+//     pour que les renouvellements soient taxés eux aussi (décision de JSB du 21/09).
 //
 // Un client Stripe est créé au premier paiement puis réutilisé : c'est lui qui permet au webhook de
 // retrouver le compte.
@@ -12,12 +14,7 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@17'
-import {
-  appliqueCouponFondateur,
-  frequenceValide,
-  prixPour,
-  type IdentifiantsStripe,
-} from '../_shared/stripe.ts'
+import { frequenceValide, parametresSession, type IdentifiantsStripe } from '../_shared/stripe.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -104,20 +101,19 @@ Deno.serve(async (req) => {
     }
   }
 
-  const fondateur = appliqueCouponFondateur(profil?.plan, frequence)
-
   try {
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      customer: client,
-      line_items: [{ price: prixPour(frequence, ids), quantity: 1 }],
-      // Le tarif fondateur est appliqué tout seul : il n'y a pas de code à saisir.
-      discounts: fondateur ? [{ coupon: ids.couponFondateur }] : undefined,
-      client_reference_id: utilisateur.id,
-      subscription_data: { metadata: { user_id: utilisateur.id } },
-      success_url: `${url}/compte/mon-compte?paiement=ok`,
-      cancel_url: `${url}/compte/mon-compte?paiement=annule`,
-    })
+    // Les paramètres sont assemblés dans `_shared/stripe.ts` (donc testés sans réseau) ; ici, il ne
+    // reste que l'appel.
+    const session = await stripe.checkout.sessions.create(
+      parametresSession({
+        frequence,
+        ids,
+        client,
+        utilisateurId: utilisateur.id,
+        url,
+        plan: profil?.plan,
+      }),
+    )
     if (!session.url) {
       console.error('[stripe-checkout] session sans adresse', session.id)
       return json({ erreur: 'Le paiement n’a pas pu être ouvert.' }, 502)
