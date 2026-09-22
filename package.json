@@ -7,10 +7,11 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "migrations": "node scripts/verifier-migrations.mjs",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "npm run lint && npm run typecheck && npm run test",
+    "check": "npm run lint && npm run migrations && npm run typecheck && npm run test",
     "preview": "vite preview"
   },
   "dependencies": {
