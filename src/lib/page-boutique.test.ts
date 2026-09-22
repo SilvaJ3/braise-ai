@@ -72,4 +72,31 @@ describe('page boutique (public/boutique/index.html)', () => {
     expect(jetonDe('https://www.braaise.io/boutique/a%2Bb%2Fc')).toBe('a+b/c')
     expect(jetonDe('https://www.braaise.io/boutique/%E0%A4%A')).toBe('%E0%A4%A')
   })
+
+  /**
+   * Le sélecteur « − nombre + » : la demande de JSB du 22/09 — le champ doit avoir EXACTEMENT la
+   * dimension des deux boutons et être complètement arrondi. C'est une règle de feuille de style,
+   * donc rien ne la casse en silence : sans ce contrôle, une reprise de la mise en page remettrait
+   * un champ plus large sans que personne ne le voie.
+   */
+  it('donne au champ la dimension exacte des deux boutons, et un cercle complet', () => {
+    const bloc = page.slice(page.indexOf('<style>'), page.indexOf('</style>'))
+    const regle = (selecteur: string) => {
+      const depart = bloc.indexOf(selecteur)
+      expect(depart, `règle absente : ${selecteur}`).toBeGreaterThan(-1)
+      return bloc.slice(depart, bloc.indexOf('}', depart))
+    }
+    const dimension = (r: string) => {
+      const large = r.match(/width:(\d+)px/)
+      const haut = r.match(/(?:;|{)height:(\d+)px/)
+      return `${large?.[1]}x${haut?.[1]}`
+    }
+    for (const [bouton, champ] of [
+      ['.pas button{', '.pas input[type=number]{'],
+      ['.pas.mini button{', '.pas.mini input[type=number]{'],
+    ] as const) {
+      expect(dimension(regle(champ)), `champ ${champ}`).toBe(dimension(regle(bouton)))
+      expect(regle(champ)).toContain('border-radius:999px')
+    }
+  })
 })
