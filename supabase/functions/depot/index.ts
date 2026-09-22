@@ -23,6 +23,7 @@ import {
 import { renderDepotPdf } from '../_shared/depot-pdf.ts'
 import { baseLienBoutique, lienBoutique } from '../_shared/lien-boutique.ts'
 import { envoyerMail } from '../_shared/mailer.ts'
+import { construirePresentation, fautPresenter } from '../_shared/presentation-boutique.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -170,6 +171,11 @@ const toBase64 = (bytes: Uint8Array): string => {
   return btoa(s)
 }
 
+/** Le lien d'une boutique, et l'adresse à laquelle il appartient (c'est elle qui reçoit le mail). */
+type LienBoutique = { url: string; email: string }
+
+const SANS_LIEN: LienBoutique = { url: '', email: '' }
+
 /**
  * L'adresse de la boutique, telle qu'elle la retrouvera dans le pied du mail. Le lien est créé au
  * premier bon (c'est la même logique que le bouton « Copier le lien » de l'écran) — SAUF si
@@ -177,8 +183,8 @@ const toBase64 = (bytes: Uint8Array): string => {
  *
  * Une adresse introuvable ne bloque pas l'envoi : le mail part sans lien, et le dit.
  */
-async function lienDeLaBoutique(userId: string, boutiqueId: string | null): Promise<string> {
-  if (!boutiqueId) return ''
+async function lienDeLaBoutique(userId: string, boutiqueId: string | null): Promise<LienBoutique> {
+  if (!boutiqueId) return SANS_LIEN
 
   const { data: partenaire } = await admin
     .from('boutique_lien_partenaires')
@@ -186,7 +192,7 @@ async function lienDeLaBoutique(userId: string, boutiqueId: string | null): Prom
     .eq('user_id', userId)
     .eq('boutique_id', boutiqueId)
     .maybeSingle()
-  if (partenaire && partenaire.actif === false) return ''
+  if (partenaire && partenaire.actif === false) return SANS_LIEN
 
   const { data, error } = await admin.rpc('lien_boutique_assurer', {
     p_user: userId,
@@ -194,10 +200,11 @@ async function lienDeLaBoutique(userId: string, boutiqueId: string | null): Prom
   })
   if (error) {
     console.error('lien_boutique_assurer', error.message)
-    return ''
+    return SANS_LIEN
   }
   const jeton = (data as { jeton?: string } | null)?.jeton
-  if (!jeton) return ''
+  const email = String((data as { email?: string } | null)?.email ?? '').trim().toLowerCase()
+  if (!jeton) return { url: '', email }
 
   // Le lien de la boutique pointe le **site** (celui qui sert la page), pas l'app : c'est la seule
   // adresse que la boutique garde — voir `_shared/lien-boutique.ts`.
@@ -207,7 +214,65 @@ async function lienDeLaBoutique(userId: string, boutiqueId: string | null): Prom
     .eq('cle', 'site_url')
     .maybeSingle()
   const base = baseLienBoutique(reglage?.valeur as string | undefined)
-  return base ? lienBoutique(base, jeton) : ''
+  return { url: base ? lienBoutique(base, jeton) : '', email }
+}
+
+/**
+ * Le mail de présentation, la première fois que le lien d'une boutique existe — c'est-à-dire au
+ * premier bon qu'on lui envoie.
+ *
+ * POURQUOI ICI, et pas à l'armement des rappels : le lien naît à ce moment-là (le pied du bon le
+ * porte déjà), et la décision du 20/09/2026 est qu'aucune boutique ne reçoive un rappel mensuel
+ * avant d'avoir vu ce que c'est. Le geste de l'artisan (envoyer le bon) est ce qui déclenche, il n'y
+ * a donc rien de nouveau à armer ni à cliquer ; et la preuve d'envoi vit sur le lien
+ * (`boutique_liens.presentation_envoyee_le`, migration 0066), jamais dans la mémoire du serveur.
+ *
+ * Deux choses que ce n'est pas : ce n'est pas un motif d'échec pour le bon (le bon, lui, est déjà
+ * parti et reste acquis), et ce n'est pas une deuxième présentation — un envoi réussi ferme la
+ * porte pour de bon.
+ */
+async function presenterLaBoutique(lien: LienBoutique, doc: DepotDoc): Promise<void> {
+  // Sans clé d'envoi il n'y a pas de présentation possible — et surtout pas d'échec à remonter :
+  // le bon, lui, est déjà parti.
+  if (!lien.email || !RESEND_API_KEY) return
+
+  const { data: ligne, error } = await admin
+    .from('boutique_liens')
+    .select('id, presentation_envoyee_le')
+    .eq('email', lien.email)
+    .maybeSingle()
+  if (error) {
+    // Sans le marqueur (0066 non appliquée), on ne présente pas plutôt que deux fois : l'absence de
+    // preuve n'est pas une permission d'envoyer.
+    console.error('présentation boutique : marqueur indisponible', error.message)
+    return
+  }
+  if (!ligne || !fautPresenter(lien.url, ligne.presentation_envoyee_le as string | null)) return
+
+  const mail = construirePresentation({
+    artisan: doc.emetteur.nom,
+    boutique: doc.boutique_nom,
+    lien: lien.url,
+  })
+  await envoyerMail(
+    { apiKey: RESEND_API_KEY, domain: MAIL_DOMAIN },
+    {
+      fromName: doc.emetteur.nom || 'Suivi des dépôts',
+      replyTo: doc.emetteur.email || undefined,
+      // L'adresse du lien, pas celles du bon : c'est la boutique qui a reçu le lien qui le reçoit.
+      to: [lien.email],
+      subject: mail.subject,
+      text: mail.text,
+      html: mail.html,
+    },
+  )
+
+  // La date n'est posée qu'après l'envoi : un échec laisse la présentation possible au bon suivant,
+  // là où un marqueur posé d'avance l'aurait perdue pour de bon.
+  await admin
+    .from('boutique_liens')
+    .update({ presentation_envoyee_le: new Date().toISOString() })
+    .eq('id', ligne.id)
 }
 
 /**
@@ -324,8 +389,11 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>): Pro
     })
     .eq('id', row.id)
 
+  // Le lien est lu (et créé) avant l'envoi du bon : c'est lui qui portera la présentation, et un
+  // échec du mail du bon ne doit pas non plus faire perdre la création du lien.
+  let lien: LienBoutique = SANS_LIEN
   try {
-    const lien = await lienDeLaBoutique(userId, row.boutique_id)
+    lien = await lienDeLaBoutique(userId, row.boutique_id)
     await envoyerMail(
       { apiKey: RESEND_API_KEY, domain: MAIL_DOMAIN },
       {
@@ -335,7 +403,7 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>): Pro
         to,
         cc,
         subject: emailSubject(doc),
-        text: emailBody(doc, { lien }),
+        text: emailBody(doc, { lien: lien.url }),
         attachments: [{ filename: pdfFilename(doc), base64: toBase64(pdf) }],
       },
     )
@@ -350,6 +418,16 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>): Pro
     .from('depots')
     .update({ statut: 'envoye', sent_at: new Date().toISOString(), send_error: null })
     .eq('id', row.id)
+
+  // Le bon est parti : la boutique sait qu'elle a des pièces chez elle, et elle découvre le lien
+  // dans son pied. On lui explique l'outil maintenant — pas au premier rappel, qui arriverait sans
+  // introduction (décision du 20/09/2026). En échec, on le dit dans le journal et le bon suivant
+  // réessaiera : la présentation n'a jamais le droit de faire échouer l'envoi du bon.
+  try {
+    await presenterLaBoutique(lien, doc)
+  } catch (e) {
+    console.error('présenter la boutique', String((e as Error).message ?? e).slice(0, 300))
+  }
 
   return json({ numero: doc.numero, sent_to: [...to, ...cc], pdf_path: upErr ? null : path })
 }
