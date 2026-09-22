@@ -111,6 +111,11 @@ Deno.serve(async (req) => {
       mode: 'subscription',
       customer: client,
       line_items: [{ price: prixPour(frequence, ids), quantity: 1 }],
+      // Le prix est en euros et doit s'afficher en euros. Sans ce verrou, Stripe adapte la devise
+      // au pays qu'il croit deviner chez le visiteur : la page de paiement a affiché « CA$48,45 »
+      // pour un prix de 3 900 cents, alors que la base écrivait bien 2 900 (constat du 20/09/2026).
+      // Ce qu'on vérifie n'est pas la ligne de code mais la session relue en mode test.
+      adaptive_pricing: { enabled: false },
       // Le tarif fondateur est appliqué tout seul : il n'y a pas de code à saisir.
       discounts: fondateur ? [{ coupon: ids.couponFondateur }] : undefined,
       client_reference_id: utilisateur.id,
