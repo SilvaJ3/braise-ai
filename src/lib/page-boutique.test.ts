@@ -98,5 +98,8 @@ describe('page boutique (public/boutique/index.html)', () => {
       expect(dimension(regle(champ)), `champ ${champ}`).toBe(dimension(regle(bouton)))
       expect(regle(champ)).toContain('border-radius:999px')
     }
+    // Le nombre doit être centré pour de vrai : Chromium réserve sinon la place des flèches natives
+    // du champ « number », et le chiffre part de 7 px vers la gauche (constaté au pixel).
+    expect(regle('.pas input[type=number]{')).toContain('appearance:textfield')
   })
 })

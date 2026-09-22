@@ -57,10 +57,16 @@ select{width:100%;padding:10px;border:1px solid #cfd4cb;border-radius:8px;font:i
   color:var(--vert);font-size:17px;line-height:1;padding:0;display:flex;align-items:center;
   justify-content:center;cursor:pointer}
 .pas button.plus{background:var(--vert);color:#fff}
-/* Le champ a exactement la dimension des deux boutons : trois pastilles rondes de 36 px. Un carré
-   de 36 px avec 999 px de rayon est un cercle, et le nombre s'y centre tout seul. */
-.pas input[type=number]{width:36px;height:36px;min-height:36px;text-align:center;padding:0;
-  font-size:16px;border-radius:999px}
+/* Trois pastilles rondes de 36 px : le champ a exactement la dimension des deux boutons, et un carré
+   de 36 px avec 999 px de rayon est un cercle.
+   `appearance` remis à zéro — sans ça, Chromium réserve la place des petites flèches natives du champ
+   « number » et le nombre se décale de 7 px vers la gauche (mesuré au pixel sur la capture, pas à
+   l'œil). Ces flèches ne servent à rien ici : la page a ses deux boutons. */
+.pas input[type=number]{-webkit-appearance:none;-moz-appearance:textfield;appearance:textfield;
+  width:36px;height:36px;min-height:36px;text-align:center;padding:0;font-size:16px;
+  border-radius:999px}
+.pas input[type=number]::-webkit-outer-spin-button,
+.pas input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .pas.mini{gap:6px}
 .pas.mini button{width:30px;height:30px;font-size:15px}
 .pas.mini input[type=number]{width:30px;height:30px;min-height:30px;padding:0;font-size:15px;
