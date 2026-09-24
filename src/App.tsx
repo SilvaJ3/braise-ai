@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import BottomNav from './components/BottomNav'
 import NotificationBell from './components/NotificationBell'
 import { useAuth } from './lib/auth'
+import { useMonCompteBoutique } from './lib/compte-boutique'
 import { useProfilCompte } from './lib/profil'
 import Assistant from './routes/Assistant'
 import Atelier from './routes/Atelier'
@@ -18,6 +19,9 @@ import CompteNotifications from './routes/CompteNotifications'
 import Commande from './routes/Commande'
 import Demandes from './routes/Demandes'
 import Depot from './routes/Depot'
+import EspaceBoutique from './routes/EspaceBoutique'
+import EspaceFournisseur from './routes/EspaceFournisseur'
+import EspaceFournisseurReste from './routes/EspaceFournisseurReste'
 import Inscription from './routes/Inscription'
 import Login from './routes/Login'
 import Marche from './routes/Marche'
@@ -29,6 +33,9 @@ import Planning from './routes/Planning'
 export default function App() {
   const { session, loading } = useAuth()
   const profil = useProfilCompte(Boolean(session))
+  // Un compte de boutique n'a pas de profil d'artisan : c'est la même application, deux espaces.
+  // La question n'est posée qu'une fois connecté, et sa réponse décide de tout ce qui suit.
+  const boutique = useMonCompteBoutique(Boolean(session))
 
   if (loading) return <p className="muted">Chargement…</p>
   if (!session) {
@@ -37,6 +44,27 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/inscription" element={<Inscription />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    )
+  }
+
+  // Tant qu'on ne sait pas à qui l'on parle, on n'ouvre rien : afficher le tunnel d'accueil à une
+  // boutique puis le retirer sous ses yeux serait pire que deux dixièmes de seconde d'attente.
+  if (boutique.isLoading) return <p className="muted">Chargement…</p>
+
+  // L'espace de la boutique : quatre écrans, pas un de plus, et aucune barre de navigation
+  // d'artisan (elle mène à un atelier qui n'existe pas ici). Toute autre adresse ramène à ses
+  // fournisseurs — une boutique n'a rien à faire dans les écrans de l'atelier.
+  if (boutique.data?.ok) {
+    return (
+      <Routes>
+        <Route path="/espace-boutique" element={<EspaceBoutique />} />
+        <Route path="/espace-boutique/fournisseur/:partenaireId" element={<EspaceFournisseur />} />
+        <Route
+          path="/espace-boutique/fournisseur/:partenaireId/reste"
+          element={<EspaceFournisseurReste />}
+        />
+        <Route path="*" element={<Navigate to="/espace-boutique" replace />} />
       </Routes>
     )
   }
