@@ -118,7 +118,7 @@ function useSuggestionsCount(): number {
 }
 
 /**
- * Ce que les boutiques attendent de l'artisane : un relevé à valider, un bon à confirmer, un
+ * Ce que les boutiques attendent de l'artisan : un relevé à valider, un bon à confirmer, un
  * message à lire, un réassort à traiter. Rien n'est envoyé ni stocké pour ça — la cloche le déduit
  * de ce qui existe déjà (voir `alertesBoutiques`), comme le reste de ses notifications.
  */

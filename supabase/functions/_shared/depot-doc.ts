@@ -19,7 +19,7 @@ export type DepotLigne = {
 
 /**
  * Mode de vente du point de vente. Le bon ne dit pas la même chose dans les deux cas :
- * en dépôt-vente les articles restent à l'artisane et seuls les articles vendus sont facturés ;
+ * en dépôt-vente les articles restent à l'artisan et seuls les articles vendus sont facturés ;
  * en achat ferme la boutique achète à la remise, et le total est un montant livré, pas une
  * valeur de vente à venir. Le mode est figé sur le bon à l'émission (colonne `depots.mode`).
  */

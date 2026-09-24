@@ -294,7 +294,7 @@ tableau articles / qté / prix TTC, renvoi aux conditions générales du contrat
   les CDN et `npm:pdf-lib` serait disproportionné. Sortie validée en test par relecture pdf.js.
 - **Mail** : envoyé par le **service de l'app** (Resend sur le domaine `braaise.io`), pièce
   jointe PDF, destinataire pré-rempli avec le contact de la boutique et modifiable, copie à
-  l'artisane. Expéditeur fixe `no-reply@braaise.io` (même adresse pour tous les comptes),
+  l'artisan. Expéditeur fixe `no-reply@braaise.io` (même adresse pour tous les comptes),
   `Reply-To` vers son adresse pour que les réponses lui reviennent. Aucun réglage technique
   demandé à l'utilisateur — c'est la raison de ce choix plutôt qu'une connexion à sa propre
   boîte. Voir README → « Envoi des mails ».
@@ -308,7 +308,7 @@ tableau articles / qté / prix TTC, renvoi aux conditions générales du contrat
 
 **Point juridique à trancher (non bloquant).** La signature tactile est une *signature
 électronique simple* au sens eIDAS : recevable comme preuve, mais contestable — la charge de
-prouver son intégrité revient à l'artisane. Pour un bon de dépôt B2B entre commerçants, c'est
+prouver son intégrité revient à l'artisan. Pour un bon de dépôt B2B entre commerçants, c'est
 l'usage courant et suffisant en pratique. Ce qui la renforce déjà ici : horodatage serveur,
 PDF archivé, copie envoyée aux deux parties le jour même. Aller plus loin (itsme, signature
 qualifiée) serait un chantier à part. **À confirmer avec un juriste avant tout litige : cette

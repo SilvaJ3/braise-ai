@@ -6,15 +6,15 @@
 -- sans la pièce, ou ne partait pas du tout.
 --
 -- Ce que fait cette migration :
---   1. `boutique_etat` rend en plus le CATALOGUE — les produits actifs de l'artisane que cette
+--   1. `boutique_etat` rend en plus le CATALOGUE — les produits actifs de l'artisan que cette
 --      boutique n'a jamais eus (nom, prix, clé). Signature inchangée, la page en ligne continue de
 --      fonctionner : elle ignore simplement une clé qu'elle ne lit pas.
 --   2. `boutique_commander` accepte une clé « produit:<uuid> » résolue dans `produits` (actif, de
---      CETTE artisane) avant de retomber sur le chemin d'origine, et pose `deja_en_stock` à faux
---      explicitement (une nouveauté est à produire, sauf si l'artisane en a déjà en stock).
+--      CET artisan) avant de retomber sur le chemin d'origine, et pose `deja_en_stock` à faux
+--      explicitement (une nouveauté est à produire, sauf si l'artisan en a déjà en stock).
 --
 -- Aucune signature ne change, aucun écran existant ne casse : une boutique ne voit que le
--- catalogue de SON artisane, et seulement les produits actifs.
+-- catalogue de SON artisan, et seulement les produits actifs.
 
 -- --- 1. Le catalogue, dans l'état que la boutique reçoit déjà ---------------------------------
 CREATE OR REPLACE FUNCTION public.boutique_etat(jeton_param text)
@@ -66,7 +66,7 @@ begin
               coalesce('produit:' || dl.produit_id::text, 'nom:' || lower(btrim(dl.designation))),
               d.date_depot desc, dl.position desc
   ), catalogue as (
-    -- Les produits ACTIFS de l'artisane que cette boutique n'a encore jamais eus : de quoi demander
+    -- Les produits ACTIFS de l'artisan que cette boutique n'a encore jamais eus : de quoi demander
     -- une pièce qu'elle n'a jamais reçue (tester une nouveauté). Ce qu'elle a déjà est plus haut,
     -- dans la liste des pièces, avec la quantité de la dernière fois.
     select p.partenaire_id,
@@ -101,7 +101,7 @@ begin
                           order by l.position), '[]'::jsonb)
                           from public.depot_lignes l where l.depot_id = d.id),
              -- Signalé par la boutique : elle dit que ce bon ne correspond pas. Le bon, lui,
-             -- n'est pas modifié ; c'est à l'artisane de trancher.
+             -- n'est pas modifié ; c'est à l'artisan de trancher.
              'conteste', exists (select 1 from public.bon_contestations c
                                   where c.depot_id = d.id and c.vu_le is null),
              'message_conteste', (select c.message from public.bon_contestations c
@@ -185,7 +185,7 @@ begin
   v_echeance := current_date + make_interval(weeks => coalesce(v_delai, 2));
 
   -- La demande devient une commande boutique ordinaire, au premier de ses statuts : elle arrive
-  -- là où l'artisane travaille déjà.
+  -- là où l'artisan travaille déjà.
   insert into public.commandes (user_id, type, boutique_id, date_echeance, statut, notes)
   values (v_user, 'boutique', v_boutique, v_echeance, 'demande', nullif(trim(note_param), ''))
   returning id into v_id;
@@ -202,7 +202,7 @@ begin
     v_designation := null;
     v_pid := null;
 
-    -- Le CATALOGUE d'abord : « produit:<uuid> » désigne un produit actif de l'artisane, même si
+    -- Le CATALOGUE d'abord : « produit:<uuid> » désigne un produit actif de l'artisan, même si
     -- cette boutique ne l'a jamais reçu — c'est le cas « je voudrais tester cette nouveauté ».
     if v_cle ~ '^produit:[0-9a-fA-F-]{36}$' then
       select pr.nom, pr.id into v_designation, v_pid

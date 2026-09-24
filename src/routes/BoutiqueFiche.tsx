@@ -29,7 +29,7 @@ export default function BoutiqueFiche() {
   if (!boutique) return <p className="empty">Boutique introuvable.</p>
 
   // Un bon envoyé mais pas encore confirmé par la boutique : c'est le compte qui manque le plus
-  // souvent à l'artisane, il est écrit là où elle cherche ses bons.
+  // souvent à l'artisan, il est écrit là où il cherche ses bons.
   const bonsEnAttente = depots.filter(
     (d) => !d.archived_at && d.statut !== 'brouillon' && !d.confirme_le,
   ).length

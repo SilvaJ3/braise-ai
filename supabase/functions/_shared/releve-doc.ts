@@ -1,4 +1,4 @@
-// Modèle du relevé facturable : ce que l'artisane facture à une boutique, et ce qu'elle ne facture
+// Modèle du relevé facturable : ce que l'artisan facture à une boutique, et ce qu'elle ne facture
 // pas. TypeScript pur — les mêmes phrases et les mêmes totaux servent au PDF (releve-pdf.ts) et à
 // l'écran de l'app, qui ne doivent jamais dire deux choses différentes.
 //
@@ -15,7 +15,7 @@ export type ReleveLigne = {
   prix_unitaire: number
   /** Ce qui a été vendu, chez elle, pour cette pièce à ce prix-là. */
   ventes: number
-  /** Ce que l'artisane a repris : mouvement de stock, hors facturation. */
+  /** Ce que l'artisan a repris : mouvement de stock, hors facturation. */
   reprises: number
   /** ventes × prix — zéro pour une ligne de reprises seules. */
   montant: number
@@ -41,7 +41,7 @@ export type ReleveDoc = {
   nb_reprises: number
   valeur_reprises: number
   nb_declarations: number
-  /** Déclarations comptées que l'artisane n'a pas encore validées — dit à l'écran, pas sur le PDF. */
+  /** Déclarations comptées que l'artisan n'a pas encore validées — dit à l'écran, pas sur le PDF. */
   a_valider: number
 }
 

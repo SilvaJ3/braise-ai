@@ -12,7 +12,7 @@ import {
 const cfg = { apiKey: 're_test', domain: 'braaise.io' }
 const mail = {
   fromName: 'Braaise',
-  replyTo: 'artisane@gmail.com',
+  replyTo: 'artisan@gmail.com',
   to: ['contact@laboutique.be'],
   subject: 'Bon de dépôt n° 2026-001',
   text: 'Bonjour',
@@ -47,7 +47,7 @@ describe('envoyerMail', () => {
     const spy = stubFetch(() => new Response(JSON.stringify({ id: 'msg_1' }), { status: 200 }))
     const r = await envoyerMail(cfg, {
       ...mail,
-      cc: ['artisane@gmail.com'],
+      cc: ['artisan@gmail.com'],
       attachments: [{ filename: 'bon.pdf', base64: 'QUJD' }],
     })
     expect(r.id).toBe('msg_1')
@@ -56,12 +56,12 @@ describe('envoyerMail', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer re_test')
     const body = JSON.parse(init.body as string)
     expect(body.from).toBe('Braaise <no-reply@braaise.io>')
-    expect(body.reply_to).toBe('artisane@gmail.com')
-    expect(body.cc).toEqual(['artisane@gmail.com'])
+    expect(body.reply_to).toBe('artisan@gmail.com')
+    expect(body.cc).toEqual(['artisan@gmail.com'])
     expect(body.attachments).toEqual([{ filename: 'bon.pdf', content: 'QUJD' }])
   })
 
-  it('l’expéditeur ne dépend pas du compte : même adresse pour deux artisanes différentes', async () => {
+  it('l’expéditeur ne dépend pas du compte : même adresse pour deux artisans différents', async () => {
     const spy = stubFetch(() => new Response('{"id":"x"}', { status: 200 }))
     await envoyerMail(cfg, { ...mail, fromName: 'Bougies du Nord' })
     const body = JSON.parse(spy.mock.calls[0][1].body as string)

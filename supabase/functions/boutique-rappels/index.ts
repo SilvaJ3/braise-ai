@@ -2,7 +2,7 @@
 //
 // Ce que cette fonction NE fait pas, et c'est le principal : elle n'envoie rien tant que le
 // réglage `rappels_boutiques_actifs` (`reglages_produit`) ne vaut pas 'oui'. Un cron qui existe et
-// n'envoie rien est plus honnête qu'un envoi décidé à la place de l'artisane.
+// n'envoie rien est plus honnête qu'un envoi décidé à la place de l'artisan.
 //
 // Elle est appelée par pg_cron (07:00 UTC, tous les jours) avec l'en-tête `x-cron-secret`, vérifié
 // en base (`verify_cron_secret`) comme le fait la fonction `push` depuis 0003. Le jour décide de

@@ -1,7 +1,7 @@
 -- 0043 — Mode de vente par boutique : dépôt-vente ou achat ferme.
 --
 -- Le bon de dépôt ne disait rien de la règle commerciale : le même document servait au
--- dépôt-vente (les articles restent à l'artisane, elle ne facture que ce qui est vendu) et à
+-- dépôt-vente (les articles restent à l'artisan, il ne facture que ce qui est vendu) et à
 -- l'achat ferme (la boutique achète à la remise), avec un « Total (prix de vente TTC) » qui se
 -- lit comme une valeur indicative dans un cas et comme un montant dû dans l'autre. La seule
 -- mention possible était `profil_entreprise.mention_signature`, unique pour tout le compte et

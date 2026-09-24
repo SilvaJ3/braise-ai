@@ -89,7 +89,7 @@ export default function Depot() {
     )
   }, [existant.data])
 
-  // Nouveau bon : destinataire = contact de la boutique, copie = adresse de l'artisane.
+  // Nouveau bon : destinataire = contact de la boutique, copie = adresse de l'artisan.
   useEffect(() => {
     if (depotId || !boutique) return
     setDestinataires((d) => d || boutique.email || '')

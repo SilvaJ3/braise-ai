@@ -5,7 +5,7 @@
 --   1. `lien_boutique_assurer(user, boutique)` — la logique de `mon_lien_boutique`, extraite pour
 --      que le BON puisse lui aussi retrouver le lien de la boutique : le mail du bon portera
 --      désormais l'adresse que la boutique gardera. `mon_lien_boutique` continue de rendre le même
---      jsonb au même public (l'artisane) ; l'interne, lui, n'est appelable qu'en service_role —
+--      jsonb au même public (l'artisan) ; l'interne, lui, n'est appelable qu'en service_role —
 --      sinon n'importe quel compte connecté pourrait fabriquer un lien pour la boutique d'un autre.
 --
 --   2. `rappels_boutiques_a_envoyer(type, mois, reserver)` — ce qu'il faut dire à une boutique, et
@@ -47,7 +47,7 @@ begin
 
   if v_email is null or v_email = '' then
     -- À défaut d'adresse sur la fiche, on prend celle à laquelle ses bons sont partis : c'est la
-    -- même boutique, et l'artisane n'a rien à ressaisir.
+    -- même boutique, et l'artisan n'a rien à ressaisir.
     select lower(btrim(coalesce(nullif(d.boutique_email, ''), d.email_to[1])))
       into v_email
       from public.depots d
@@ -76,7 +76,7 @@ begin
 end;
 $$;
 
--- Côté artisane : la même chose, mais l'artisane vient de sa session, jamais d'un paramètre.
+-- Côté artisan : la même chose, mais l'artisan vient de sa session, jamais d'un paramètre.
 create or replace function public.mon_lien_boutique(boutique_param uuid)
 returns jsonb
 language plpgsql
@@ -181,7 +181,7 @@ begin
            coalesce(m.entrees_mois, 0) as entrees_mois,
            -- Ce qu'il lui reste d'après nos comptes : déposé + reçu sans bon − vendu − repris.
            -- Jamais négatif : un compte négatif voudrait dire qu'une déclaration dépasse ce qui a
-           -- été déposé, et l'app le signale déjà à l'artisane (0052).
+           -- été déposé, et l'app le signale déjà à l'artisan (0052).
            greatest(coalesce(d.quantite, 0) + coalesce(m.entre_cumul, 0)
                     - coalesce(m.vendu_cumul, 0) - coalesce(m.repris_cumul, 0), 0) as restant,
            exists (select 1 from public.declarations_ventes dv

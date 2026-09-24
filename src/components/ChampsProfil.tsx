@@ -33,7 +33,7 @@ export function ChampsActivite({ valeurs, onChange }: Props) {
         id="metier"
         value={valeurs.metier}
         onChange={(e) => onChange({ metier: e.target.value })}
-        placeholder="céramiste, savonnière, illustratrice, bougies…"
+        placeholder="céramiste, savonnier, illustrateur, bougies…"
         maxLength={80}
         required
       />

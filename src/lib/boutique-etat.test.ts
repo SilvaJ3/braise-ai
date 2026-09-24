@@ -159,7 +159,7 @@ describe('un signalement de la boutique', () => {
     vu_le: null,
   }
 
-  it('est nouveau tant que l’artisane ne l’a pas ouvert', () => {
+  it('est nouveau tant que l’artisan ne l’a pas ouvert', () => {
     expect(estNouveau(base)).toBe(true)
     expect(estNouveau({ ...base, vu_le: '2026-09-19T21:00:00+00:00' })).toBe(false)
   })

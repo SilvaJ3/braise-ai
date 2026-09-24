@@ -2,7 +2,7 @@
 --
 -- Jusqu'ici `assistant_profil` ne portait qu'un texte libre (la « voix de marque »), et le profil
 -- de secours de l'assistant était codé en dur dans l'edge function : « Tu assistes Alexandra,
--- artisane qui fabrique des bougies ». Un artisan qui s'inscrivait recevait donc la voix de marque
+-- artisan qui fabrique des bougies ». Un artisan qui s'inscrivait recevait donc la voix de marque
 -- de quelqu'un d'autre, et l'assistant lui parlait de bougies.
 --
 -- On ajoute ici ce que l'onboarding va recueillir (activité, nom commercial, lieu) et la date de

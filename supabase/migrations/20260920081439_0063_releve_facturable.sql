@@ -1,7 +1,7 @@
 -- 0063 — Le relevé facturable : de « elle a vendu » à « voici ce que tu factures ».
 --
 -- Jusqu'ici la déclaration produisait un montant, et rien de plus : pour facturer la boutique il
--- fallait rouvrir un tableur. Cette migration ferme la boucle côté artisane, en deux gestes :
+-- fallait rouvrir un tableur. Cette migration ferme la boucle côté artisan, en deux gestes :
 --
 --   1. `releve_a_emettre(boutique)` dit ce qui reste à facturer : les déclarations reçues depuis le
 --      dernier relevé, jamais écartées, agrégées pièce par pièce et par prix. Les reprises y figurent mais sont
@@ -16,7 +16,7 @@
 -- Choix assumés, écrits ici pour ne pas les redécouvrir :
 --   · un relevé sans aucune vente est refusé (`rien_a_facturer`) : un document à 0 € n'apprend rien
 --     à personne, et il consommerait les déclarations comptées ;
---   · une déclaration encore « à valider » compte quand même (l'artisane émet en connaissance de
+--   · une déclaration encore « à valider » compte quand même (l'artisan émet en connaissance de
 --     cause), mais le compte est rendu (`a_valider`) pour que l'écran puisse le dire ;
 --   · les déclarations écartées (`corrigee`) ne comptent jamais.
 

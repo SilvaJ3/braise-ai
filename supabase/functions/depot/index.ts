@@ -1,5 +1,5 @@
 // Bon de dépôt (V4) : génère le PDF signé, le range dans Storage et l'envoie par mail à la
-// boutique (copie à l'artisane). Le PDF et l'envoi vivent ici : la clé du service de mail
+// boutique (copie à l'artisan). Le PDF et l'envoi vivent ici : la clé du service de mail
 // ne quitte jamais le serveur.
 //
 // Modes :
@@ -173,7 +173,7 @@ const toBase64 = (bytes: Uint8Array): string => {
 /**
  * L'adresse de la boutique, telle qu'elle la retrouvera dans le pied du mail. Le lien est créé au
  * premier bon (c'est la même logique que le bouton « Copier le lien » de l'écran) — SAUF si
- * l'accès a été coupé exprès : un bon ne doit pas rouvrir en douce ce que l'artisane a fermé.
+ * l'accès a été coupé exprès : un bon ne doit pas rouvrir en douce ce que l'artisan a fermé.
  *
  * Une adresse introuvable ne bloque pas l'envoi : le mail part sans lien, et le dit.
  */

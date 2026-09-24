@@ -15,7 +15,7 @@ Mobile-first, PWA installable sur iPhone. Voir `specs/` pour la vision et la roa
 - **Atelier** (V3, en cours) : matières premières (stock, seuil, fournisseur), fournisseurs,
   **import par IA** d'un Excel / CSV / PDF / photo vers bougies, matières, fournisseurs ou boutiques.
 - **Bons de dépôt** (V4) : bon signé au doigt sur le téléphone, PDF généré et envoyé par mail
-  à la boutique (copie à l'artisane), archivé dans Supabase Storage.
+  à la boutique (copie à l'artisan), archivé dans Supabase Storage.
 - **Assistant** (V7) : chat d'idées, bilan hebdo, alertes stock et relances.
 
 Détail et reste à faire : `ROADMAP.md`.
