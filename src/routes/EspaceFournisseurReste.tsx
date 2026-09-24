@@ -27,7 +27,7 @@ export default function EspaceFournisseurReste() {
       <p className="muted" style={{ marginTop: 4 }}>
         <Link to={`/espace-boutique/fournisseur/${fournisseur.partenaire_id}`}>‹ Ses dépôts</Link>
       </p>
-      <h1 style={{ marginTop: 8 }}>Ce qui reste de {nom}</h1>
+      <h1 style={{ marginTop: 8 }}>Chez {nom} : ce qui te reste</h1>
       <p className="muted" style={{ marginTop: 0 }}>
         {quantite(total)} pièce{total > 1 ? 's' : ''} encore chez toi
       </p>

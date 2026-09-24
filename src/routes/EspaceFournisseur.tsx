@@ -19,6 +19,18 @@ export default function EspaceFournisseur() {
   const fournisseur = etatBrut?.etat?.fournisseurs.find((f) => f.partenaire_id === partenaireId)
   const nom = fournisseur?.artisan || 'Artisan'
 
+  // Deux comptes, pas un : un bon signé à l'atelier mais jamais confirmé n'a pas été REÇU par la
+  // boutique (c'est la règle de la 0056). Dire « 3 dépôts reçus » quand l'un attend encore
+  // contredirait l'écran précédent, qui porte justement son badge « à confirmer ».
+  const total = bons?.length ?? 0
+  const recus = (bons ?? []).filter((b) => b.confirme_le).length
+  const aConfirmer = total - recus
+  const resume = isLoading
+    ? 'Chargement…'
+    : aConfirmer > 0
+      ? `${total} dépôts · ${recus} reçu${recus > 1 ? 's' : ''} · ${aConfirmer} à confirmer`
+      : `${recus} dépôt${recus > 1 ? 's' : ''} reçu${recus > 1 ? 's' : ''}`
+
   return (
     <>
       <p className="muted" style={{ marginTop: 4 }}>
@@ -26,9 +38,7 @@ export default function EspaceFournisseur() {
       </p>
       <h1 style={{ marginTop: 8 }}>{nom}</h1>
       <p className="muted" style={{ marginTop: 0 }}>
-        {isLoading
-          ? 'Chargement…'
-          : `${bons?.length ?? 0} dépôt${(bons?.length ?? 0) > 1 ? 's' : ''} reçu${(bons?.length ?? 0) > 1 ? 's' : ''}`}
+        {resume}
       </p>
 
       {error && <p className="muted">{(error as Error).message}</p>}
@@ -73,7 +83,7 @@ export default function EspaceFournisseur() {
           style={{ display: 'block' }}
         >
           <div className="row">
-            <strong>Ce qui te reste de {nom}</strong>
+            <strong>Ce qui te reste chez {nom}</strong>
             <div className="spacer" />
             <strong>{quantite(totalRestant(fournisseur.pieces))} pièces</strong>
           </div>
