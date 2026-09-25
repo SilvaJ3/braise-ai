@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import ACommander from '../components/ACommander'
 import Demarrage from '../components/Demarrage'
 import Fab from '../components/Fab'
 import InstallHint from '../components/InstallHint'
@@ -25,6 +26,7 @@ export default function Aujourdhui() {
     <>
       <h1>Aujourd'hui</h1>
       {profil?.message_accueil && <p>{profil.message_accueil}</p>}
+      <ACommander />
       <InstallHint />
       <Demarrage />
       <Today />
