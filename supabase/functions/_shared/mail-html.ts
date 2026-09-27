@@ -87,7 +87,7 @@ export function mailHtml(m: MailMise): string {
           </tr>
         </table>
         <div style="margin-top:12px;font-family:${SANS};font-size:13px;line-height:1.5;color:${DOUX};">
-          ou copie ce lien : <span style="color:${ACCENT};word-break:break-all;">${echapper(m.cta.url)}</span>
+          ou copie ce lien : <a href="${echapper(m.cta.url)}" style="color:${ACCENT};word-break:break-all;">${echapper(m.cta.url)}</a>
         </div>
       </td></tr>`
     : ''
