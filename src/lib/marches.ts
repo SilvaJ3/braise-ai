@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase, type Marche, type MarcheDraft, type MarcheLigneRow, type Produit } from './supabase'
+import { produitDuCatalogue } from './marche-produit'
 
 const MARCHES_KEY = ['marches']
 const VENTES_KEY = ['marches', 'ventes']
@@ -108,22 +109,60 @@ export function useVendreProduit() {
   })
 }
 
-/** Ajoute une ligne en saisie libre (article hors catalogue), quantité 1. */
-export function useAjouterLigneLibre() {
+/**
+ * Ajoute au marché un article qui n'est pas encore au catalogue. Le produit y entre au passage,
+ * avec son prix : il se retrouve donc dans « Mes produits », proposé sur un bon de dépôt, dans une
+ * commande et au marché suivant. Pas de ligne orpheline — l'article vendu existe vraiment.
+ *
+ * Le prix de la ligne est figé à sa création par la fonction de base (même règle que sur un bon de
+ * dépôt) : si le produit existait déjà et qu'il a déjà une ligne dans ce marché, la quantité
+ * s'incrémente et l'ancien prix reste — c'est le prix du premier ajout qui fait foi.
+ */
+export function useAjouterProduitMarche() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ marcheId, designation, position }: { marcheId: string; designation: string; position: number }) => {
-      const { error } = await supabase.from('marche_lignes').insert({
-        marche_id: marcheId,
-        produit_id: null,
-        designation: designation.trim(),
-        quantite: 1,
-        prix_unitaire: 0,
-        position,
+    mutationFn: async ({
+      marcheId,
+      nom,
+      prix,
+      produits,
+    }: {
+      marcheId: string
+      nom: string
+      prix: number
+      produits: Produit[]
+    }) => {
+      const existant = produitDuCatalogue(produits, nom)
+      let produitId = existant?.id ?? null
+
+      if (!produitId) {
+        const { data, error } = await supabase
+          .from('produits')
+          .insert({ nom: nom.trim(), prix_vente: prix })
+          .select('id')
+          .single()
+        if (error) throw error
+        produitId = data.id as string
+      }
+
+      const { error: e2 } = await supabase.rpc('vendre_produit_marche', {
+        p_marche: marcheId,
+        p_produit: produitId,
+        p_designation: nom.trim(),
+        p_prix: prix,
       })
-      if (error) throw error
+      if (e2) {
+        // La vente n'est pas enregistrée : le produit créé ne doit pas rester seul au catalogue,
+        // sinon l'artisan y trouve un article qu'il n'a jamais vendu.
+        if (!existant) await supabase.from('produits').delete().eq('id', produitId)
+        throw e2
+      }
     },
-    onSuccess: (_d, { marcheId }) => qc.invalidateQueries({ queryKey: [...MARCHES_KEY, 'un', marcheId] }),
+    onSuccess: (_d, { marcheId }) =>
+      qc
+        .invalidateQueries({ queryKey: [...MARCHES_KEY, 'un', marcheId] })
+        .then(() => qc.invalidateQueries({ queryKey: VENTES_KEY }))
+        .then(() => qc.invalidateQueries({ queryKey: ['produits'] })),
   })
 }
 

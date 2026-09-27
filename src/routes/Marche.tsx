@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import Skeleton from '../components/Skeleton'
 import {
-  useAjouterLigneLibre,
+  useAjouterProduitMarche,
   useAjusterLigne,
   useClonturerMarche,
   useMarche,
   useNoteLigne,
   useVendreProduit,
 } from '../lib/marches'
+import { prixSaisi } from '../lib/marche-produit'
 import { useProduits } from '../lib/produits'
 
 export default function Marche() {
@@ -19,9 +20,10 @@ export default function Marche() {
   const vendre = useVendreProduit()
   const ajuster = useAjusterLigne()
   const noter = useNoteLigne()
-  const ajouterLigneLibre = useAjouterLigneLibre()
+  const ajouterProduit = useAjouterProduitMarche()
   const cloturer = useClonturerMarche()
-  const [libre, setLibre] = useState('')
+  const [nomNouveau, setNomNouveau] = useState('')
+  const [prixNouveau, setPrixNouveau] = useState('')
 
   if (isLoading) return <Skeleton rows={5} />
   if (!data) return <p className="empty">Marché introuvable.</p>
@@ -38,11 +40,17 @@ export default function Marche() {
     vendre.mutate({ marcheId: marche.id, produit: p, existante })
   }
 
-  function ajouterArticleLibre() {
-    if (!libre.trim()) return
-    ajouterLigneLibre.mutate(
-      { marcheId: marche.id, designation: libre, position: lignes.length },
-      { onSuccess: () => setLibre('') },
+  function ajouterAuCatalogue() {
+    const prix = prixSaisi(prixNouveau)
+    if (!nomNouveau.trim() || prix === null) return
+    ajouterProduit.mutate(
+      { marcheId: marche.id, nom: nomNouveau, prix, produits },
+      {
+        onSuccess: () => {
+          setNomNouveau('')
+          setPrixNouveau('')
+        },
+      },
     )
   }
 
@@ -133,16 +141,38 @@ export default function Marche() {
                 ))}
             </select>
 
-            <div className="row" style={{ marginTop: 8 }}>
+            <div style={{ marginTop: 12 }}>
+              <label htmlFor="marche-nouveau">Un article qui manque à ta liste ?</label>
               <input
-                placeholder="Article hors catalogue…"
-                value={libre}
-                onChange={(e) => setLibre(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && ajouterArticleLibre()}
+                id="marche-nouveau"
+                placeholder="Nom de l'article"
+                value={nomNouveau}
+                onChange={(e) => setNomNouveau(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && ajouterAuCatalogue()}
               />
-              <button type="button" onClick={ajouterArticleLibre} disabled={!libre.trim()}>
-                Ajouter
-              </button>
+              <div className="row" style={{ marginTop: 8 }}>
+                <input
+                  aria-label="Prix de vente"
+                  inputMode="decimal"
+                  placeholder="Prix"
+                  value={prixNouveau}
+                  onChange={(e) => setPrixNouveau(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && ajouterAuCatalogue()}
+                  style={{ maxWidth: 120 }}
+                />
+                <span className="muted">€</span>
+                <div className="spacer" />
+                <button
+                  type="button"
+                  onClick={ajouterAuCatalogue}
+                  disabled={!nomNouveau.trim() || prixSaisi(prixNouveau) === null || ajouterProduit.isPending}
+                >
+                  Ajouter
+                </button>
+              </div>
+              <p className="muted" style={{ margin: '6px 0 0' }}>
+                Il rejoint aussi tes produits, au même prix.
+              </p>
             </div>
           </>
         )}
