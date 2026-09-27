@@ -101,7 +101,7 @@ async function extract(kind: ReturnType<typeof fileKind>, bytes: Uint8Array, b64
 function systemPrompt(entity: ImportEntity): string {
   const def = ENTITIES[entity]
   const fields = def.fields.map((f) => `- ${f.key} : ${f.description}`).join('\n')
-  return `Tu extrais des données d'un document fourni par une artisane ou un artisan (artisanat fait main, Belgique) pour
+  return `Tu extrais des données d'un document fourni par un artisan (artisanat fait main, Belgique) pour
 les importer dans son application. Entité cible : ${def.label}. ${def.hint}
 
 Champs à remplir pour chaque ligne :

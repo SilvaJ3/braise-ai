@@ -1,14 +1,14 @@
--- 0059 — Côté artisane : ce qu'elle voit de ses boutiques, et ce qu'elle peut en faire.
+-- 0059 — Côté artisan : ce qu'il voit de ses boutiques, et ce qu'il peut en faire.
 --
--- Jusqu'ici la boucle n'allait que dans un sens : la boutique déclarait, l'artisane recevait une
--- commande. Il manquait trois choses, toutes côté artisane :
+-- Jusqu'ici la boucle n'allait que dans un sens : la boutique déclarait, l'artisan recevait une
+-- commande. Il manquait trois choses, toutes côté artisan :
 --
 --  1. voir ce qui reste chez chaque boutique (le stock se calcule, il ne se saisit pas) ;
 --  2. voir ce que la boutique a déclaré, et le VALIDER ou le CORRIGER — avec la trace de qui a
 --     touché quoi (décision du 19/09) ;
 --  3. récupérer le lien de la boutique, celui qu'elle transmet et qu'elle peut couper.
 --
--- Aucune de ces fonctions ne prend d'identifiant de compte en paramètre : l'artisane vient de
+-- Aucune de ces fonctions ne prend d'identifiant de compte en paramètre : l'artisan vient de
 -- `auth.uid()`. Le lien, lui, se coupe en désactivant le rattachement — la boutique garde son
 -- adresse, elle perd l'accès.
 

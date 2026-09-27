@@ -4,7 +4,7 @@ import type { BoutiqueEtat, ReleveAEmettre, ReleveEmis } from '../lib/boutique-e
 import type { Boutique } from '../lib/supabase'
 
 // L'écran de suivi est monté pour de vrai, avec des données réalistes, et on regarde le HTML
-// rendu : c'est le seul moyen de vérifier ce qui compte ici — que l'artisane voie le restant
+// rendu : c'est le seul moyen de vérifier ce qui compte ici — que l'artisan voie le restant
 // pièce par pièce, le montant facturable d'un relevé, ses deux issues, le lien et ce qui a été
 // signalé. Un test qui n'appellerait que les fonctions de lib/boutique-etat ne dirait rien de ça.
 //
@@ -129,7 +129,7 @@ function aFacturer(partiel: Partial<ReleveAEmettre> = {}): ReleveAEmettre {
   }
 }
 
-describe('la fiche d’une boutique, côté artisane', () => {
+describe('la fiche d’une boutique, côté artisan', () => {
   it('montre ce qui reste chez elle, pièce par pièce, avec les mouvements qui l’expliquent', () => {
     const html = rendre({
       pieces: [
@@ -351,7 +351,7 @@ describe('la fiche d’une boutique, côté artisane', () => {
   })
 })
 
-describe('le relevé facturable, côté artisane', () => {
+describe('le relevé facturable, côté artisan', () => {
   it('montre ce qui reste à facturer, pièce par pièce, et le total des ventes', () => {
     const html = rendre(
       {},

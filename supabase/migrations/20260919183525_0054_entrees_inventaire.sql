@@ -7,7 +7,7 @@
 --   · plus,  parce qu'elle a reçu sans bon → ENTRÉE (correction de stock, ni vendu ni facturé)
 --
 -- Le cas « plus » arrive quand un réassort se fait sans passer par l'application. Le compter est
--- la seule façon d'avoir un stock juste — et ça l'apprend à l'artisane, qui voit qu'une livraison
+-- la seule façon d'avoir un stock juste — et ça l'apprend à l'artisan, qui voit qu'une livraison
 -- lui a échappé.
 --
 -- Le restant = déposé + entré − vendu − repris. Le montant facturable = la valeur des ventes seules.

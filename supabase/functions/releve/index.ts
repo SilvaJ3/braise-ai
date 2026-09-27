@@ -9,7 +9,7 @@
 //
 // L'émission est une écriture en base (une ligne `releves_facturables`, et le rattachement des
 // déclarations comptées). Rien n'est envoyé à personne : la remise à la boutique reste un geste
-// de l'artisane, hors de cette fonction.
+// de l'artisan, hors de cette fonction.
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import type { Emetteur, ModeVente } from '../_shared/depot-doc.ts'
 import { renderRelevePdf } from '../_shared/releve-pdf.ts'
@@ -32,7 +32,7 @@ const admin = createClient(SUPABASE_URL, SERVICE_KEY)
 /**
  * Un client qui parle AU NOM de la personne qui a appelé, pas au nom du service.
  *
- * Les fonctions `releve_a_emettre` / `releve_emettre` retrouvent l'artisane par `auth.uid()` —
+ * Les fonctions `releve_a_emettre` / `releve_emettre` retrouvent l'artisan par `auth.uid()` —
  * c'est ce qui garantit qu'elles ne peuvent pas lire la boutique d'un autre. Appelées avec la clé
  * de service, `auth.uid()` est nul et elles répondent `non_connecte` : le premier appel de bout en
  * bout a rendu exactement ça. Le jeton de l'appelant est donc transmis tel quel au passage RPC.

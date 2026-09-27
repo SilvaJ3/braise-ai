@@ -5,16 +5,16 @@
 -- question se pose : il en manque une, ou il y en a une qui n'est pas sur le bon.
 --
 -- La contestation n'est PAS une modification du bon. Le bon signé reste la pièce qui fait foi, et
--- l'artisane seule décide de ce qu'elle en fait (un nouveau bon, une reprise, une correction de
+-- l'artisan seul décide de ce qu'il en fait (un nouveau bon, une reprise, une correction de
 -- stock). Ce que cette migration ajoute, c'est une TRACE : un message daté, rattaché au bon,
--- affiché à l'artisane jusqu'à ce qu'elle l'ait vu.
+-- affiché à l'artisan jusqu'à ce qu'il l'ait vu.
 --
 -- Deux choix, et pourquoi :
 --   · la contestation est possible AVANT la confirmation — c'est exactement là qu'elle se pose la
 --     question, et le bon reste « à confirmer » : rien ne bouge dans le stock tant que
---     l'artisane n'a pas tranché ;
+--     l'artisan n'a pas tranché ;
 --   · la boutique ne relit pas ses propres messages (aucune fonction ne les lui rend) : ce qu'elle
---     écrit est destiné à l'artisane, pas à elle-même. L'écrire deux fois par erreur (page
+--     écrit est destiné à l'artisan, pas à lui-même. L'écrire deux fois par erreur (page
 --     rouverte) ne crée pas deux traces — le même texte non vu est renvoyé tel quel.
 
 create table if not exists public.bon_contestations (
@@ -80,7 +80,7 @@ begin
     return jsonb_build_object('erreur', 'bon_inconnu');
   end if;
 
-  -- Le même texte, deux fois, tant que l'artisane ne l'a pas vu : une seule trace.
+  -- Le même texte, deux fois, tant que l'artisan ne l'a pas vu : une seule trace.
   select c.id into v_id
     from public.bon_contestations c
    where c.depot_id = bon_param
@@ -100,7 +100,7 @@ begin
 end;
 $$;
 
--- --- L'artisane marque la contestation comme vue (la trace reste, elle change de statut) ------
+-- --- L'artisan marque la contestation comme vue (la trace reste, elle change de statut) ------
 create or replace function public.marquer_contestation_vue(contestation_param uuid)
 returns jsonb
 language plpgsql
@@ -198,7 +198,7 @@ begin
                           order by l.position), '[]'::jsonb)
                           from public.depot_lignes l where l.depot_id = d.id),
              -- Signalé par la boutique : elle dit que ce bon ne correspond pas. Le bon, lui,
-             -- n'est pas modifié ; c'est à l'artisane de trancher.
+             -- n'est pas modifié ; c'est à l'artisan de trancher.
              'conteste', exists (select 1 from public.bon_contestations c
                                   where c.depot_id = d.id and c.vu_le is null),
              'message_conteste', (select c.message from public.bon_contestations c
@@ -239,7 +239,7 @@ begin
 end;
 $$;
 
--- --- Côté artisane : ce qu'on lui a signalé ---------------------------------------------------
+-- --- Côté artisan : ce qu'on lui a signalé ---------------------------------------------------
 -- (même signature que 0059, sortie enrichie : `contestations` et `contestations_non_vues` par
 -- boutique. Le stock, les relevés et le jeton ne changent pas.)
 create or replace function public.mes_boutiques_etat()

@@ -1,6 +1,6 @@
 -- 0053 — Une baisse de stock n'est pas toujours une vente.
 --
--- Retour de terrain (19/09, visite de Lära Concept Store) : en dépôt-vente, l'artisane repart
+-- Retour de terrain (19/09, visite de Lära Concept Store) : en dépôt-vente, l'artisan repart
 -- parfois avec des invendus — « ce produit n'a pas bien marché, je te le reprends ». Le stock
 -- baisse, mais ce n'est pas une vente. Or derrière, il y a une facture : compter une reprise
 -- comme une vente, c'est facturer ce qui n'a pas été vendu.
@@ -132,7 +132,7 @@ begin
      where dv.user_id = v_user and dv.boutique_id = v_boutique
        and dv.periode <> v_periode and dv.statut <> 'corrigee' and (ligne->>'cle') = v_cle;
 
-    -- On accepte (elle seule voit le stock réel) mais on le signale : à l'artisane de trancher.
+    -- On accepte (l'artisan seul voit le stock réel) mais on le signale : à l'artisan de trancher.
     v_alerte_ligne := (v_ventes + v_reprises) > (coalesce(v_depose, 0) - coalesce(v_deja, 0));
     v_alerte := v_alerte or v_alerte_ligne;
 

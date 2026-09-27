@@ -1,4 +1,4 @@
-// Ce que l'artisane voit de ses boutiques : la forme exacte du jsonb rendu par
+// Ce que l'artisan voit de ses boutiques : la forme exacte du jsonb rendu par
 // `mes_boutiques_etat()` (migration 0059, enrichie par 0060) et les quelques calculs d'affichage
 // qui vont avec. Aucun appel réseau ici — les hooks vivent dans `lib/boutiques.ts` — ce qui rend
 // ce fichier vérifiable sans base (voir boutique-etat.test.ts).
@@ -38,7 +38,7 @@ export type ReleveBoutique = {
   reprises: number
   /** Ce qu'elle a compté en plus, reçu sans bon : une correction de stock, pas une vente. */
   entrees: number
-  /** Une ligne dépasse ce que l'artisane avait déposé : signalé, pas bloqué. */
+  /** Une ligne dépasse ce que l'artisan avait déposé : signalé, pas bloqué. */
   alerte: boolean
 }
 
@@ -49,7 +49,7 @@ export type ContestationBoutique = {
   date_depot: string | null
   message: string
   cree_le: string
-  /** null = pas encore vue par l'artisane. La trace, elle, ne s'efface pas. */
+  /** null = pas encore vue par l'artisan. La trace, elle, ne s'efface pas. */
   vu_le: string | null
 }
 
@@ -106,7 +106,7 @@ export function messageErreur(code: string): string {
  * Le jeton est la seule authentification, il tient dans l'URL : c'est aussi pour ça qu'il se coupe
  * d'un clic (`couper_lien_boutique`) sans rien perdre des pièces ni de l'historique.
  *
- * Elle ne suit plus l'origine de la page courante : une artisane sur une préversion Vercel, un mail
+ * Elle ne suit plus l'origine de la page courante : un artisan sur une préversion Vercel, un mail
  * parti du serveur et le lien déjà chez la boutique doivent porter la **même** adresse, sinon la
  * boutique en garde deux. C'est `https://www.braaise.io/boutique/<jeton>` (sans `www`, le site
  * redirige). Le serveur fabrique exactement la même (`supabase/functions/_shared/lien-boutique.ts`,
@@ -178,13 +178,13 @@ export function resumeReleve(r: ReleveBoutique): string {
   return bouts.length ? bouts.join(' · ') : 'Aucun mouvement'
 }
 
-/** Un signalement que l'artisane n'a pas encore ouvert. */
+/** Un signalement que l'artisan n'a pas encore ouvert. */
 export function estNouveau(c: ContestationBoutique): boolean {
   return c.vu_le === null
 }
 
 /**
- * Ce qu'une boutique attend de l'artisane — la matière de la notification dans l'app.
+ * Ce qu'une boutique attend de l'artisan — la matière de la notification dans l'app.
  *
  * Rien n'est stocké pour ça : tout se déduit de ce qui existe déjà (une déclaration au statut
  * `declaree`, un bon jamais confirmé, un message non lu, une demande de réassort en attente). C'est
@@ -263,7 +263,7 @@ export function alertesBoutiques(
 
 // --- Le relevé facturable (0063) --------------------------------------------------------------
 //
-// Ce que l'artisane peut facturer à une boutique aujourd'hui : les déclarations reçues depuis le
+// Ce que l'artisan peut facturer à une boutique aujourd'hui : les déclarations reçues depuis le
 // dernier relevé, agrégées pièce par pièce. La forme est celle rendue par `releve_a_emettre()` ;
 // les phrases viennent de `_shared/releve-doc.ts`, partagées avec le PDF — l'écran et le document
 // ne peuvent pas dire deux choses différentes.

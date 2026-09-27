@@ -126,7 +126,7 @@ export function useLastContacts() {
   })
 }
 
-// --- Côté artisane : l'état de ses boutiques, ses relevés, son lien (0059, 0060) --------------
+// --- Côté artisan : l'état de ses boutiques, ses relevés, son lien (0059, 0060) --------------
 //
 // Une seule requête porte tout ce qu'elle voit d'une boutique : `mes_boutiques_etat()` — le stock
 // pièce par pièce, les relevés reçus, le jeton du lien, les bons en attente de confirmation, et
@@ -160,7 +160,7 @@ export function useMesBoutiquesEtat() {
 }
 
 /** Valider un relevé, ou l'écarter en gardant la raison. Le statut change et la note de
- *  l'artisane s'ajoute à celle de la boutique — rien ne s'efface. */
+ *  l'artisan s'ajoute à celle de la boutique — rien ne s'efface. */
 export function useCorrigerDeclaration() {
   const qc = useQueryClient()
   return useMutation({

@@ -1,22 +1,22 @@
 -- 0051 — Le lien boutique : la boutique déclare ses ventes et passe commande.
 --
--- Le bon de dépôt part vers la boutique et rien ne revient : elle répond par mail, l'artisane
+-- Le bon de dépôt part vers la boutique et rien ne revient : elle répond par mail, l'artisan
 -- ressaisit. On ouvre un canal de retour, sans compte à créer côté boutique — un lien nominatif
--- par couple artisan ↔ boutique, révocable par l'artisane.
+-- par couple artisan ↔ boutique, révocable par l'artisan.
 --
 -- Trois choses en découlent :
 --   1. ce qui est vendu est déclaré par la boutique, daté et à son nom (une déclaration, pas une
---      vérité : l'artisane valide ou corrige) ;
+--      vérité : l'artisan valide ou corrige) ;
 --   2. le restant chez la boutique est *calculé* (dépôt − ventes déclarées), jamais saisi ;
 --   3. une demande de réassort devient une commande boutique ordinaire, statut « demande » :
---      elle arrive là où l'artisane travaille déjà, avec ses statuts existants.
+--      elle arrive là où l'artisan travaille déjà, avec ses statuts existants.
 --
 -- Sécurité : la page ne s'authentifie pas, elle présente un jeton. Les fonctions ci-dessous sont
 -- donc `security definer` et ne font JAMAIS confiance à un identifiant venu de l'appelant : elles
--- retrouvent l'artisane et la boutique à partir du seul jeton. Les paramètres sont préfixés pour
+-- retrouvent l'artisan et la boutique à partir du seul jeton. Les paramètres sont préfixés pour
 -- ne pas pouvoir être confondus avec un nom de colonne (leçon du 19/09 sur le CMS).
 
--- --- Le délai de production, réglable par l'artisane ---------------------------------------
+-- --- Le délai de production, réglable par l'artisan ---------------------------------------
 alter table public.profil_entreprise
   add column if not exists delai_semaines int not null default 2
     check (delai_semaines between 0 and 52);

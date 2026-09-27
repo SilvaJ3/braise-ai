@@ -1,7 +1,7 @@
 -- 0056 — Le stock chez la boutique s'actualise à la confirmation de réception du bon.
 --
 -- Décision du 19/09 au soir : « si bon de dépôt est confirmé et signé, alors on actualise le stock
--- côté artisane ». Ce n'est donc pas l'envoi qui fait entrer les pièces dans le stock de la
+-- côté artisan ». Ce n'est donc pas l'envoi qui fait entrer les pièces dans le stock de la
 -- boutique — c'est le moment où elle confirme les avoir reçues.
 --
 -- C'est plus juste ainsi, et ça règle un cas réel : un bon signé à l'atelier puis perdu en route
@@ -30,7 +30,7 @@ begin
    where l.jeton = jeton_param and l.actif;
   if v_lien is null then return jsonb_build_object('erreur', 'lien_invalide'); end if;
 
-  -- Le bon doit appartenir à un couple rattaché à CE lien, et avoir été validé par l'artisane.
+  -- Le bon doit appartenir à un couple rattaché à CE lien, et avoir été validé par l'artisan.
   select d.id, d.numero into v_bon, v_numero
     from public.depots d
     join public.boutique_lien_partenaires p

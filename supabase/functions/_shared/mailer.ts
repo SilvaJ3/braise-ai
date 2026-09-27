@@ -1,7 +1,7 @@
 // Envoi des mails par le service de l'application (Resend, API HTTP).
 //
 // Choix : l'expéditeur est une adresse fixe et unique pour toute l'app, `no-reply@braaise.io`
-// — pas celle de l'artisane, aucun réglage technique ne lui est demandé, et un nouveau
+// — pas celle de l'artisan, aucun réglage technique ne lui est demandé, et un nouveau
 // compte peut envoyer immédiatement. Son nom commercial reste affiché comme expéditeur
 // (« Braaise <no-reply@braaise.io> »), et `Reply-To` renvoie vers sa propre adresse
 // pour que les réponses des boutiques arrivent bien chez elle.

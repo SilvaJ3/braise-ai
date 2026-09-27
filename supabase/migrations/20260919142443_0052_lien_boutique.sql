@@ -46,7 +46,7 @@ create table public.boutique_lien_partenaires (
 alter table public.boutique_liens enable row level security;
 alter table public.boutique_lien_partenaires enable row level security;
 
--- L'artisane voit et gère ses propres rattachements. Le lien lui-même appartient à la boutique :
+-- L'artisan voit et gère ses propres rattachements. Le lien lui-même appartient à la boutique :
 -- elle n'y accède que par la fonction dédiée, qui vérifie qu'elle possède la boutique.
 create policy "partenaires: own rows" on public.boutique_lien_partenaires
   for all using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
@@ -72,7 +72,7 @@ create policy "declarations_ventes: own rows" on public.declarations_ventes
 create index declarations_ventes_couple_idx
   on public.declarations_ventes (user_id, boutique_id, periode desc);
 
--- --- Côté artisane : obtenir (ou créer) le lien de sa boutique --------------------------------
+-- --- Côté artisan : obtenir (ou créer) le lien de sa boutique --------------------------------
 create or replace function public.mon_lien_boutique(boutique_param uuid)
 returns jsonb
 language plpgsql
@@ -96,7 +96,7 @@ begin
 
   if v_email is null or v_email = '' then
     -- À défaut d'adresse sur la fiche, on prend celle à laquelle ses bons sont partis : c'est la
-    -- même boutique, et l'artisane n'a rien à ressaisir. (Vu sur les données réelles : 5 fiches
+    -- même boutique, et l'artisan n'a rien à ressaisir. (Vu sur les données réelles : 5 fiches
     -- sur 6 portent une adresse, Lära Concept Store non — mais ses bons sont partis à
     -- info@laraconceptstore.be.)
     select lower(btrim(coalesce(nullif(d.boutique_email, ''), d.email_to[1])))
@@ -277,7 +277,7 @@ begin
      where dv.user_id = v_user and dv.boutique_id = v_boutique
        and dv.periode <> v_periode and dv.statut <> 'corrigee' and (ligne->>'cle') = v_cle;
 
-    -- On accepte (elle seule voit le stock réel) mais on le signale : c'est à l'artisane de
+    -- On accepte (l'artisan seul voit le stock réel) mais on le signale : c'est à l'artisan de
     -- trancher, pas à l'outil de bloquer une boutique qui dit la vérité.
     v_alerte_ligne := v_qte > (coalesce(v_depose, 0) - coalesce(v_deja, 0));
     v_alerte := v_alerte or v_alerte_ligne;
@@ -351,7 +351,7 @@ begin
   v_echeance := current_date + make_interval(weeks => coalesce(v_delai, 2));
 
   -- La demande devient une commande boutique ordinaire, au premier de ses statuts : elle arrive
-  -- là où l'artisane travaille déjà.
+  -- là où l'artisan travaille déjà.
   insert into public.commandes (user_id, type, boutique_id, date_echeance, statut, notes)
   values (v_user, 'boutique', v_boutique, v_echeance, 'demande', nullif(trim(note_param), ''))
   returning id into v_id;

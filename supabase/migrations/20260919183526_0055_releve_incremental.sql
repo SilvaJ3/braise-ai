@@ -76,7 +76,7 @@ begin
      where dv.user_id = v_user and dv.boutique_id = v_boutique
        and dv.statut <> 'corrigee' and (ligne->>'cle') = v_cle;
 
-    -- Une sortie sans entrée qui la justifie est signalée : à l'artisane de trancher.
+    -- Une sortie sans entrée qui la justifie est signalée : à l'artisan de trancher.
     v_alerte_ligne := (v_ventes + v_reprises) > (coalesce(v_stock, 0) - coalesce(v_deja, 0) + v_entrees);
     v_alerte := v_alerte or v_alerte_ligne;
 

@@ -31,8 +31,8 @@ import type { Boutique } from '../lib/supabase'
 import Skeleton from './Skeleton'
 
 /**
- * Ce que l'artisane voit de sa boutique quand elle la regarde — le stock chez elle pièce par
- * pièce, ce qu'elle a signalé, ses relevés à valider ou à écarter, et son lien.
+ * Ce que l'artisan voit de sa boutique — le stock déposé chez elle pièce par
+ * pièce, ce qu'il a signalé, ses relevés à valider ou à écarter, et son lien.
  *
  * Tout vient d'un seul appel (`mes_boutiques_etat`), filtré côté base par `auth.uid()` : cet écran
  * ne demande jamais « la boutique de qui ? », et il ne peut pas montrer celle d'un autre.
