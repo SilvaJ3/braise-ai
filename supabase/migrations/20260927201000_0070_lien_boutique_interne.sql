@@ -1,0 +1,17 @@
+-- 0070 — `boutique_compte_lien()` redevient la fonction interne qu'elle annonce être.
+--
+-- La 0067 écrit, au-dessus de cette fonction : « Fonction interne : elle rend le jeton, donc elle
+-- n'est donnée à personne. Les fonctions publiques ci-dessous (security definer, exécutées par le
+-- propriétaire) l'appellent sans que le client y ait accès. »
+--
+-- Le droit réel disait autre chose : `proacl` portait `authenticated=X/postgres`, donc un compte
+-- connecté pouvait l'appeler par l'API REST (`POST /rest/v1/rpc/boutique_compte_lien`) et lire son
+-- propre jeton de boutique. Aujourd'hui ce n'est pas une fuite entre comptes — la fonction filtre
+-- sur `auth.uid()`, un compte sans lien ne reçoit rien — mais l'intention et le droit se
+-- contredisaient, et le jour où cette fonction rendrait autre chose que le lien du compte appelant,
+-- le droit déjà accordé deviendrait une vraie fuite. On ferme maintenant, pendant que c'est gratuit.
+--
+-- Les appelantes (`boutique_compte_etat`, `_bons`, `_historique`, `_declarer`, `_commander`,
+-- `_confirmer_bon`, `_contester_bon`) sont `security definer` : elles s'exécutent en tant que
+-- propriétaire, donc leur accès à cette fonction ne dépend pas du droit de `authenticated`.
+revoke execute on function public.boutique_compte_lien() from authenticated;
