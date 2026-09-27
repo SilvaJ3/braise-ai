@@ -30,6 +30,8 @@ import {
   quotaQuestions,
   type Consommation,
 } from '../_shared/compte.ts'
+import { RESERVE_JETONS } from '../_shared/enveloppe.ts'
+import { corrigerJetons, reserverJetons } from '../_shared/enveloppe-rpc.ts'
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void }
 
@@ -407,6 +409,7 @@ async function runChatTurn(
   assistantId: string,
   system: SystemBlock[],
   messages: ChatTurnMsg[],
+  reserve: number | null,
 ): Promise<void> {
   // Consommation du tour : un tour peut enchaîner plusieurs appels au modèle (outils, reprise
   // après `pause_turn`). On les cumule et on journalise une ligne par question — c'est le seul
@@ -466,12 +469,18 @@ async function runChatTurn(
       .update({ content: reply.slice(0, 20_000), status: 'done', meta: { added } })
       .eq('id', assistantId)
     await enregistrerUsage(userId, 'assistant', conso)
+    // Le compteur du mois revient sur ce que le tour a réellement coûté : la réservation n'était
+    // qu'un à-valoir.
+    await corrigerJetons(admin, userId, reserve, conso)
     await sendPush(userId, "Réponse de l'assistant", reply.slice(0, 140))
   } catch (e) {
     console.error('runChatTurn', e)
     // Une erreur après des appels au modèle a quand même coûté : ce qui a été consommé est
     // journalisé, sinon la facture ne se réconcilie pas avec ce qui est affiché au compte.
     if (conso.appels > 0) await enregistrerUsage(userId, 'assistant', conso)
+    // Y compris quand rien n'a été consommé : la place réservée doit être rendue, sinon un tour
+    // raté fermerait l'enveloppe du mois un peu plus à chaque essai.
+    await corrigerJetons(admin, userId, reserve, conso)
     await admin
       .from('chat_messages')
       .update({
@@ -523,26 +532,35 @@ async function handleChat(req: Request, userIdPret: string | undefined, corps: R
   const busy = (busyRows ?? []).find((r) => !stale.includes(r))
   if (busy) return json({ pending_id: busy.id, already: true })
 
-  // Quota mensuel du plan : c'est le plafond qui se vend et qui se voit sur la facture. Vérifié
-  // avant l'horaire, pour que le message parle du quota qui bloque vraiment, et AVANT l'appel au
-  // modèle (réserver puis appeler — jamais l'inverse).
+  // Le plafond du mois est une ENVELOPPE EN JETONS (0069) : ce qui se consomme chez le fournisseur
+  // de modèle, ce sont des jetons, et un tour de chat en enchaîne plusieurs milliers. La place est
+  // réservée AVANT l'appel, jamais après.
+  //
+  // Tant que la migration n'est pas en base, la réservation est indisponible et on retombe sur
+  // l'ancien compteur de questions : un déploiement en avance sur la base ne doit pas fermer
+  // l'assistant à quelqu'un.
   //
   // Conséquence assumée de l'incrément atomique : une question refusée a quand même fait monter le
   // compteur (on réserve, puis on compare). Le coût réel n'est pas engagé — aucun appel au modèle
-  // n'a lieu — et un compteur légèrement au-dessus du quota ne change rien à l'affichage, qui
+  // n'a lieu — et un compteur légèrement au-dessus du plafond ne change rien à l'affichage, qui
   // borne le « reste » à zéro.
   const profil = await loadProfil(userId).catch(() => null)
-  const quotaMois = quotaQuestions(profil?.plan, profil?.quota_mensuel)
-  const { data: moisOk, error: errQuotaMois } = await admin.rpc('consommer_quota_mois', {
-    p_user: userId,
-    p_quoi: 'questions',
-    p_max: quotaMois,
-  })
-  if (errQuotaMois) {
-    console.error('[quota mois chat]', errQuotaMois)
-  } else if (moisOk === false) {
-    return json({ error: messageQuotaAtteint('questions', quotaMois) }, 429)
+  const reservation = await reserverJetons(admin, userId, profil?.plan, RESERVE_JETONS.assistant)
+  if (reservation.etat === 'refus') return json({ error: reservation.message }, 429)
+  if (reservation.etat === 'indisponible') {
+    const quotaMois = quotaQuestions(profil?.plan, profil?.quota_mensuel)
+    const { data: moisOk, error: errQuotaMois } = await admin.rpc('consommer_quota_mois', {
+      p_user: userId,
+      p_quoi: 'questions',
+      p_max: quotaMois,
+    })
+    if (errQuotaMois) {
+      console.error('[quota mois chat]', errQuotaMois)
+    } else if (moisOk === false) {
+      return json({ error: messageQuotaAtteint('questions', quotaMois) }, 429)
+    }
   }
+  const reserve = reservation.etat === 'reserve' ? reservation.reserve : null
 
   // Quota par utilisateur : chaque tour peut coûter plusieurs appels LLM + recherches web.
   // Le compteur vit dans `rate_limits` (service_role uniquement) : contrairement à l'ancien
@@ -588,7 +606,7 @@ async function handleChat(req: Request, userIdPret: string | undefined, corps: R
   // blocs fait partie de l'optimisation, pas de la cosmétique.
   const system = systemEnBlocs([CONSIGNES_CHAT, context.stable], [context.variable])
 
-  EdgeRuntime.waitUntil(runChatTurn(userId, assistantId, system, messages))
+  EdgeRuntime.waitUntil(runChatTurn(userId, assistantId, system, messages, reserve))
   return json({ pending_id: assistantId })
 }
 
@@ -680,10 +698,29 @@ async function detectAlertesStock(userId: string): Promise<number> {
   return created
 }
 
-async function runWeeklyForUser(
-  userId: string,
-): Promise<{ ideas_inserted: number; ideas_ecartees: number; observations: number; relances: number; alertes_stock: number }> {
+type ResultatBilan = {
+  ideas_inserted: number
+  ideas_ecartees: number
+  observations: number
+  relances: number
+  alertes_stock: number
+  /** L'enveloppe du mois était épuisée : rien n'a été demandé au modèle (ce n'est pas une panne). */
+  enveloppe_epuisee?: boolean
+}
+
+async function runWeeklyForUser(userId: string): Promise<ResultatBilan> {
   const today = new Date().toISOString().slice(0, 10)
+
+  // Le bilan est un appel au modèle comme un autre : il passe par l'enveloppe du mois (0069).
+  // Quand l'enveloppe est épuisée, rien n'est généré — et on le dit, plutôt que de laisser croire
+  // à une semaine sans idées.
+  const profil = await loadProfil(userId).catch(() => null)
+  const reservation = await reserverJetons(admin, userId, profil?.plan, RESERVE_JETONS.assistant)
+  if (reservation.etat === 'refus') {
+    return { ideas_inserted: 0, ideas_ecartees: 0, observations: 0, relances: 0, alertes_stock: 0, enveloppe_epuisee: true }
+  }
+  const reserve = reservation.etat === 'reserve' ? reservation.reserve : null
+
   const context = await buildContext(userId, 80)
   // Titres déjà au planning : le prompt les interdit explicitement, et le filtre
   // ci-dessous les rejette si le modèle passe outre.
@@ -716,7 +753,9 @@ async function runWeeklyForUser(
     60_000,
   )
   const call = resp.content.find((b) => b.type === 'tool_use')
-  await enregistrerUsage(userId, 'bilan', consommation(resp.usage))
+  const consoBilan = consommation(resp.usage)
+  await enregistrerUsage(userId, 'bilan', consoBilan)
+  await corrigerJetons(admin, userId, reserve, consoBilan)
   const parsed = (call?.input as { ideas?: IdeaInput[]; observations?: string[] }) ?? {
     ideas: [],
     observations: [],

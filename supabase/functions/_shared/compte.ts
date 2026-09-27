@@ -33,7 +33,10 @@ export function quotaImports(plan: unknown, derogation?: number | null): number 
 // Tarif du modèle, en dollars par million de tokens. Source : grille Anthropic de `claude-sonnet-5`
 // — 2 $ / 10 $, écriture de cache 2,50 $, relecture de cache 0,20 $. À remettre à jour si le
 // modèle ou le tarif change : c'est la seule ligne à toucher.
-const PRIX_USD_PAR_MTOK = { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 }
+//
+// Exporté parce que l'enveloppe en jetons (`_shared/enveloppe.ts`) en DÉRIVE ses pondérations :
+// un changement de tarif doit déplacer le coût affiché et le plafond vendu du même coup.
+export const PRIX_USD_PAR_MTOK = { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 }
 // Taux figé, volontairement : afficher un coût en euros qui bouge à chaque variation du change
 // n'aiderait personne à décider. On peut le corriger d'un seul endroit.
 const EUR_PAR_USD = 0.92
@@ -82,6 +85,14 @@ export type UsageMois = {
   quota_derogation: number | null
   questions_utilisees: number
   imports_utilises: number
+  /**
+   * Jetons équivalents consommés ce mois-ci (compteur du mois, migration 0069) : c'est le chiffre
+   * qui décide du plafond depuis que l'enveloppe a remplacé le compteur de questions. Absent tant
+   * que la migration n'est pas en base — l'écran retombe alors sur les questions.
+   */
+  jetons_consommes: number
+  /** Jetons achetés par packs et jamais consommés (0069). Un pack ne périme pas. */
+  credits_jetons: number
   input_tokens: number
   output_tokens: number
   /** Jetons relus dans le cache du fournisseur (facturés ~0,1x l'entrée). */

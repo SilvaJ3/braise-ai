@@ -78,6 +78,42 @@ depuis le site donne toujours le plan `fondateur`, sans compter.
 - une **signature falsifiée est refusée** (HTTP 400) ;
 - le compte est rattaché à son client Stripe au premier paiement.
 
+## T5 ter — les packs de jetons (branche `jetons-et-packs`, non fusionnée, rien de déployé)
+
+Le plafond du mois ne compte plus des **questions** mais des **jetons équivalents entrée** : un tour
+de chat enchaîne plusieurs appels au modèle, et un import de fichier sort jusqu'à 16 000 jetons. Deux
+« 1 » du même compteur ne voulaient donc pas dire la même chose, et la facture du fournisseur n'était
+pas bornée. Ce que le mois comprend — **1 500 000 jetons** en formule payante, **400 000** en essai —
+s'épuise pour de bon, et ce qui manque s'achète : **30 € = 3 000 000 de jetons**, **50 € = 6 000 000**.
+Montants HTVA, et un pack ne périme pas.
+
+**À créer à la main chez Stripe (mode test), puis à poser en secrets :**
+
+- un produit `Crédits assistant` — à part du produit `Braaise`, parce qu'un abonnement et un achat
+  unique ne se mélangent pas dans les rapports ;
+- deux prix, tous deux en **paiement unique** (`mode: 'payment'`), en euros :
+  - **30 € HTVA** → secret **`STRIPE_PRIX_PACK_30`** ;
+  - **50 € HTVA** → secret **`STRIPE_PRIX_PACK_50`** ;
+- rien de neuf à créer côté webhook : l'URL existante sert les deux achats, et le code écarte seul
+  les événements qui ne le concernent pas (session d'abonnement, pack inconnu, paiement non encaissé,
+  compte non identifié). Le crédit est **idempotent** : la session Stripe est unique en base, donc un
+  événement rejoué ne crédite pas deux fois.
+
+Tant que `STRIPE_PRIX_PACK_30` et `STRIPE_PRIX_PACK_50` ne sont pas posés, **seule la vente des packs
+est fermée** (503 à la demande d'achat) : les identifiants de l'abonnement sont vérifiés séparément,
+donc l'encaissement de l'abonnement continue de fonctionner.
+
+**TVA** : `automatic_tax` et `tax_id_collection` sont désormais activés sur **toutes** les sessions
+(abonnement compris). Les prix sont HTVA ; la TVA est calculée au paiement selon le pays du client, et
+son numéro de TVA permet l'autoliquidation hors Belgique. Rien à créer côté Stripe pour ça, mais la
+TVA doit être réglée une fois dans le tableau de bord (adresse d'établissement), sinon Stripe Tax
+n'a rien à appliquer.
+
+**La migration `0069_jetons_et_packs` n'est pas appliquée** — elle vit dans le fichier sur la branche.
+Tant qu'elle n'y est pas, les fonctions serveur (assistant, import) **retombent sur l'ancien compteur
+de questions** au lieu de refuser quelqu'un, et l'écran `Mon compte` affiche les anciens compteurs :
+le repli est explicite, et testé.
+
 **Ce qui reste de ton côté — 2 minutes, et c'est le seul point bloquant :** mon jeton n'a pas le droit
 d'écrire les secrets du projet (lecture seule). Il faut donc les poser une fois dans le tableau de
 Supabase (`Project Settings` → `Edge Functions` → `Secrets`) :

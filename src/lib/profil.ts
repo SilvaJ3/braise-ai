@@ -4,6 +4,7 @@ import { functionErrorMessage } from './push'
 import type { FrequenceAbonnement } from './abonnement'
 import type { ActionDemande, DemandeAcces } from './demandes-acces'
 import type { Plan, UsageMois } from '../../supabase/functions/_shared/compte'
+import type { PackId } from '../../supabase/functions/_shared/packs'
 import type { ResultatValidation } from '../../supabase/functions/_shared/demande-acces'
 
 // Profil de compte : ce que le tunnel d'accueil remplit, et ce que l'assistant lit pour savoir à
@@ -136,6 +137,27 @@ export function useOuvrirPaiement() {
     mutationFn: async (frequence: FrequenceAbonnement): Promise<string> => {
       const { data, error } = await supabase.functions.invoke('stripe-checkout', {
         body: { frequence },
+      })
+      if (error) throw new Error(await functionErrorMessage(error))
+      const url = (data as { url?: string } | null)?.url
+      if (!url) throw new Error('Le paiement n’a pas pu être ouvert.')
+      return url
+    },
+  })
+}
+
+/**
+ * Acheter un pack de jetons : même fonction que l'abonnement, mais un paiement UNIQUE.
+ *
+ * Le pack ne change ni le plan ni la date de prélèvement : il ajoute des jetons à l'enveloppe du
+ * mois. Le montant des jetons ne se décide pas ici (le serveur le relit dans sa table des packs) —
+ * l'écran ne fait qu'ouvrir l'adresse rendue, comme pour l'abonnement.
+ */
+export function useAcheterPack() {
+  return useMutation({
+    mutationFn: async (pack: PackId): Promise<string> => {
+      const { data, error } = await supabase.functions.invoke('stripe-checkout', {
+        body: { pack },
       })
       if (error) throw new Error(await functionErrorMessage(error))
       const url = (data as { url?: string } | null)?.url
