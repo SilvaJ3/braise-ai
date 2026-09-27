@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import {
   jour,
+  lignesDemandees,
   lireBons,
   lireEtat,
   messageEspace,
   montant,
   periodeLisible,
+  propositionsReassort,
   quantite,
   resumeFournisseur,
   statutBon,
+  totalDemande,
   totalRestant,
   type BonEspace,
 } from './espace-boutique'
@@ -132,17 +135,72 @@ describe('les formes d’affichage', () => {
 describe('totalRestant', () => {
   it('additionne les restes pièce par pièce', () => {
     const pieces = [
-      { cle: 'a', produit_id: null, designation: 'A', prix: 10, depose: 7, vendu: 2, repris: 0, entre: 0, reste: 5 },
-      { cle: 'b', produit_id: null, designation: 'B', prix: 5, depose: 2, vendu: 0, repris: 0, entre: 2, reste: 4 },
+      { cle: 'a', produit_id: null, designation: 'A', prix: 10, depose: 7, vendu: 2, repris: 0, entre: 0, reste: 5, derniere_quantite: 7 },
+      { cle: 'b', produit_id: null, designation: 'B', prix: 5, depose: 2, vendu: 0, repris: 0, entre: 2, reste: 4, derniere_quantite: 2 },
     ]
     expect(totalRestant(pieces)).toBe(9)
   })
 
   it('accepte un restant négatif : une boutique peut avoir vendu plus qu’elle n’a de bons', () => {
     const pieces = [
-      { cle: 'a', produit_id: null, designation: 'A', prix: 10, depose: 1, vendu: 3, repris: 0, entre: 0, reste: -2 },
+      { cle: 'a', produit_id: null, designation: 'A', prix: 10, depose: 1, vendu: 3, repris: 0, entre: 0, reste: -2, derniere_quantite: 1 },
     ]
     expect(totalRestant(pieces)).toBe(-2)
+  })
+})
+
+describe('propositionsReassort', () => {
+  const pieceReassort = (cle: string, designation: string, derniere: number) => ({
+    cle,
+    produit_id: null,
+    designation,
+    prix: 10,
+    depose: 10,
+    vendu: 4,
+    repris: 0,
+    entre: 0,
+    reste: 6,
+    derniere_quantite: derniere,
+  })
+
+  it('propose la quantité du DERNIER dépôt, pas le total ni le restant', () => {
+    expect(propositionsReassort([pieceReassort('produit:p1', 'Bol', 3)])).toEqual([
+      { cle: 'produit:p1', designation: 'Bol', quantite: 3 },
+    ])
+  })
+
+  it('écarte une pièce jamais déposée : zéro n’est pas une proposition à corriger', () => {
+    expect(propositionsReassort([pieceReassort('nom:inconnu', 'Vase', 0)])).toEqual([])
+  })
+
+  it('écarte une pièce sans clé : la base ne saurait pas quoi résoudre', () => {
+    expect(propositionsReassort([pieceReassort('', 'Sans clé', 2)])).toEqual([])
+  })
+})
+
+describe('lignesDemandees', () => {
+  it('ne garde que les quantités positives — une ligne mise à zéro est un retrait', () => {
+    expect(
+      lignesDemandees([
+        { cle: 'a', designation: 'A', quantite: 2 },
+        { cle: 'b', designation: 'B', quantite: 0 },
+      ]),
+    ).toEqual([{ cle: 'a', quantite: 2 }])
+  })
+
+  it('rend une demande vide quand tout est à zéro : la base refuserait « aucune_demande »', () => {
+    expect(lignesDemandees([{ cle: 'a', designation: 'A', quantite: 0 }])).toEqual([])
+  })
+})
+
+describe('totalDemande', () => {
+  it('additionne les quantités demandées', () => {
+    expect(
+      totalDemande([
+        { cle: 'a', designation: 'A', quantite: 3 },
+        { cle: 'b', designation: 'B', quantite: 4 },
+      ]),
+    ).toBe(7)
   })
 })
 
@@ -168,6 +226,7 @@ describe('resumeFournisseur', () => {
     repris: 0,
     entre: 0,
     reste,
+    derniere_quantite: reste + vendu,
   })
 
   it('dit les dépôts reçus, ceux à confirmer, les ventes et ce qui reste', () => {

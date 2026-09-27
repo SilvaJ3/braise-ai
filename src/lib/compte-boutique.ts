@@ -5,8 +5,8 @@
 // `authenticated` : aucune ne prend d'identifiant de boutique en paramètre — le lien, l'artisan et
 // la boutique sont retrouvés à partir du compte connecté.
 
-import { useQuery } from '@tanstack/react-query'
-import { lireBons, lireEtat, type BonEspace, type EtatEspace } from './espace-boutique'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { lireBons, lireEtat, messageEspace, type BonEspace, type EtatEspace } from './espace-boutique'
 import { supabase } from './supabase'
 
 export type CompteBoutique =
@@ -68,4 +68,60 @@ async function rpc(nom: string, args: Record<string, unknown>): Promise<unknown>
   const { data, error } = await supabase.rpc(nom, args)
   if (error) throw error
   return data
+}
+
+/**
+ * Ce que rend un geste : `ok`, ou le code d'erreur de la base, traduit en une phrase. Les fonctions
+ * du lien rendent leurs refus en `jsonb` (`erreur`) et **pas** en erreur HTTP : sans cette
+ * traduction, un refus passerait pour un succès — l'écran dirait « c'est fait » sur un geste que la
+ * base a jeté.
+ */
+function reponseGeste(brut: unknown): void {
+  const o = (brut ?? {}) as Record<string, unknown>
+  // La traduction vit dans `espace-boutique.ts` (testée sans réseau) : une seule table de messages.
+  if (o.erreur) throw new Error(messageEspace(String(o.erreur)))
+}
+
+/** Les écrans qui lisent l'espace, remis à jour après un geste : l'état, et les bons de chacun. */
+function useRafraichirEspace() {
+  const client = useQueryClient()
+  return () => {
+    void client.invalidateQueries({ queryKey: ['espace-boutique'] })
+    void client.invalidateQueries({ queryKey: ['espace-bons'] })
+  }
+}
+
+/** Confirmer la réception d'un bon : c'est ce geste qui fait entrer les pièces dans le stock. */
+export function useConfirmerBon() {
+  const rafraichir = useRafraichirEspace()
+  return useMutation({
+    mutationFn: async (bonId: string) => {
+      reponseGeste(await rpc('boutique_compte_confirmer_bon', { bon_param: bonId }))
+    },
+    onSuccess: rafraichir,
+  })
+}
+
+/**
+ * Demander un réassort : la demande devient une commande ordinaire chez l'artisan, à ses statuts.
+ * Les lignes portent la clé d'une pièce, jamais un libellé saisi — la résolution est dans la base.
+ */
+export function useCommanderReassort() {
+  const rafraichir = useRafraichirEspace()
+  return useMutation({
+    mutationFn: async (params: {
+      partenaireId: string
+      lignes: { cle: string; quantite: number }[]
+      note?: string
+    }) => {
+      reponseGeste(
+        await rpc('boutique_compte_commander', {
+          partenaire_param: params.partenaireId,
+          lignes_param: params.lignes,
+          note_param: params.note ?? null,
+        }),
+      )
+    },
+    onSuccess: rafraichir,
+  })
 }

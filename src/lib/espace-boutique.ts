@@ -22,6 +22,12 @@ export type PieceEspace = {
   entre: number
   /** déposé + entré − vendu − repris */
   reste: number
+  /**
+   * La quantité du DERNIER dépôt de cette pièce (0061) : c'est elle que la demande de réassort
+   * propose, parce que « ce que vous avez reçu la dernière fois » se réécrit d'un cran, alors qu'un
+   * chiffre inventé se corrige de zéro. Zéro quand l'artisan ne l'a jamais déposée.
+   */
+  derniere_quantite: number
 }
 
 export type LigneBon = {
@@ -67,6 +73,9 @@ export const MESSAGES_ESPACE: Record<string, string> = {
   pas_un_compte_boutique: "Ce compte n'est pas un compte de boutique.",
   lien_invalide: "Le lien de ta boutique n'est plus valable. Demande-le à ton artisan.",
   partenaire_inconnu: "Cet artisan n'est plus rattaché à ta boutique.",
+  // Les refus des deux gestes : confirmer la réception d'un bon, demander un réassort.
+  bon_inconnu: "Ce bon n'est pas chez toi : rien n'a été confirmé.",
+  aucune_demande: "La demande est vide : rien n'est parti chez l'artisan.",
 }
 
 export function messageEspace(code: string | undefined | null): string {
@@ -141,6 +150,7 @@ function listePieces(brut: unknown): PieceEspace[] {
       // La base le rend déjà calculé ; on le recalcule à l'identique pour que l'écran tienne même
       // si une clé manque (une version antérieure de la fonction, par exemple).
       reste: o.reste === undefined ? depose + entre - vendu - repris : n(o.reste),
+      derniere_quantite: n(o.derniere_quantite),
     }
   })
 }
@@ -236,4 +246,36 @@ export function totalRestant(pieces: PieceEspace[]): number {
 /** Ce qu'un bon est, du point de vue de la boutique : reçu, ou pas encore. */
 export function statutBon(b: BonEspace): { texte: string; recu: boolean } {
   return b.confirme_le ? { texte: `Reçu le ${jour(b.confirme_le)}`, recu: true } : { texte: 'À confirmer', recu: false }
+}
+
+/**
+ * Une ligne de la demande de réassort, telle que la base l'attend : la clé d'une pièce
+ * (`produit:<uuid>` ou `nom:<libellé>`) et la quantité demandée. C'est la même forme que depuis la
+ * page du lien — `boutique_commander` n'a qu'une seule implémentation, et le compte la réutilise.
+ */
+export type LigneReassort = { cle: string; designation: string; quantite: number }
+
+/**
+ * Ce que la demande propose en s'ouvrant : les pièces que l'artisan a déjà déposées chez cette
+ * boutique, à la quantité de son DERNIER dépôt (0061) — « les quantités sont déjà remplies avec ce
+ * que vous avez reçu la dernière fois », puis elle ajuste. Une pièce jamais déposée n'apparaît pas
+ * (ses rayons, `catalogue`, restent affichés à part) ; une proposition à zéro non plus, sinon
+ * l'écran demanderait de corriger des lignes qui ne veulent rien dire.
+ */
+export function propositionsReassort(pieces: PieceEspace[]): LigneReassort[] {
+  return pieces
+    .filter((p) => p.cle !== '' && p.derniere_quantite > 0)
+    .map((p) => ({ cle: p.cle, designation: p.designation, quantite: p.derniere_quantite }))
+}
+
+/** Ce qui part réellement à la base : les lignes à quantité positive. Un zéro est un retrait, pas une demande. */
+export function lignesDemandees(lignes: LigneReassort[]): { cle: string; quantite: number }[] {
+  return lignes
+    .filter((l) => l.cle !== '' && l.quantite > 0)
+    .map((l) => ({ cle: l.cle, quantite: l.quantite }))
+}
+
+/** Le total de la demande, en pièces — le chiffre que la boutique relit avant d'envoyer. */
+export function totalDemande(lignes: LigneReassort[]): number {
+  return Math.round((lignes.reduce((s, l) => s + Math.max(l.quantite, 0), 0) + Number.EPSILON) * 100) / 100
 }

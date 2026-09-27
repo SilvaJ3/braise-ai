@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { useEspaceBons, useEspaceBoutique } from '../lib/compte-boutique'
+import { useConfirmerBon, useEspaceBons, useEspaceBoutique } from '../lib/compte-boutique'
 import { jour, montant, quantite, statutBon, totalRestant } from '../lib/espace-boutique'
 
 // L'espace de la boutique — écran 3 : les dépôts d'un artisan, un par un.
@@ -8,9 +9,10 @@ import { jour, montant, quantite, statutBon, totalRestant } from '../lib/espace-
 // c'est le papier qu'elle a signé à l'atelier, montré tel qu'il est. Les brouillons n'y sont pas —
 // un bon en brouillon n'a jamais quitté l'atelier et n'arrive pas ici (le filtre est dans la base).
 //
-// Aucun bouton : confirmer un bon, déclarer les ventes du mois et demander un réassort existent
-// depuis le lien de la boutique, mais ne sont pas cliquables ici — la démonstration s'arrête à ce
-// qu'elle reçoit.
+// Un seul geste est proposé ici, et c'est le plus important : **confirmer la réception**. C'est lui
+// qui fait entrer les pièces dans le stock de la boutique — un bon signé mais jamais reçu n'existe
+// pas chez elle. Il demande deux clics (la question, puis la réponse) parce qu'il ne se défait pas
+// depuis cet écran.
 export default function EspaceFournisseur() {
   const { partenaireId } = useParams<{ partenaireId: string }>()
   const { data: etatBrut } = useEspaceBoutique()
@@ -72,6 +74,7 @@ export default function EspaceFournisseur() {
               <div className="spacer" />
               <strong>{montant(b.valeur)}</strong>
             </div>
+            {!st.recu && <ConfirmerBon bonId={b.bon_id} />}
           </article>
         )
       })}
@@ -93,5 +96,61 @@ export default function EspaceFournisseur() {
         </Link>
       )}
     </>
+  )
+}
+
+/**
+ * Confirmer la réception d'un bon — deux clics, jamais un.
+ *
+ * Le premier demande, le second fait : un seul clic sur un geste qui range des pièces dans le stock
+ * (et qui notifie l'artisan) se déclenche trop souvent par erreur, sur un téléphone qui défile. Le
+ * refus de la base s'affiche tel quel — un geste qui n'est pas passé doit se voir.
+ */
+function ConfirmerBon({ bonId }: { bonId: string }) {
+  const [demande, setDemande] = useState(false)
+  const confirmer = useConfirmerBon()
+
+  if (!demande) {
+    return (
+      <div className="row" style={{ marginTop: 10 }}>
+        <div className="spacer" />
+        <button className="primary" type="button" onClick={() => setDemande(true)}>
+          Confirmer ce bon
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ marginTop: 10, borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+      <p style={{ margin: '0 0 8px' }}>
+        Confirmer que ces pièces sont bien arrivées ? Elles entreront dans ton stock, et l'artisan
+        est prévenu.
+      </p>
+      {confirmer.isError && (
+        <p className="muted" style={{ margin: '0 0 8px' }}>
+          {(confirmer.error as Error).message}
+        </p>
+      )}
+      <div className="row">
+        <div className="spacer" />
+        <button
+          className="link"
+          type="button"
+          disabled={confirmer.isPending}
+          onClick={() => setDemande(false)}
+        >
+          Annuler
+        </button>
+        <button
+          className="primary"
+          type="button"
+          disabled={confirmer.isPending}
+          onClick={() => confirmer.mutate(bonId)}
+        >
+          {confirmer.isPending ? 'Envoi…' : "Oui, j'ai reçu"}
+        </button>
+      </div>
+    </div>
   )
 }
