@@ -21,7 +21,15 @@ import {
   type ImportResult,
 } from '../_shared/import-entities.ts'
 import { readXlsx, sheetToCsv } from '../_shared/xlsx-lite.ts'
-import { consommation, ligneUsage, messageQuotaAtteint, quotaImports } from '../_shared/compte.ts'
+import {
+  CONSOMMATION_VIDE,
+  consommation,
+  ligneUsage,
+  messageQuotaAtteint,
+  quotaImports,
+} from '../_shared/compte.ts'
+import { RESERVE_JETONS } from '../_shared/enveloppe.ts'
+import { corrigerJetons, reserverJetons } from '../_shared/enveloppe-rpc.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -120,7 +128,12 @@ Règles :
 - Réponds uniquement via l'outil rendre_lignes.`
 }
 
-async function parseWithClaude(entity: ImportEntity, ex: Extracted, userId: string): Promise<ImportResult> {
+async function parseWithClaude(
+  entity: ImportEntity,
+  ex: Extracted,
+  userId: string,
+  reserve: number | null,
+): Promise<ImportResult> {
   const content: unknown[] = []
   if (ex.kind === 'text') {
     let text = ex.text
@@ -149,13 +162,21 @@ async function parseWithClaude(entity: ImportEntity, ex: Extracted, userId: stri
       tool_choice: { type: 'tool', name: 'rendre_lignes' },
     },
     { timeoutMs: 120_000, retries: 1 },
-  )
+  ).catch(async (e) => {
+    // L'appel n'a rien coûté : la place réservée dans l'enveloppe du mois est rendue, sinon un
+    // import qui échoue fermerait le plafond sans rien produire.
+    await corrigerJetons(admin, userId, reserve, CONSOMMATION_VIDE)
+    throw e
+  })
   const input = toolInputOf(resp.content, 'rendre_lignes')
-  // Journalisé même quand l'extraction ne rend rien : l'appel a été facturé.
+  // Journalisé même quand l'extraction ne rend rien : l'appel a été facturé. Le compteur du mois
+  // revient sur ce que l'appel a réellement coûté — la réservation n'était qu'un à-valoir.
+  const conso = consommation(resp.usage)
   const { error: errUsage } = await admin
     .from('usage_llm')
-    .insert(ligneUsage(userId, 'import', MODEL, consommation(resp.usage)))
+    .insert(ligneUsage(userId, 'import', MODEL, conso))
   if (errUsage) console.error('[usage]', errUsage)
+  await corrigerJetons(admin, userId, reserve, conso)
   if (!input) throw new Error("L'IA n'a rien renvoyé")
   return sanitizeLlmOutput(entity, input)
 }
@@ -197,23 +218,31 @@ async function handle(req: Request): Promise<Response> {
   const meta = { kind, sheets: ex.kind === 'text' ? ex.sheets : [] }
 
   if (ANTHROPIC_KEY) {
-    // Deux quotas, deux rôles : le mensuel est le plafond du plan (ce qui se voit sur la facture
-    // et ce qui se vend), l'horaire protège d'un martèlement. Le mensuel se vérifie en premier,
-    // pour que le message parle du quota qui bloque vraiment. Comme pour le chat, un import refusé
-    // a fait monter le compteur sans consommer de calcul.
+    // Le plafond du mois est une ENVELOPPE EN JETONS (0069) : un import peut sortir 16 000 jetons,
+    // c'est le poste le plus cher du produit. La place est réservée AVANT l'appel, et le compteur
+    // revient sur la consommation réelle juste après (voir `parseWithClaude`).
+    //
+    // Tant que la migration n'est pas en base, la réservation est indisponible et on retombe sur
+    // l'ancien compteur d'imports : un déploiement en avance sur la base ne doit pas fermer
+    // l'import à quelqu'un.
     const { data: profil } = await admin
       .from('assistant_profil')
       .select('plan, quota_mensuel')
       .eq('user_id', userData.user.id)
       .maybeSingle()
-    const quotaMois = quotaImports(profil?.plan, profil?.quota_mensuel)
-    const { data: moisOk, error: errMois } = await admin.rpc('consommer_quota_mois', {
-      p_user: userData.user.id,
-      p_quoi: 'imports',
-      p_max: quotaMois,
-    })
-    if (errMois) console.error('[quota mois import]', errMois)
-    else if (moisOk === false) return json({ error: messageQuotaAtteint('imports', quotaMois) }, 429)
+    const reservation = await reserverJetons(admin, userData.user.id, profil?.plan, RESERVE_JETONS.import)
+    if (reservation.etat === 'refus') return json({ error: reservation.message }, 429)
+    if (reservation.etat === 'indisponible') {
+      const quotaMois = quotaImports(profil?.plan, profil?.quota_mensuel)
+      const { data: moisOk, error: errMois } = await admin.rpc('consommer_quota_mois', {
+        p_user: userData.user.id,
+        p_quoi: 'imports',
+        p_max: quotaMois,
+      })
+      if (errMois) console.error('[quota mois import]', errMois)
+      else if (moisOk === false) return json({ error: messageQuotaAtteint('imports', quotaMois) }, 429)
+    }
+    const reserve = reservation.etat === 'reserve' ? reservation.reserve : null
 
     // Quota par utilisateur : l'import est le poste de coût LLM le plus élevé du projet —
     // jusqu'à 16 000 jetons de sortie pour un fichier de 6 Mo, jusqu'à ~4 minutes de calcul
@@ -230,7 +259,7 @@ async function handle(req: Request): Promise<Response> {
     }
 
     try {
-      const result = await parseWithClaude(entity, ex, userData.user.id)
+      const result = await parseWithClaude(entity, ex, userData.user.id, reserve)
       return json({ ...result, meta })
     } catch (e) {
       console.error('parseWithClaude', e)

@@ -13,6 +13,17 @@ import {
   type UsageParFonction,
 } from '../../supabase/functions/_shared/compte'
 import {
+  ENVELOPPE_JETONS,
+  RESERVE_JETONS,
+  champsEnveloppe,
+  enveloppeDisponible,
+  jetonsEquivalents,
+  messageEnveloppeEpuisee,
+  questionsIndicatives,
+  soldeJetons,
+} from '../../supabase/functions/_shared/enveloppe'
+import { PACK_IDS, PACKS, type PackId } from '../../supabase/functions/_shared/packs'
+import {
   alerteTarif,
   etatAbonnement,
   formuleFacturee,
@@ -21,13 +32,12 @@ import {
   noteFondateur,
   type FrequenceAbonnement,
 } from '../lib/abonnement'
-import { useMonCompte, useOuvrirPaiement, useOuvrirPortail } from '../lib/profil'
+import { useAcheterPack, useMonCompte, useOuvrirPaiement, useOuvrirPortail } from '../lib/profil'
 
 const nb = (n: number) => Math.round(n).toLocaleString('fr-BE')
 const euros = (n: number) => `${n.toFixed(2).replace('.', ',')} €`
-/** Jetons d'une ligne de détail : les quatre postes comptent, mais pas au même tarif. */
-const jetons = (u: UsageParFonction): number =>
-  Number(u.input_tokens) + Number(u.output_tokens) + Number(u.cache_read_tokens) + Number(u.cache_write_tokens)
+/** Ce qu'une ligne de détail a coûté, dans l'unité du plafond : le jeton équivalent entrée. */
+const jetons = (u: UsageParFonction): number => jetonsEquivalents(u as unknown as Consommation)
 
 // Ce que le compte consomme : c'est le plafond vendu (questions incluses), pas une statistique
 // décorative. Tout vient de la base (`mon_compte()`), sous la RLS du compte : l'écran ne peut
@@ -39,12 +49,13 @@ export default function CompteMonCompte() {
   const qc = useQueryClient()
   const paiement = useOuvrirPaiement()
   const portail = useOuvrirPortail()
+  const achat = useAcheterPack()
 
   // Au retour de la page de paiement, le webhook de Stripe n'a pas toujours fini d'écrire : on
   // relit le compte deux fois plutôt que d'afficher « aucun abonnement » juste après avoir payé.
   const retourPaiement = params.get('paiement')
   useEffect(() => {
-    if (retourPaiement !== 'ok') return
+    if (retourPaiement !== 'ok' && retourPaiement !== 'pack') return
     const relire = () => qc.invalidateQueries({ queryKey: ['mon-compte'] })
     const t1 = setTimeout(relire, 2_000)
     const t2 = setTimeout(relire, 6_000)
@@ -81,7 +92,15 @@ export default function CompteMonCompte() {
   const infos = PLANS[data.plan]
   const quotaQ = quotaQuestions(data.plan, data.quota_derogation)
   const quotaI = quotaImports(data.plan, data.quota_derogation)
-  const reste = Math.max(0, quotaQ - data.questions_utilisees)
+  // L'enveloppe en jetons (0069) : tant que la base ne la connaît pas, l'écran garde les anciens
+  // compteurs de questions. Un écran qui afficherait un plafond de zéro sur une base en retard
+  // ferait croire à un compte bloqué.
+  const enveloppe = champsEnveloppe(data)
+  const solde = enveloppe ? soldeJetons(data.plan, enveloppe.consommes, enveloppe.credits) : null
+  const questionsRestantes = solde ? questionsIndicatives(solde.restant) : 0
+  const prochainTour = enveloppe
+    ? enveloppeDisponible(data.plan, enveloppe.consommes, enveloppe.credits, RESERVE_JETONS.assistant)
+    : true
   const detail: UsageParFonction[] = Array.isArray(data.detail)
     ? (data.detail as UsageParFonction[])
     : []
@@ -120,9 +139,9 @@ export default function CompteMonCompte() {
         </div>
         {data.plan === 'essai' && (
           <p className="muted" style={{ margin: '6px 0 0' }}>
-            Tu es en essai. Les formules payantes incluent {PLANS.mensuel.questions} questions par
-            mois et {PLANS.mensuel.imports} imports de fichiers — l'abonnement se prend juste en
-            dessous, sans passer par moi.
+            Tu es en essai. Les formules payantes incluent environ{' '}
+            {questionsIndicatives(ENVELOPPE_JETONS.mensuel)} questions par mois, imports de fichiers
+            compris — l'abonnement se prend juste en dessous, sans passer par moi.
           </p>
         )}
       </div>
@@ -139,34 +158,94 @@ export default function CompteMonCompte() {
 
       <h2>Ce mois-ci ({moisLisible})</h2>
       <div className="card">
-        <div className="row">
-          <span>Questions</span>
-          <div className="spacer" />
-          <span className="muted">
-            {data.questions_utilisees} sur {quotaQ}
-          </span>
-        </div>
-        <div className="row" style={{ marginTop: 6 }}>
-          <span>Imports de fichiers</span>
-          <div className="spacer" />
-          <span className="muted">
-            {data.imports_utilises} sur {quotaI}
-          </span>
-        </div>
-        <p className="muted" style={{ margin: '10px 0 0', fontSize: '0.85rem' }}>
-          {reste > 0
-            ? `Il te reste ${reste} question${reste > 1 ? 's' : ''}. Le compteur repart le 1er du mois prochain.`
-            : "Tu as utilisé toutes tes questions du mois : écris-moi si tu en veux plus, ou attends le 1er."}
-        </p>
-        {/* Détail technique, volontairement discret : c'est ce que l'outil consomme réellement
-            chez son fournisseur de modèle, utile pendant les premiers mois. Le cache et les
-            recherches web y figurent parce qu'ils se facturent à part des jetons d'entrée/sortie :
-            un total qui les ignore est faux dans les deux sens. */}
-        <p className="muted" style={{ margin: '10px 0 0', fontSize: '0.78rem' }}>
-          Détail : {nb(Number(data.input_tokens))} jetons en entrée,{' '}
-          {nb(Number(data.output_tokens))} en sortie, sur {data.appels} appel
-          {data.appels > 1 ? 's' : ''} au modèle — environ {euros(cout)}.
-        </p>
+        {solde ? (
+          <>
+            {/* L'enveloppe du mois, en jetons : c'est l'unité dans laquelle le plafond est compté
+                côté serveur (un tour de chat enchaîne plusieurs appels, un import peut sortir
+                16 000 jetons). Les questions ne sont qu'une traduction, et l'écran le dit. */}
+            <div className="row">
+              <span>Enveloppe du mois</span>
+              <div className="spacer" />
+              <span className="muted">
+                {nb(solde.enveloppe)} jetons — environ {questionsIndicatives(solde.enveloppe)}{' '}
+                questions
+              </span>
+            </div>
+            <div className="row" style={{ marginTop: 6 }}>
+              <span>Consommé</span>
+              <div className="spacer" />
+              <span className="muted">{nb(solde.consommes)} jetons</span>
+            </div>
+            {solde.credits > 0 && (
+              <div className="row" style={{ marginTop: 6 }}>
+                <span>Jetons achetés — restants</span>
+                <div className="spacer" />
+                <span className="muted">
+                  {nb(solde.restantCredits)} sur {nb(solde.credits)}
+                </span>
+              </div>
+            )}
+            <p className="muted" style={{ margin: '10px 0 0', fontSize: '0.85rem' }}>
+              {solde.epuise
+                ? messageEnveloppeEpuisee(solde.enveloppe + solde.credits)
+                : `Il te reste environ ${questionsRestantes} question${
+                    questionsRestantes > 1 ? 's' : ''
+                  } (${nb(solde.restant)} jetons). L'enveloppe repart le 1er du mois prochain.`}
+            </p>
+            {solde.restantEnveloppe === 0 && solde.restantCredits > 0 && (
+              <p className="muted" style={{ margin: '6px 0 0', fontSize: '0.85rem' }}>
+                L'enveloppe du mois est utilisée : ce qui suit est pris sur tes jetons achetés.
+              </p>
+            )}
+            {!solde.epuise && !prochainTour && (
+              <p className="muted" style={{ margin: '6px 0 0', fontSize: '0.85rem' }}>
+                Ce qu'il reste ne suffit plus pour une question : il faut attendre le 1er, ou prendre
+                un pack.
+              </p>
+            )}
+
+            {/* Détail technique, volontairement discret : c'est ce que l'outil consomme réellement
+                chez son fournisseur de modèle, utile pendant les premiers mois. Le cache et les
+                recherches web y figurent parce qu'ils se facturent à part des jetons d'entrée/sortie :
+                un total qui les ignore est faux dans les deux sens. */}
+            <p className="muted" style={{ margin: '10px 0 0', fontSize: '0.78rem' }}>
+              Détail : {nb(Number(data.input_tokens))} jetons en entrée,{' '}
+              {nb(Number(data.output_tokens))} en sortie, sur {data.appels} appel
+              {data.appels > 1 ? 's' : ''} au modèle — environ {euros(cout)}.
+            </p>
+          </>
+        ) : (
+          <>
+            {/* Repli : base pas encore migrée (0069). Les anciens compteurs restent affichés, avec
+                la même phrase qu'avant cette bascule. */}
+            <div className="row">
+              <span>Questions</span>
+              <div className="spacer" />
+              <span className="muted">
+                {data.questions_utilisees} sur {quotaQ}
+              </span>
+            </div>
+            <div className="row" style={{ marginTop: 6 }}>
+              <span>Imports de fichiers</span>
+              <div className="spacer" />
+              <span className="muted">
+                {data.imports_utilises} sur {quotaI}
+              </span>
+            </div>
+            <p className="muted" style={{ margin: '10px 0 0', fontSize: '0.85rem' }}>
+              {data.questions_utilisees < quotaQ
+                ? `Il te reste ${quotaQ - data.questions_utilisees} question${
+                    quotaQ - data.questions_utilisees > 1 ? 's' : ''
+                  }. Le compteur repart le 1er du mois prochain.`
+                : 'Tu as utilisé toutes tes questions du mois : ça repart le 1er du mois prochain.'}
+            </p>
+            <p className="muted" style={{ margin: '10px 0 0', fontSize: '0.78rem' }}>
+              Détail : {nb(Number(data.input_tokens))} jetons en entrée,{' '}
+              {nb(Number(data.output_tokens))} en sortie, sur {data.appels} appel
+              {data.appels > 1 ? 's' : ''} au modèle — environ {euros(cout)}.
+            </p>
+          </>
+        )}
 
         {detail.length > 0 && (
           <div style={{ marginTop: 10 }}>
@@ -194,9 +273,11 @@ export default function CompteMonCompte() {
         </p>
       </div>
 
+      {solde && <Packs acheter={achat} />}
+
       <p className="muted" style={{ fontSize: '0.85rem' }}>
-        Le paiement se règle depuis cet écran. Les quotas, eux, se règlent encore à la main :
-        envoie-moi un message si tu en veux plus.
+        Le paiement se règle depuis cet écran : l'abonnement, et les jetons quand le mois ne suffit
+        pas.
       </p>
     </>
   )
@@ -314,6 +395,61 @@ function Abonnement({
         {erreur && (
           <p className="muted" style={{ margin: '8px 0 0' }}>
             {erreur}
+          </p>
+        )}
+      </div>
+    </>
+  )
+}
+
+/**
+ * Les packs de jetons : deux paiements uniques, qui ajoutent des jetons au mois sans toucher à
+ * l'abonnement ni à son prix.
+ *
+ * Ce que l'écran ne fait pas : décider des jetons. Les montants affichés viennent de la table
+ * partagée (`_shared/packs.ts`), la même que celle que le webhook crédite — un libellé
+ * d'écran qui annoncerait autre chose que le crédit serait un mensonge, pas une coquille.
+ */
+function Packs({ acheter }: { acheter: ReturnType<typeof useAcheterPack> }) {
+  const ouvrir = async (pack: PackId) => {
+    // `assign` : la page suivante est celle de Stripe, hors de l'app.
+    const url = await acheter.mutateAsync(pack).catch(() => null)
+    if (url) window.location.assign(url)
+  }
+
+  return (
+    <>
+      <h2>Des jetons en plus</h2>
+      <div className="card">
+        <p className="muted" style={{ margin: 0 }}>
+          L'enveloppe du mois repart le 1er. Un pack ajoute des jetons tout de suite : c'est un
+          paiement unique, ça ne change ni ton abonnement ni son prix, et les jetons ne périment pas.
+        </p>
+
+        {PACK_IDS.map((id) => (
+          <div className="row" style={{ marginTop: 12 }} key={id}>
+            <span>
+              <strong>{PACKS[id].titre}</strong>
+              <br />
+              <span className="muted" style={{ fontSize: '0.8rem' }}>
+                {PACKS[id].libelle}
+              </span>
+            </span>
+            <div className="spacer" />
+            <button disabled={acheter.isPending} onClick={() => ouvrir(id)}>
+              {acheter.isPending ? 'Ouverture…' : 'Acheter'}
+            </button>
+          </div>
+        ))}
+
+        <p className="muted" style={{ margin: '10px 0 0', fontSize: '0.85rem' }}>
+          Le paiement s'ouvre sur une page Stripe. Prix hors TVA : la TVA est calculée au paiement
+          selon ton pays, et l'autoliquidation s'applique si tu donnes ton numéro de TVA.
+        </p>
+
+        {acheter.error && (
+          <p className="muted" style={{ margin: '8px 0 0' }}>
+            {acheter.error.message}
           </p>
         )}
       </div>

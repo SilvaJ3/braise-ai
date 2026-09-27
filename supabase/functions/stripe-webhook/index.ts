@@ -1,9 +1,10 @@
 // Le retour de Stripe : ce qui tient le compte à jour.
 //
-// Stripe appelle cette fonction à chaque changement d'abonnement. On n'y fait qu'une chose : écrire
-// sur le compte ce que Stripe dit de l'abonnement — statut, fin de période, montant réellement
-// prélevé. Aucune restriction d'accès n'est appliquée ici : couper l'accès d'un artisan parce qu'un
-// prélèvement a échoué est une décision commerciale, pas une conséquence technique.
+// Stripe appelle cette fonction à chaque changement d'abonnement, et à chaque achat de pack de
+// jetons. On n'y fait que deux choses : écrire sur le compte ce que Stripe dit de l'abonnement, et
+// créditer les jetons d'un pack payé. Aucune restriction d'accès n'est appliquée ici : couper
+// l'accès d'un artisan parce qu'un prélèvement a échoué est une décision commerciale, pas une
+// conséquence technique.
 //
 // À déployer avec `--no-verify-jwt` : Stripe n'envoie évidemment pas de jeton Supabase. C'est la
 // signature du webhook qui prouve que l'appel vient bien de Stripe.
@@ -13,6 +14,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@17'
 import { champsDepuisAbonnement, prendLeCompte } from '../_shared/stripe.ts'
+import { clefCredit, creditDepuisSession } from '../_shared/packs.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -64,6 +66,42 @@ async function majDepuisAbonnement(stripe: Stripe, abonnementId: string, userIdC
   else console.log('[stripe-webhook]', sub.id, champs.abonnement_statut, champs.abonnement_prix_centimes)
 }
 
+/**
+ * Crédite les jetons d'un achat de pack, une seule fois.
+ *
+ * Idempotent par construction : `crediter_pack` prend l'identifiant de session Stripe comme clef
+ * unique et ne fait rien s'il est déjà là. Un événement rejoué — Stripe en renvoie jusqu'à ce qu'on
+ * réponde 200 — ne crédite donc pas deux fois, et le code n'a pas à relire avant d'écrire.
+ *
+ * Un événement qui ne nous concerne pas ne déclenche RIEN : `creditDepuisSession` refuse une
+ * session d'abonnement, un pack inconnu, un compte non identifié et un paiement non encaissé.
+ * C'est le cas ordinaire, pas une anomalie — la même URL de webhook sert les deux achats.
+ */
+async function crediterPack(session: Stripe.Checkout.Session): Promise<void> {
+  const credit = creditDepuisSession(session as unknown as Parameters<typeof creditDepuisSession>[0])
+  if (!credit) {
+    console.log('[stripe-webhook] paiement ignoré', session.id, session.mode, session.payment_status)
+    return
+  }
+  const { data, error } = await admin.rpc('crediter_pack', {
+    p_user: credit.userId,
+    p_jetons: credit.jetons,
+    p_source: credit.source,
+    p_session: clefCredit(credit),
+  })
+  if (error) {
+    // Journalisé : c'est la seule trace d'un crédit qui n'a pas eu lieu.
+    console.error('[stripe-webhook] crédit impossible', credit.sessionId, error)
+    return
+  }
+  console.log(
+    '[stripe-webhook] crédit',
+    credit.pack,
+    credit.jetons,
+    data === false ? 'déjà crédité' : 'accordé',
+  )
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response('méthode non autorisée', { status: 405 })
 
@@ -91,13 +129,19 @@ Deno.serve(async (req) => {
 
   try {
     switch (evenement.type) {
-      case 'checkout.session.completed': {
+      case 'checkout.session.completed':
+      // Une méthode de paiement asynchrone (virement, Bancontact) confirme plus tard : c'est le
+      // second événement qui porte le paiement encaissé, et c'est lui qui crédite.
+      case 'checkout.session.async_payment_succeeded': {
         const session = evenement.data.object as Stripe.Checkout.Session
         if (session.subscription) {
           const abonnementId =
             typeof session.subscription === 'string' ? session.subscription : session.subscription.id
           await majDepuisAbonnement(stripe, abonnementId, session.client_reference_id)
         }
+        // Les deux achats passent par ici ; seul un achat de pack crédite des jetons, et
+        // `crediterPack` écarte tout le reste (voir son commentaire).
+        await crediterPack(session)
         break
       }
       case 'customer.subscription.created':

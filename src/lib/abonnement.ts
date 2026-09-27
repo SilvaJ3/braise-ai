@@ -141,7 +141,8 @@ export type MessagePaiement = { ton: 'ok' | 'info'; texte: string }
 
 /**
  * Ce que la page de paiement a laissé dans l'adresse au retour. Stripe revient sur
- * `/compte/mon-compte?paiement=ok` ou `?paiement=annule` (voir `stripe-checkout`).
+ * `/compte/mon-compte?paiement=ok` (abonnement), `?paiement=pack` (jetons) ou `?paiement=annule`
+ * (voir `stripe-checkout`).
  *
  * Au retour d'un paiement accepté, le webhook n'a pas forcément encore écrit en base : la phrase le
  * dit au lieu de laisser croire à un échec.
@@ -152,6 +153,13 @@ export function messagePaiement(param: string | null | undefined): MessagePaieme
       ton: 'ok',
       texte:
         'Paiement reçu. Ton abonnement s’active — ça peut prendre quelques secondes avant de s’afficher ici.',
+    }
+  }
+  if (param === 'pack') {
+    return {
+      ton: 'ok',
+      texte:
+        'Paiement reçu. Tes jetons arrivent — ça peut prendre quelques secondes avant de s’afficher ici.',
     }
   }
   if (param === 'annule') {

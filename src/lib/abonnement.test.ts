@@ -134,6 +134,14 @@ describe('messagePaiement', () => {
     expect(m?.texte).toContain('quelques secondes')
   })
 
+  it('parle de jetons, pas d’abonnement, au retour d’un achat de pack', () => {
+    const m = messagePaiement('pack')
+    expect(m?.ton).toBe('ok')
+    expect(m?.texte).toContain('jetons')
+    expect(m?.texte).not.toContain('abonnement')
+    expect(m?.texte).toContain('quelques secondes')
+  })
+
   it('rassure sur l’annulation', () => {
     const m = messagePaiement('annule')
     expect(m?.ton).toBe('info')

@@ -1,14 +1,24 @@
 // Abonnement Braaise : crée une session de paiement Stripe pour le compte connecté.
 //
+// Deux choses s'achètent ici, et elles ne se paient pas de la même façon :
+//   · l'abonnement (mensuel ou annuel) — `mode: 'subscription'`, prix récurrent, coupon fondateur
+//     appliqué aux comptes `fondateur` sur le mensuel ;
+//   · un pack de jetons — `mode: 'payment'`, paiement unique, qui ajoute des jetons à l'enveloppe
+//     du mois sans rien changer au plan.
+//
 // Le Checkout est hébergé par Stripe : la carte ne traverse jamais notre code, et l'application n'a
-// donc pas besoin de clé publique. Ce qui se décide ici, et seulement ici :
-//   · quel prix — mensuel ou annuel, selon ce que la personne a choisi ;
-//   · si le tarif fondateur s'applique — abonnement mensuel d'un compte `fondateur` uniquement.
+// donc pas besoin de clé publique.
+//
+// La TVA est normale (21 % en Belgique) : `automatic_tax` la calcule selon le pays du client, et
+// `tax_id_collection` récupère le numéro de TVA des clients professionnels — c'est lui qui permet
+// l'autoliquidation hors Belgique. Sans les deux, le montant affiché serait hors taxe et
+// l'autoliquidation impossible.
 //
 // Un client Stripe est créé au premier paiement puis réutilisé : c'est lui qui permet au webhook de
 // retrouver le compte.
 //
-// Secrets attendus : STRIPE_SECRET_KEY, STRIPE_PRIX_MENSUEL, STRIPE_PRIX_ANNUEL, STRIPE_COUPON_FONDATEUR.
+// Secrets attendus : STRIPE_SECRET_KEY, STRIPE_PRIX_MENSUEL, STRIPE_PRIX_ANNUEL,
+// STRIPE_COUPON_FONDATEUR, STRIPE_PRIX_PACK_30, STRIPE_PRIX_PACK_50.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@17'
@@ -18,6 +28,7 @@ import {
   prixPour,
   type IdentifiantsStripe,
 } from '../_shared/stripe.ts'
+import { metadonneesPack, packValide, prixPack, type IdentifiantsPacks } from '../_shared/packs.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -46,6 +57,18 @@ function identifiants(): IdentifiantsStripe | null {
   return { prixMensuel, prixAnnuel, couponFondateur }
 }
 
+/**
+ * Les deux prix des packs, à part de ceux de l'abonnement : un déploiement qui n'a pas encore les
+ * secrets des packs vend l'abonnement comme avant, au lieu de tout refuser. C'est la vente des
+ * packs qui est fermée, pas le paiement.
+ */
+function identifiantsPacks(): IdentifiantsPacks | null {
+  const pack30 = Deno.env.get('STRIPE_PRIX_PACK_30')?.trim()
+  const pack50 = Deno.env.get('STRIPE_PRIX_PACK_50')?.trim()
+  if (!pack30 || !pack50) return null
+  return { pack30, pack50 }
+}
+
 /** L'adresse de l'application, réglée en base (`app_url`) — jamais en dur dans le code. */
 async function adresseApp(): Promise<string> {
   const { data } = await admin
@@ -63,7 +86,8 @@ Deno.serve(async (req) => {
 
   const cle = Deno.env.get('STRIPE_SECRET_KEY')?.trim()
   const ids = identifiants()
-  if (!cle || !ids) {
+  const idsPacks = identifiantsPacks()
+  if (!cle) {
     console.error('[stripe-checkout] secrets manquants')
     return json({ erreur: 'Le paiement n’est pas disponible pour le moment.' }, 503)
   }
@@ -73,8 +97,17 @@ Deno.serve(async (req) => {
   if (erreurAuth || !auth?.user) return json({ erreur: 'non authentifié' }, 401)
   const utilisateur = auth.user
 
-  const corps = (await req.json().catch(() => ({}))) as { frequence?: unknown }
+  const corps = (await req.json().catch(() => ({}))) as { frequence?: unknown; pack?: unknown }
   const frequence = frequenceValide(corps?.frequence)
+  // Un identifiant de pack inconnu ne retombe sur rien : on refuse au lieu de vendre autre chose.
+  const pack = corps?.pack === undefined ? null : packValide(corps.pack)
+  if (corps?.pack !== undefined && !pack) return json({ erreur: 'pack inconnu' }, 400)
+  // Ce qui manque dépend de ce qui s'achète : les prix des packs pour un pack, ceux de
+  // l'abonnement sinon.
+  if (pack ? !idsPacks : !ids) {
+    console.error('[stripe-checkout] secrets manquants pour', pack ?? frequence)
+    return json({ erreur: 'Le paiement n’est pas disponible pour le moment.' }, 503)
+  }
 
   const { data: profil } = await admin
     .from('assistant_profil')
@@ -106,23 +139,50 @@ Deno.serve(async (req) => {
 
   const fondateur = appliqueCouponFondateur(profil?.plan, frequence)
 
+  // La TVA et le recouvrement du numéro de TVA valent pour les deux achats : la TVA belge (21 %)
+  // s'ajoute au montant, et le numéro du client professionnel permet l'autoliquidation hors
+  // Belgique. `customer_update` fait enregistrer l'adresse et le nom sur le client Stripe —
+  // sans quoi un client qui existe déjà ne pourrait pas porter son numéro de TVA.
+  const fiscalite = {
+    automatic_tax: { enabled: true },
+    tax_id_collection: { enabled: true },
+    customer_update: { address: 'auto' as const, name: 'auto' as const },
+  }
+
   try {
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      customer: client,
-      line_items: [{ price: prixPour(frequence, ids), quantity: 1 }],
-      // Le prix est en euros et doit s'afficher en euros. Sans ce verrou, Stripe adapte la devise
-      // au pays qu'il croit deviner chez le visiteur : la page de paiement a affiché « CA$48,45 »
-      // pour un prix de 3 900 cents, alors que la base écrivait bien 2 900 (constat du 20/09/2026).
-      // Ce qu'on vérifie n'est pas la ligne de code mais la session relue en mode test.
-      adaptive_pricing: { enabled: false },
-      // Le tarif fondateur est appliqué tout seul : il n'y a pas de code à saisir.
-      discounts: fondateur ? [{ coupon: ids.couponFondateur }] : undefined,
-      client_reference_id: utilisateur.id,
-      subscription_data: { metadata: { user_id: utilisateur.id } },
-      success_url: `${url}/compte/mon-compte?paiement=ok`,
-      cancel_url: `${url}/compte/mon-compte?paiement=annule`,
-    })
+    const session = pack
+      ? await stripe.checkout.sessions.create({
+          mode: 'payment',
+          customer: client,
+          line_items: [{ price: prixPack(pack, idsPacks!), quantity: 1 }],
+          ...fiscalite,
+          adaptive_pricing: { enabled: false },
+          client_reference_id: utilisateur.id,
+          // L'identifiant du compte et le pack voyagent avec la session ET avec le paiement :
+          // c'est ce que lit `stripe-webhook` pour créditer. Le nombre de jetons y figure pour la
+          // trace, mais il n'est jamais cru sur parole — `_shared/packs.ts` le relit dans la table.
+          metadata: metadonneesPack(utilisateur.id, pack),
+          payment_intent_data: { metadata: metadonneesPack(utilisateur.id, pack) },
+          success_url: `${url}/compte/mon-compte?paiement=pack`,
+          cancel_url: `${url}/compte/mon-compte?paiement=annule`,
+        })
+      : await stripe.checkout.sessions.create({
+          mode: 'subscription',
+          customer: client,
+          line_items: [{ price: prixPour(frequence, ids!), quantity: 1 }],
+          ...fiscalite,
+          // Le prix est en euros et doit s'afficher en euros. Sans ce verrou, Stripe adapte la devise
+          // au pays qu'il croit deviner chez le visiteur : la page de paiement a affiché « CA$48,45 »
+          // pour un prix de 3 900 cents, alors que la base écrivait bien 2 900 (constat du 20/09/2026).
+          // Ce qu'on vérifie n'est pas la ligne de code mais la session relue en mode test.
+          adaptive_pricing: { enabled: false },
+          // Le tarif fondateur est appliqué tout seul : il n'y a pas de code à saisir.
+          discounts: fondateur ? [{ coupon: ids!.couponFondateur }] : undefined,
+          client_reference_id: utilisateur.id,
+          subscription_data: { metadata: { user_id: utilisateur.id } },
+          success_url: `${url}/compte/mon-compte?paiement=ok`,
+          cancel_url: `${url}/compte/mon-compte?paiement=annule`,
+        })
     if (!session.url) {
       console.error('[stripe-checkout] session sans adresse', session.id)
       return json({ erreur: 'Le paiement n’a pas pu être ouvert.' }, 502)
