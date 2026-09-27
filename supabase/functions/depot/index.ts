@@ -10,8 +10,6 @@
 // n'a aucun réglage technique à faire. Secrets attendus : RESEND_API_KEY, MAIL_DOMAIN.
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import {
-  emailBody,
-  emailSubject,
   isEmail,
   parseEmails,
   pdfFilename,
@@ -22,6 +20,7 @@ import {
 } from '../_shared/depot-doc.ts'
 import { renderDepotPdf } from '../_shared/depot-pdf.ts'
 import { baseLienBoutique, lienBoutique } from '../_shared/lien-boutique.ts'
+import { construireMailBon } from '../_shared/mail-bon.ts'
 import { envoyerMail } from '../_shared/mailer.ts'
 import { construirePresentation, fautPresenter } from '../_shared/presentation-boutique.ts'
 
@@ -394,6 +393,9 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>): Pro
   let lien: LienBoutique = SANS_LIEN
   try {
     lien = await lienDeLaBoutique(userId, row.boutique_id)
+    // Version brute ET version mise en page (voir `_shared/mail-bon.ts`) : sans la seconde, le lien
+    // de la boutique partait en texte mort, et le client de messagerie n'en faisait pas un lien.
+    const mail = construireMailBon(doc, lien.url ? { lien: lien.url } : undefined)
     await envoyerMail(
       { apiKey: RESEND_API_KEY, domain: MAIL_DOMAIN },
       {
@@ -402,8 +404,9 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>): Pro
         replyTo: doc.emetteur.email || undefined,
         to,
         cc,
-        subject: emailSubject(doc),
-        text: emailBody(doc, { lien: lien.url }),
+        subject: mail.subject,
+        text: mail.text,
+        html: mail.html,
         attachments: [{ filename: pdfFilename(doc), base64: toBase64(pdf) }],
       },
     )
