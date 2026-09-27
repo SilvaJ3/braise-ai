@@ -28,13 +28,28 @@ export type MailBon = { subject: string; text: string; html: string }
 /** Le libellé du bouton, le même partout où le lien d'une boutique est proposé. */
 export const LIBELLE_BOUTON = 'Ouvrir ma page'
 
+/** Ce qu'un renvoi dit, et pourquoi : le destinataire doit comprendre qu'il remplace le précédent. */
+export const PHRASE_CORRECTION =
+  "Correction : dans le mail précédent, le lien de votre page s'affichait en texte simple, et n'était donc pas cliquable. Il l'est maintenant — le bon et le lien sont inchangés, rien d'autre ne change."
+
 /**
  * Le mail complet d'un bon. Sans lien (adresse de boutique introuvable), il part quand même :
  * le bon, lui, existe — mais aucun bouton n'est posé, plutôt qu'un bouton qui ne mène nulle part.
+ *
+ * `correction: true` = c'est un **renvoi** : même bon, même lien, mais l'objet et la première
+ * phrase annoncent qu'il corrige le précédent (constat du 27/09/2026 sur le bon 2026-009).
  */
-export function construireMailBon(doc: DepotDoc, options?: { lien?: string }): MailBon {
+export function construireMailBon(
+  doc: DepotDoc,
+  options?: { lien?: string; correction?: boolean },
+): MailBon {
   const lien = String(options?.lien ?? '').trim()
-  const texte = emailBody(doc, lien ? { lien } : undefined)
+  const correction = options?.correction === true
+  // La phrase de correction passe devant, dans les deux versions : c'est la première chose à lire.
+  const texte = [
+    ...(correction ? [PHRASE_CORRECTION, ''] : []),
+    emailBody(doc, lien ? { lien } : undefined),
+  ].join('\n')
 
   const reference = `${titreBon(doc.mode)}${doc.numero ? ` n° ${doc.numero}` : ''}`
   const articles = doc.lignes
@@ -43,6 +58,7 @@ export function construireMailBon(doc: DepotDoc, options?: { lien?: string }): M
   const contact = [doc.emetteur.nom, doc.emetteur.telephone, doc.emetteur.email].filter(Boolean)
 
   const paragraphes = [
+    ...(correction ? [PHRASE_CORRECTION] : []),
     `Voici ${reference.toLowerCase()} du ${fmtDateLongue(doc.date_depot)} pour ${doc.boutique_nom}, signé, en pièce jointe.`,
     `Articles ${doc.mode === 'achat_ferme' ? 'livrés' : 'déposés'} : ${articles || '—'}`,
     MODE_MENTION[doc.mode],
@@ -55,8 +71,9 @@ export function construireMailBon(doc: DepotDoc, options?: { lien?: string }): M
     )
   }
 
+  const objet = emailSubject(doc)
   return {
-    subject: emailSubject(doc),
+    subject: correction ? `Correction — ${objet}` : objet,
     text: texte,
     html: mailHtml({
       expediteur: doc.emetteur.nom,

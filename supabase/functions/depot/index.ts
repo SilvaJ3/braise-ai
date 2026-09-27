@@ -83,6 +83,9 @@ type DepotRow = {
   photo_image: string | null
   signed_at: string | null
   pdf_path: string | null
+  email_to: string[] | null
+  email_cc: string[] | null
+  sent_at: string | null
 }
 
 /**
@@ -105,7 +108,7 @@ async function modeDuBon(row: { boutique_id: string | null; user_id: string; mod
 async function loadDepot(userId: string, depotId: string): Promise<{ row: DepotRow; doc: DepotDoc } | null> {
   const { data: row } = await admin
     .from('depots')
-    .select('id, user_id, boutique_id, mode, numero, date_depot, statut, boutique_nom, boutique_adresse, boutique_email, notes, signataire_nom, signature_image, photo_image, signed_at, pdf_path')
+    .select('id, user_id, boutique_id, mode, numero, date_depot, statut, boutique_nom, boutique_adresse, boutique_email, notes, signataire_nom, signature_image, photo_image, signed_at, pdf_path, email_to, email_cc, sent_at')
     .eq('id', depotId)
     .eq('user_id', userId)
     .maybeSingle()
@@ -435,6 +438,90 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>): Pro
   return json({ numero: doc.numero, sent_to: [...to, ...cc], pdf_path: upErr ? null : path })
 }
 
+/**
+ * Renvoyer un bon déjà parti — sans refaire signer la boutique.
+ *
+ * POURQUOI CE MODE EXISTE : un mail peut être mal rendu chez celui qui le reçoit, et le défaut
+ * n'est vu qu'après coup — constat de JSB le 27/09/2026, sur le bon 2026-009 : le lien de la
+ * boutique était arrivé en texte mort. Le bon, lui, est acquis : refaire signer pour corriger une
+ * mise en page serait absurde. On renvoie donc **le même document**, avec **le même lien**, aux
+ * **mêmes adresses** (celles figées à l'envoi — jamais un destinataire neuf), et l'objet comme la
+ * première phrase annoncent la correction.
+ */
+async function handleRenvoyer(userId: string, body: Record<string, unknown>): Promise<Response> {
+  if (!RESEND_API_KEY) {
+    return json({ error: "Le service d'envoi de mail n'est pas configuré (secret RESEND_API_KEY)." }, 500)
+  }
+  const loaded = await loadDepot(userId, String(body.depot_id ?? ''))
+  if (!loaded) return json({ error: 'bon de dépôt introuvable' }, 404)
+  const { row, doc } = loaded
+  if (!doc.numero || row.statut === 'brouillon') {
+    return json({ error: "Ce bon n'a pas encore été envoyé : c'est un envoi, pas un renvoi." }, 400)
+  }
+
+  // Les adresses du renvoi sont celles de l'envoi, pas une saisie nouvelle : un renvoi ne doit pas
+  // pouvoir servir à écrire à quelqu'un d'autre depuis le domaine de l'application.
+  const to = (row.email_to ?? []).map((e) => String(e).trim()).filter(isEmail)
+  const cc = (row.email_cc ?? []).map((e) => String(e).trim()).filter(isEmail)
+  if (!to.length && !cc.length) return json({ error: "Ce bon n'a aucune adresse d'envoi enregistrée." }, 400)
+  const autorisees = await adressesAutorisees(userId, doc)
+  const refuses = [...to, ...cc].filter((e) => !autorisees.has(e.toLowerCase()))
+  if (refuses.length) {
+    return json({ error: `Destinataire non autorisé : ${refuses.join(', ')}.` }, 403)
+  }
+
+  // Le PDF déjà archivé est le document que la boutique a reçu : on le renvoie tel quel. S'il a
+  // disparu du stockage, on le régénère depuis le bon — jamais de renvoi sans pièce jointe.
+  let pdf: Uint8Array | null = null
+  if (row.pdf_path) {
+    const { data: blob, error } = await admin.storage.from(BUCKET).download(row.pdf_path)
+    if (error) console.error('storage.download', error.message)
+    if (blob) pdf = new Uint8Array(await blob.arrayBuffer())
+  }
+  if (!pdf) {
+    try {
+      pdf = renderDepotPdf(doc)
+    } catch (e) {
+      console.error('renderDepotPdf', e)
+      return json({ error: `génération du PDF impossible : ${String((e as Error).message ?? e).slice(0, 200)}` }, 500)
+    }
+  }
+
+  const lien = await lienDeLaBoutique(userId, row.boutique_id)
+  const mail = construireMailBon(doc, {
+    ...(lien.url ? { lien: lien.url } : {}),
+    correction: true,
+  })
+  try {
+    await envoyerMail(
+      { apiKey: RESEND_API_KEY, domain: MAIL_DOMAIN },
+      {
+        fromName: doc.emetteur.nom,
+        replyTo: doc.emetteur.email || undefined,
+        to,
+        ...(cc.length ? { cc } : {}),
+        subject: mail.subject,
+        text: mail.text,
+        html: mail.html,
+        attachments: [{ filename: pdfFilename(doc), base64: toBase64(pdf) }],
+      },
+    )
+  } catch (e) {
+    const message = String((e as Error).message ?? e).slice(0, 500)
+    console.error('envoyerMail (renvoi)', message)
+    await admin.from('depots').update({ send_error: message }).eq('id', row.id)
+    return json({ error: `Le renvoi a échoué : ${message}` }, 502)
+  }
+
+  const envoyeLe = new Date().toISOString()
+  await admin
+    .from('depots')
+    .update({ sent_at: envoyeLe, send_error: null })
+    .eq('id', row.id)
+
+  return json({ numero: doc.numero, renvoye_a: [...to, ...cc], sent_at: envoyeLe, correction: true })
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'POST uniquement' }, 405)
@@ -448,6 +535,7 @@ Deno.serve(async (req) => {
     const mode = body.mode ?? 'apercu'
     if (mode === 'apercu') return await handleApercu(userData.user.id, body)
     if (mode === 'envoyer') return await handleEnvoyer(userData.user.id, body)
+    if (mode === 'renvoyer') return await handleRenvoyer(userData.user.id, body)
     return json({ error: `mode inconnu: ${mode}` }, 400)
   } catch (e) {
     console.error(e)

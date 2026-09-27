@@ -73,6 +73,18 @@ describe('construireMailBon', () => {
     expect(m.text).not.toContain('/boutique/')
   })
 
+  it('annonce une correction quand c’est un renvoi, et garde le lien cliquable', () => {
+    const m = construireMailBon(doc(), { lien: LIEN, correction: true })
+    expect(m.subject.startsWith('Correction — Bon de dépôt n° 2026-009')).toBe(true)
+    expect(m.text.startsWith('Correction : dans le mail précédent')).toBe(true)
+    expect(m.html).toContain('Correction : dans le mail précédent')
+    // Le renvoi sert le même bon, donc le même bouton : c'est tout l'objet du correctif.
+    expect((m.html.match(/<a href="https:\/\/www\.braaise\.io\/boutique\//g) ?? [])).toHaveLength(2)
+    // Et un envoi normal ne porte aucune trace de correction.
+    expect(construireMailBon(doc(), { lien: LIEN }).text).not.toContain('Correction')
+    expect(construireMailBon(doc(), { lien: LIEN }).subject.startsWith('Correction')).toBe(false)
+  })
+
   it('échappe ce qui vient de la base ou d’une saisie', () => {
     const m = construireMailBon(doc({ boutique_nom: '<script>alert(1)</script>' }), { lien: LIEN })
     expect(m.html).not.toContain('<script>')
