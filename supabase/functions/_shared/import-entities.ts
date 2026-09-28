@@ -62,10 +62,10 @@ export const ENTITIES: Record<ImportEntity, EntityDef> = {
     labelSingular: 'matière',
     table: 'matieres_premieres',
     dedupeKeys: ['nom'],
-    hint: 'Inventaire : cire, mèches, parfums, contenants… avec stock, unité, seuil et fournisseur.',
+    hint: 'Inventaire : matières premières, contenants, emballages, finitions, consommables — avec stock, unité, seuil et fournisseur.',
     fields: [
-      { key: 'nom', label: 'Nom', type: 'text', required: true, max: 200, description: 'nom de la matière (ex. "Cire de soja", "Mèche coton 8 cm")', synonyms: ['nom', 'name', 'matiere', 'matière', 'matiere premiere', 'designation', 'désignation', 'libelle', 'libellé', 'article', 'produit', 'item', 'composant', 'ingredient', 'ingrédient'] },
-      { key: 'categorie', label: 'Catégorie', type: 'enum', values: ['cire', 'meche', 'parfum', 'contenant', 'colorant', 'emballage', 'autre'], description: 'déduis-la du nom si absente (cire, meche, parfum, contenant, colorant, emballage, autre)', synonyms: ['categorie', 'catégorie', 'category', 'type', 'famille', 'groupe'] },
+      { key: 'nom', label: 'Nom', type: 'text', required: true, max: 200, description: 'nom de la matière (ex. "Argile stoneware", "Pot en verre 200 ml")', synonyms: ['nom', 'name', 'matiere', 'matière', 'matiere premiere', 'designation', 'désignation', 'libelle', 'libellé', 'article', 'produit', 'item', 'composant', 'ingredient', 'ingrédient'] },
+      { key: 'categorie', label: 'Catégorie', type: 'enum', values: ['matiere', 'contenant', 'emballage', 'finition', 'consommable', 'autre'], description: 'déduis-la du nom si absente (matiere, contenant, emballage, finition, consommable, autre)', synonyms: ['categorie', 'catégorie', 'category', 'type', 'famille', 'groupe'] },
       { key: 'unite', label: 'Unité', type: 'enum', values: ['g', 'kg', 'ml', 'l', 'piece', 'm'], description: "unité de stock : g, kg, ml, l, piece (unités/pièces), m (mètres). Si le stock est donné en 'pcs', 'unités', 'pièces' → piece", synonyms: ['unite', 'unité', 'unit', 'uom', 'u'] },
       { key: 'stock_actuel', label: 'Stock', type: 'number', min: 0, description: "quantité en stock, nombre (0 si inconnu)", synonyms: ['stock', 'stock actuel', 'stock_actuel', 'quantite', 'quantité', 'qty', 'quantity', 'qte', 'qté', 'inventaire', 'inventory', 'en stock', 'dispo', 'disponible'] },
       { key: 'seuil_alerte', label: "Seuil d'alerte", type: 'number', min: 0, description: 'niveau de stock en dessous duquel il faut recommander, si indiqué', synonyms: ['seuil', "seuil d'alerte", 'seuil_alerte', 'alerte', 'minimum', 'min', 'stock min', 'stock minimum', 'reorder', 'reorder point', 'seuil mini'] },
@@ -227,7 +227,32 @@ export function parseBoolean(v: unknown): boolean | null {
 const ENUM_ALIASES: Record<string, Record<string, string>> = {
   saison: { 'toute l annee': 'toute_annee', 'toute annee': 'toute_annee', 'all year': 'toute_annee', annee: 'toute_annee', 'printemps': 'printemps', spring: 'printemps', 'ete': 'ete', summer: 'ete', automne: 'automne', fall: 'automne', autumn: 'automne', hiver: 'hiver', winter: 'hiver', noel: 'noel', christmas: 'noel', xmas: 'noel', fetes: 'noel' },
   unite: { g: 'g', gr: 'g', gramme: 'g', grammes: 'g', gram: 'g', grams: 'g', kg: 'kg', kilo: 'kg', kilos: 'kg', kilogramme: 'kg', ml: 'ml', millilitre: 'ml', millilitres: 'ml', cl: 'ml', l: 'l', litre: 'l', litres: 'l', liter: 'l', piece: 'piece', pieces: 'piece', pc: 'piece', pcs: 'piece', pce: 'piece', unite: 'piece', unites: 'piece', u: 'piece', unit: 'piece', units: 'piece', each: 'piece', ea: 'piece', m: 'm', metre: 'm', metres: 'm', meter: 'm', meters: 'm' },
-  categorie: { cire: 'cire', wax: 'cire', cires: 'cire', meche: 'meche', meches: 'meche', wick: 'meche', wicks: 'meche', parfum: 'parfum', parfums: 'parfum', fragrance: 'parfum', 'huile parfumee': 'parfum', 'huile': 'parfum', contenant: 'contenant', contenants: 'contenant', pot: 'contenant', pots: 'contenant', verre: 'contenant', verres: 'contenant', jar: 'contenant', jars: 'contenant', bocal: 'contenant', colorant: 'colorant', colorants: 'colorant', dye: 'colorant', pigment: 'colorant', emballage: 'emballage', emballages: 'emballage', packaging: 'emballage', boite: 'emballage', boites: 'emballage', etiquette: 'emballage', etiquettes: 'emballage', autre: 'autre', other: 'autre', divers: 'autre' },
+  categorie: {
+    // Six catégories génériques, valables pour tous les métiers. Les mots d'un atelier
+    // particulier (cire, argile, fil…) restent des synonymes de « matiere », jamais des
+    // catégories : l'import ne doit pas supposer le métier de celui qui importe.
+    matiere: 'matiere', matieres: 'matiere', 'matiere premiere': 'matiere', 'matieres premieres': 'matiere', 'matière première': 'matiere', 'matières premières': 'matiere',
+    cire: 'matiere', cires: 'matiere', wax: 'matiere', argile: 'matiere', clay: 'matiere', pate: 'matiere', 'pâte': 'matiere',
+    bois: 'matiere', wood: 'matiere', fil: 'matiere', fils: 'matiere', laine: 'matiere', wool: 'matiere', tissu: 'matiere', tissus: 'matiere',
+    cuir: 'matiere', resine: 'matiere', 'résine': 'matiere', metal: 'matiere', 'métal': 'matiere', pierre: 'matiere', poudre: 'matiere',
+    huile: 'matiere', 'huile parfumee': 'matiere', 'huile parfumée': 'matiere', ingredient: 'matiere', 'ingrédient': 'matiere',
+    contenant: 'contenant', contenants: 'contenant', pot: 'contenant', pots: 'contenant', verre: 'contenant', verres: 'contenant',
+    jar: 'contenant', jars: 'contenant', bocal: 'contenant', bocaux: 'contenant', flacon: 'contenant', flacons: 'contenant',
+    bouteille: 'contenant', bouteilles: 'contenant', recipient: 'contenant', 'récipient': 'contenant', tube: 'contenant', tubes: 'contenant',
+    emballage: 'emballage', emballages: 'emballage', packaging: 'emballage', boite: 'emballage', boites: 'emballage',
+    'boîte': 'emballage', 'boîtes': 'emballage', carton: 'emballage', cartons: 'emballage', etiquette: 'emballage', etiquettes: 'emballage',
+    'étiquette': 'emballage', 'étiquettes': 'emballage', sachet: 'emballage', sachets: 'emballage', pochette: 'emballage', pochettes: 'emballage',
+    caisse: 'emballage', caisses: 'emballage', papier: 'emballage',
+    finition: 'finition', finitions: 'finition', meche: 'finition', meches: 'finition', 'mèche': 'finition', 'mèches': 'finition',
+    wick: 'finition', wicks: 'finition', parfum: 'finition', parfums: 'finition', fragrance: 'finition', colorant: 'finition',
+    colorants: 'finition', dye: 'finition', pigment: 'finition', pigments: 'finition', fermoir: 'finition', fermoirs: 'finition',
+    bouton: 'finition', boutons: 'finition', ruban: 'finition', rubans: 'finition', attache: 'finition', attaches: 'finition',
+    anneau: 'finition', anneaux: 'finition', vernis: 'finition', laque: 'finition', peinture: 'finition', colle: 'finition', glue: 'finition',
+    consommable: 'consommable', consommables: 'consommable', gant: 'consommable', gants: 'consommable', abrasif: 'consommable',
+    chiffon: 'consommable', chiffons: 'consommable', solvant: 'consommable', solvants: 'consommable', nettoyant: 'consommable',
+    encre: 'consommable', essences: 'consommable',
+    autre: 'autre', other: 'autre', divers: 'autre', miscellaneous: 'autre',
+  },
   canal_prefere: { email: 'email', mail: 'email', 'e mail': 'email', courriel: 'email', telephone: 'telephone', tel: 'telephone', phone: 'telephone', gsm: 'telephone', sms: 'telephone', whatsapp: 'telephone', instagram: 'instagram', insta: 'instagram', ig: 'instagram', dm: 'instagram', visite: 'visite', 'sur place': 'visite', physique: 'visite', passage: 'visite', autre: 'autre', other: 'autre' },
 }
 

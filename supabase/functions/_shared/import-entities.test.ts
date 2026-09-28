@@ -73,9 +73,13 @@ describe('parseEnum', () => {
     expect(parseEnum(saison, "toute l'année")).toBe('toute_annee')
   })
   it('catégories', () => {
-    expect(parseEnum(cat, 'Cire de soja')).toBe('cire')
-    expect(parseEnum(cat, 'wicks')).toBe('meche')
+    expect(parseEnum(cat, 'Cire de soja')).toBe('matiere')
+    expect(parseEnum(cat, 'wicks')).toBe('finition')
     expect(parseEnum(cat, 'Pots en verre')).toBe('contenant')
+    // Les catégories ne supposent plus le métier : un autre atelier tombe juste aussi.
+    expect(parseEnum(cat, 'Argile stoneware')).toBe('matiere')
+    expect(parseEnum(cat, 'Fermoirs laiton')).toBe('finition')
+    expect(parseEnum(cat, 'Cartons d’expédition')).toBe('emballage')
   })
 })
 
@@ -106,7 +110,7 @@ describe('normalizeRow', () => {
       seuil_alerte: null,
       prix_unitaire: 4.2,
       actif: true,
-      categorie: 'cire',
+      categorie: 'matiere',
     })
   })
   it('rejette une ligne sans nom', () => {

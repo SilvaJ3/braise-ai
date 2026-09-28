@@ -16,6 +16,7 @@ import CompteInformations from './routes/CompteInformations'
 import CompteMonCompte from './routes/CompteMonCompte'
 import CompteMotDePasse from './routes/CompteMotDePasse'
 import CompteNotifications from './routes/CompteNotifications'
+import CompteTelephone from './routes/CompteTelephone'
 import Commande from './routes/Commande'
 import Demandes from './routes/Demandes'
 import Depot from './routes/Depot'
@@ -111,6 +112,7 @@ export default function App() {
         <Route path="/compte/coordonnees" element={<CompteCoordonnees />} />
         <Route path="/compte/apparence" element={<CompteApparence />} />
         <Route path="/compte/notifications" element={<CompteNotifications />} />
+        <Route path="/compte/telephone" element={<CompteTelephone />} />
         <Route path="/compte/mot-de-passe" element={<CompteMotDePasse />} />
         {/* Réservé à l'administration : la garde est dans l'écran, et le serveur refuse de toute
             façon de rendre les demandes à un compte qui n'administre pas. */}

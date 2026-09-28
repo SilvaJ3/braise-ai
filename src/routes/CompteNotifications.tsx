@@ -56,8 +56,11 @@ export default function CompteNotifications() {
         {push === null && <p className="muted">…</p>}
         {push === 'unsupported' && (
           <p className="muted">
-            Non disponible sur cet appareil. Sur iPhone : ajoute d'abord l'app à
-            l'écran d'accueil.
+            Non disponible sur cet appareil. Sur iPhone, il faut d'abord ajouter l'app à l'écran
+            d'accueil :{' '}
+            <button className="link" onClick={() => navigate('/compte/telephone')}>
+              voir le pas-à-pas
+            </button>
           </p>
         )}
         {push === 'denied' && (
@@ -94,6 +97,10 @@ export default function CompteNotifications() {
           </p>
         )}
       </div>
+
+      <button className="link" onClick={() => navigate('/compte/telephone')} style={{ marginTop: 12 }}>
+        Comment installer l'app et activer les notifications sur mon téléphone →
+      </button>
 
       <h1 style={{ marginTop: 28 }}>Atelier</h1>
       <div className="card">
