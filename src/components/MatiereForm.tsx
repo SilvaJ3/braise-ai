@@ -76,7 +76,7 @@ export default function MatiereForm({
   return (
     <form className="card stack" onSubmit={submit}>
       <label htmlFor="m-nom">Nom</label>
-      <input id="m-nom" value={d.nom} onChange={(e) => set('nom', e.target.value)} required autoFocus maxLength={200} placeholder="Cire de soja, mèche coton 8 cm…" />
+      <input id="m-nom" value={d.nom} onChange={(e) => set('nom', e.target.value)} required autoFocus maxLength={200} placeholder="Argile stoneware, pot en verre 200 ml…" />
 
       <div className="row">
         <div className="field-half">

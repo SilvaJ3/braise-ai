@@ -130,7 +130,7 @@ export type Fournisseur = {
 export type FournisseurDraft = Omit<Fournisseur, 'id' | 'user_id' | 'created_at' | 'updated_at'>
 
 export type Unite = 'g' | 'kg' | 'ml' | 'l' | 'piece' | 'm'
-export type CategorieMatiere = 'cire' | 'meche' | 'parfum' | 'contenant' | 'colorant' | 'emballage' | 'autre'
+export type CategorieMatiere = 'matiere' | 'contenant' | 'emballage' | 'finition' | 'consommable' | 'autre'
 
 export type MatierePremiere = {
   id: string

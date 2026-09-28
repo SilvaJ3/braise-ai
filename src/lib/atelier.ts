@@ -121,12 +121,11 @@ export const UNITE_LABEL: Record<MatierePremiere['unite'], string> = {
 }
 
 export const CATEGORIE_LABEL: Record<NonNullable<MatierePremiere['categorie']>, string> = {
-  cire: 'Cire',
-  meche: 'Mèche',
-  parfum: 'Parfum',
+  matiere: 'Matière première',
   contenant: 'Contenant',
-  colorant: 'Colorant',
   emballage: 'Emballage',
+  finition: 'Finition',
+  consommable: 'Consommable',
   autre: 'Autre',
 }
 
