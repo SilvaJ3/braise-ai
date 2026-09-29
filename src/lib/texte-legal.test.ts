@@ -70,14 +70,23 @@ describe('les textes légaux', () => {
     }
   })
 
-  // Garde-fou de publication : ces deux pages ne peuvent pas partir en ligne avec des crochets.
-  // Le jour où le bloc identité est rempli, ces deux tests tombent d'eux-mêmes — c'est le signal
-  // qu'il reste à les supprimer, en même temps que le bandeau de la page.
-  it('porte encore ce qu’il faut compléter (identité, contact, délai)', () => {
-    const manquants = aCompleter(CONDITIONS + CONFIDENTIALITE)
-    expect(manquants).toContain('[ADRESSE DE CONTACT]')
+  // Garde-fou de publication : le bloc identité est rempli depuis le 29/09/2026 (nom, statut, siège,
+  // numéro d'entreprise, TVA, contact). Il ne reste que la date de mise à jour, à poser au moment de
+  // publier — c'est elle qui maintient le bandeau provisoire, et qui le fera disparaître.
+  it('ne laisse en crochets que la date de mise à jour', () => {
+    expect(aCompleter(CONDITIONS + CONFIDENTIALITE)).toEqual(['[DATE]'])
     expect(estProvisoire(CONDITIONS)).toBe(true)
     expect(estProvisoire(CONFIDENTIALITE)).toBe(true)
+  })
+
+  // Le jour où ces lignes changent, c'est que l'identité publiée a bougé : à relire avant publication.
+  it('publie l’identité de l’éditeur en clair', () => {
+    expect(CONDITIONS).toContain('Junior Silva Braga Almeida')
+    expect(CONDITIONS).toContain('1043.060.596')
+    expect(CONDITIONS).toContain('BE 1043.060.596')
+    expect(CONDITIONS).toContain('contact@braaise.io')
+    expect(CONDITIONS).toContain('390 € HTVA par an')
+    expect(CONFIDENTIALITE).toContain('Rue Cardinal Lavigerie 7, 1040 Etterbeek')
   })
 
   it('a un titre de document lisible', () => {

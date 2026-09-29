@@ -4,10 +4,11 @@
 // d'un moteur de markdown : `## ` ouvre une section, `- ` une puce, le reste est un paragraphe.
 // Le lecteur : `src/lib/texte-legal.ts` (pur, testé).
 //
-// ÉTAT : brouillons rédigés le 29/09/2026, en attente de l'identité de l'éditeur (demande de BCE
-// déposée le 25/09/2026, pas encore active) et de la relecture juridique/comptable. Les mentions
-// entre crochets sont à remplacer AVANT toute publication : la page porte un bandeau provisoire
-// tant qu'il en reste.
+// ÉTAT : brouillons rédigés le 29/09/2026, identité de l'éditeur renseignée le 29/09 au soir
+// (numéro d'entreprise 1043.060.596, identifié à la BCE depuis le 26/09/2026 ; numéro de TVA
+// BE 1043.060.596, assujetti au régime normal, déclarations trimestrielles). Restent la relecture
+// juridique/comptable et la date de mise à jour. La page porte un bandeau provisoire tant qu'un
+// crochet `[...]` subsiste.
 //
 // La source de ces deux textes, avec les points à trancher : ~/projets-clients/braaise-legal/.
 
@@ -47,10 +48,11 @@ connexion sont expliquées dans l'application, à l'écran « Sur mon téléphon
 Les prix sont hors TVA. La TVA est calculée au moment du paiement selon ton pays ; ton numéro de TVA
 permet l'autoliquidation entre assujettis.
 
-L'abonnement se prend au mois ou à l'année, et il se renouvelle pour la même durée, sauf si tu le
-résilies. Le tarif fondateur de 29 € HTVA par mois s'applique la première année aux comptes invités
-comme fondateurs, dans la limite des places prévues ; ensuite, l'abonnement continue au tarif en
-vigueur, soit 39 € HTVA par mois. Le tarif fondateur ne se transfère pas à un autre compte.
+L'abonnement se prend au mois (39 € HTVA par mois) ou à l'année (390 € HTVA par an), et il se
+renouvelle pour la même durée, sauf si tu le résilies. Le tarif fondateur est une réduction de
+10 € HTVA par mois, appliquée la première année aux comptes invités comme fondateurs, dans la limite
+des places prévues ; ensuite, l'abonnement continue au tarif en vigueur. Le tarif fondateur ne se
+transfère pas à un autre compte.
 
 Le paiement est traité par Stripe : ta carte ne passe jamais par Braaise, et nous ne conservons
 aucune donnée de carte.
@@ -160,17 +162,18 @@ la refuses, tu peux résilier avant cette date, sans frais.
 
 ## Réclamations et droit applicable
 
-Écris-nous d'abord à [ADRESSE DE CONTACT] : nous répondons dans un délai de [DÉLAI] jours ouvrables.
+Écris-nous d'abord à contact@braaise.io : nous répondons dans un délai de 10 jours ouvrables.
 Si un compte est ouvert à un particulier et qu'aucun accord n'est trouvé, le Service de Médiation
 pour le Consommateur (Boulevard du Roi Albert II 8, 1000 Bruxelles) est compétent.
 
-Le contrat est soumis au droit belge. Les tribunaux de l'arrondissement de [ARRONDISSEMENT] sont
+Le contrat est soumis au droit belge. Les tribunaux de l'arrondissement de Bruxelles sont
 compétents.
 
 ## Éditeur
 
-Braaise est édité par [NOM ET PRÉNOM OU DÉNOMINATION], [STATUT], dont le siège est situé
-[ADRESSE], Belgique — numéro d'entreprise [BCE], numéro de TVA [TVA]. Contact : [ADRESSE DE CONTACT].
+Braaise est édité par Junior Silva Braga Almeida, indépendant à titre complémentaire (personne
+physique), dont le siège est situé Rue Cardinal Lavigerie 7, 1040 Etterbeek, Belgique — numéro
+d'entreprise 1043.060.596, numéro de TVA BE 1043.060.596. Contact : contact@braaise.io.
 
 Dernière mise à jour : [DATE].`
 
@@ -249,7 +252,7 @@ européenne et sur les engagements de ces prestataires.
 ## Tes droits
 
 Tu peux demander à consulter tes données, les corriger, les effacer, en obtenir une copie portable
-(CSV, PDF), limiter ou refuser un traitement. Écris à [ADRESSE DE CONTACT] : nous répondons dans les
+(CSV, PDF), limiter ou refuser un traitement. Écris à contact@braaise.io : nous répondons dans les
 trente jours.
 
 Si ton compte est fermé, l'effacement se fait après le délai de trente jours, sauf ce que la loi
@@ -278,6 +281,7 @@ en vigueur.
 
 ## Responsable du traitement
 
-[NOM ET PRÉNOM OU DÉNOMINATION], [ADRESSE], Belgique — [BCE]. Contact : [ADRESSE DE CONTACT].
+Junior Silva Braga Almeida — Rue Cardinal Lavigerie 7, 1040 Etterbeek, Belgique — numéro
+d'entreprise 1043.060.596, TVA BE 1043.060.596. Contact : contact@braaise.io.
 
 Dernière mise à jour : [DATE].`
