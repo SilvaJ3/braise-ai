@@ -23,8 +23,8 @@ export function prixPour(f: Frequence, ids: IdentifiantsStripe): string {
 }
 
 /**
- * Le tarif fondateur ne s'applique qu'à l'abonnement **mensuel** : l'offre est « 29 € par mois
- * pendant deux ans ». Sur l'annuel, le même coupon donnerait 380 €/an — un prix qui n'a jamais été
+ * Le tarif fondateur ne s'applique qu'à l'abonnement **mensuel** : l'offre est « 29 € HTVA par mois
+ * la première année ». Sur l'annuel, le même coupon donnerait 380 €/an — un prix qui n'a jamais été
  * décidé. Donc on ne l'applique pas, et le fondateur qui choisit l'annuel paie 390 €/an.
  */
 export function appliqueCouponFondateur(plan: unknown, f: Frequence): boolean {

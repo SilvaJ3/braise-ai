@@ -5,7 +5,7 @@
 // avec les autres lectures du compte : ici il n'y a ni client Supabase ni effet de bord.
 //
 // Deux sources, et elles ne disent pas la même chose : ce module porte l'**offre** (39 €/mois,
-// 390 €/an, 29 €/mois au tarif fondateur), la base porte ce qui est **réellement prélevé**
+// 390 €/an, 29 €/mois au tarif fondateur **la première année**), la base porte ce qui est **réellement prélevé**
 // (`abonnement_prix_centimes`, écrit par le webhook depuis Stripe). L'écran montre les deux quand
 // ils diffèrent — un fondateur dont le coupon a expiré doit le voir.
 
@@ -26,7 +26,7 @@ export const OFFRES: Record<FrequenceAbonnement, { centimes: number; libelle: st
   an: { centimes: 39000, libelle: '390 €/an' },
 }
 
-/** Le tarif fondateur : 29 €/mois pendant deux ans, appliqué par un coupon Stripe, sans code à saisir. */
+/** Le tarif fondateur : 29 € HTVA/mois pendant **un an**, appliqué par un coupon Stripe de 12 mois, sans code à saisir. */
 export const TARIF_FONDATEUR_CENTIMES = 2900
 
 export const FREQUENCES: FrequenceAbonnement[] = ['mois', 'an']
@@ -201,7 +201,7 @@ export function libelleSouscription(
 /** Le rappel de l'offre fondateur, quand elle vaut pour ce compte. */
 export function noteFondateur(plan: Plan | string | null | undefined): string | null {
   if (plan !== 'fondateur') return null
-  return 'Tarif fondateur : 29 €/mois pendant deux ans (au lieu de 39 €), appliqué automatiquement au paiement mensuel.'
+  return 'Tarif fondateur : 29 € HTVA/mois la première année (au lieu de 39 € HTVA), appliqué automatiquement au paiement mensuel — puis 39 € HTVA/mois.'
 }
 
 /**
