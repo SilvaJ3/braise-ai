@@ -160,38 +160,20 @@ export default function CompteMonCompte() {
       <div className="card">
         {solde ? (
           <>
-            {/* L'enveloppe du mois, en jetons : c'est l'unité dans laquelle le plafond est compté
-                côté serveur (un tour de chat enchaîne plusieurs appels, un import peut sortir
-                16 000 jetons). Les questions ne sont qu'une traduction, et l'écran le dit. */}
-            <div className="row">
-              <span>Enveloppe du mois</span>
-              <div className="spacer" />
-              <span className="muted">
-                {nb(solde.enveloppe)} jetons — environ {questionsIndicatives(solde.enveloppe)}{' '}
-                questions
-              </span>
-            </div>
-            <div className="row" style={{ marginTop: 6 }}>
-              <span>Consommé</span>
-              <div className="spacer" />
-              <span className="muted">{nb(solde.consommes)} jetons</span>
-            </div>
-            {solde.credits > 0 && (
-              <div className="row" style={{ marginTop: 6 }}>
-                <span>Jetons achetés — restants</span>
-                <div className="spacer" />
-                <span className="muted">
-                  {nb(solde.restantCredits)} sur {nb(solde.credits)}
-                </span>
-              </div>
-            )}
-            <p className="muted" style={{ margin: '10px 0 0', fontSize: '0.85rem' }}>
+            {/* Ce qu'un artisan vient lire : ce qu'il lui reste, et quand ça repart. En une phrase,
+                pas en jetons — le jeton est une unité de facturation, pas de travail. */}
+            <p style={{ margin: 0 }}>
               {solde.epuise
                 ? messageEnveloppeEpuisee(solde.enveloppe + solde.credits)
                 : `Il te reste environ ${questionsRestantes} question${
                     questionsRestantes > 1 ? 's' : ''
-                  } (${nb(solde.restant)} jetons). L'enveloppe repart le 1er du mois prochain.`}
+                  }.`}
             </p>
+            {!solde.epuise && (
+              <p className="muted" style={{ margin: '6px 0 0', fontSize: '0.85rem' }}>
+                L'enveloppe du mois repart le 1er du mois prochain.
+              </p>
+            )}
             {solde.restantEnveloppe === 0 && solde.restantCredits > 0 && (
               <p className="muted" style={{ margin: '6px 0 0', fontSize: '0.85rem' }}>
                 L'enveloppe du mois est utilisée : ce qui suit est pris sur tes jetons achetés.
@@ -203,16 +185,6 @@ export default function CompteMonCompte() {
                 un pack.
               </p>
             )}
-
-            {/* Détail technique, volontairement discret : c'est ce que l'outil consomme réellement
-                chez son fournisseur de modèle, utile pendant les premiers mois. Le cache et les
-                recherches web y figurent parce qu'ils se facturent à part des jetons d'entrée/sortie :
-                un total qui les ignore est faux dans les deux sens. */}
-            <p className="muted" style={{ margin: '10px 0 0', fontSize: '0.78rem' }}>
-              Détail : {nb(Number(data.input_tokens))} jetons en entrée,{' '}
-              {nb(Number(data.output_tokens))} en sortie, sur {data.appels} appel
-              {data.appels > 1 ? 's' : ''} au modèle — environ {euros(cout)}.
-            </p>
           </>
         ) : (
           <>
@@ -239,38 +211,84 @@ export default function CompteMonCompte() {
                   }. Le compteur repart le 1er du mois prochain.`
                 : 'Tu as utilisé toutes tes questions du mois : ça repart le 1er du mois prochain.'}
             </p>
-            <p className="muted" style={{ margin: '10px 0 0', fontSize: '0.78rem' }}>
-              Détail : {nb(Number(data.input_tokens))} jetons en entrée,{' '}
-              {nb(Number(data.output_tokens))} en sortie, sur {data.appels} appel
-              {data.appels > 1 ? 's' : ''} au modèle — environ {euros(cout)}.
-            </p>
           </>
         )}
 
-        {detail.length > 0 && (
-          <div style={{ marginTop: 10 }}>
-            <p className="muted" style={{ margin: '0 0 4px', fontSize: '0.78rem' }}>
-              Par usage :
-            </p>
-            {detail.map((d) => (
-              <div className="row" key={d.fonction} style={{ fontSize: '0.78rem' }}>
-                <span className="muted">{FONCTION_LABEL[d.fonction] ?? d.fonction}</span>
+        {/* Le détail — jetons, appels au modèle, cache, coût chez le fournisseur — est replié,
+            jamais supprimé : c'est ce qui permet de vérifier une consommation, et ça doit rester
+            joignable. Ce qu'un artisan lit d'un coup d'œil reste au-dessus, en questions. */}
+        <details style={{ marginTop: 12 }}>
+          <summary className="link" style={{ cursor: 'pointer' }}>
+            Voir le détail de ce que ça consomme
+          </summary>
+
+          {solde && (
+            <>
+              {/* L'enveloppe du mois, en jetons : c'est l'unité dans laquelle le plafond est
+                  compté côté serveur (un tour de chat enchaîne plusieurs appels, un import peut
+                  sortir 16 000 jetons). Les questions ne sont qu'une traduction. */}
+              <div className="row" style={{ marginTop: 10 }}>
+                <span>Enveloppe du mois</span>
                 <div className="spacer" />
                 <span className="muted">
-                  {d.appels} appel{d.appels > 1 ? 's' : ''} ·{' '}
-                  {nb(jetons(d))} jetons · {euros(coutConsommation(d))}
+                  {nb(solde.enveloppe)} jetons — environ {questionsIndicatives(solde.enveloppe)}{' '}
+                  questions
                 </span>
               </div>
-            ))}
-          </div>
-        )}
+              <div className="row" style={{ marginTop: 6 }}>
+                <span>Consommé</span>
+                <div className="spacer" />
+                <span className="muted">{nb(solde.consommes)} jetons</span>
+              </div>
+              {solde.credits > 0 && (
+                <div className="row" style={{ marginTop: 6 }}>
+                  <span>Jetons achetés — restants</span>
+                  <div className="spacer" />
+                  <span className="muted">
+                    {nb(solde.restantCredits)} sur {nb(solde.credits)}
+                  </span>
+                </div>
+              )}
+            </>
+          )}
 
-        <p className="muted" style={{ margin: '8px 0 0', fontSize: '0.78rem' }}>
-          {cacheRelu > 0
-            ? `Dont ${nb(cacheRelu)} jetons relus dans le cache : ${euros(economie)} évités.`
-            : 'Aucun jeton relu dans le cache ce mois-ci.'}
-          {recherches > 0 && ` ${recherches} recherche${recherches > 1 ? 's' : ''} web facturée${recherches > 1 ? 's' : ''} à la part.`}
-        </p>
+          {/* Ce que l'outil consomme réellement chez son fournisseur de modèle. Le cache et les
+              recherches web y figurent parce qu'ils se facturent à part des jetons d'entrée et de
+              sortie : un total qui les ignore est faux dans les deux sens. */}
+          <p className="muted" style={{ margin: '10px 0 0', fontSize: '0.78rem' }}>
+            Détail : {nb(Number(data.input_tokens))} jetons en entrée,{' '}
+            {nb(Number(data.output_tokens))} en sortie, sur {data.appels} appel
+            {data.appels > 1 ? 's' : ''} au modèle — environ {euros(cout)}.
+          </p>
+
+          {detail.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <p className="muted" style={{ margin: '0 0 4px', fontSize: '0.78rem' }}>
+                Par usage :
+              </p>
+              {detail.map((d) => (
+                <div className="row" key={d.fonction} style={{ fontSize: '0.78rem' }}>
+                  <span className="muted">{FONCTION_LABEL[d.fonction] ?? d.fonction}</span>
+                  <div className="spacer" />
+                  <span className="muted">
+                    {d.appels} appel{d.appels > 1 ? 's' : ''} ·{' '}
+                    {nb(jetons(d))} jetons · {euros(coutConsommation(d))}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <p className="muted" style={{ margin: '8px 0 0', fontSize: '0.78rem' }}>
+            {cacheRelu > 0
+              ? `Dont ${nb(cacheRelu)} jetons relus dans le cache : ${euros(economie)} évités.`
+              : 'Aucun jeton relu dans le cache ce mois-ci.'}
+            {recherches > 0 &&
+              ` ${recherches} recherche${recherches > 1 ? 's' : ''} web facturée${
+                recherches > 1 ? 's' : ''
+              } à la part.`}
+          </p>
+        </details>
       </div>
 
       {solde && <Packs acheter={achat} />}
