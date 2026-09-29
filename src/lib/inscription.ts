@@ -12,6 +12,8 @@ export async function creerCompte(valeurs: {
   code: string
   email: string
   password: string
+  /** L'acceptation des conditions : le serveur refuse l'inscription sans elle (`conditions`). */
+  conditions: boolean
 }): Promise<{ plan: string }> {
   const { data, error } = await supabase.functions.invoke('inscription', { body: valeurs })
   if (error) throw new Error(await functionErrorMessage(error))

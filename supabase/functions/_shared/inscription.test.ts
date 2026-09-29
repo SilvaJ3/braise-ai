@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   codeInvalide,
+  conditionsRefusees,
   emailInvalide,
   erreurFormulaire,
   MESSAGES,
@@ -120,5 +121,22 @@ describe('MESSAGES', () => {
       expect(message.length, `message ${cle}`).toBeGreaterThan(40)
       expect(message).not.toMatch(/error|undefined|null/i)
     }
+  })
+})
+
+describe('conditionsRefusees', () => {
+  it('n’accepte que le vrai booléen', () => {
+    expect(conditionsRefusees(true)).toBeNull()
+  })
+
+  it('refuse tout le reste — absence, texte, et le « coché » qui n’en est pas un', () => {
+    for (const v of [undefined, null, false, 'true', 'oui', 1, {}, []]) {
+      expect(conditionsRefusees(v), JSON.stringify(v)).toBe(MESSAGES.conditions)
+    }
+  })
+
+  it('dit ce qu’il faut faire, pas un code d’erreur', () => {
+    expect(MESSAGES.conditions).toMatch(/accepter les conditions/)
+    expect(MESSAGES.conditions).toMatch(/confidentialité/)
   })
 })

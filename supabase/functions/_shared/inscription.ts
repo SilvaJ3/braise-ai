@@ -94,4 +94,18 @@ export const MESSAGES = {
   // (sa politique peut changer sans que le code change) : on ne laisse pas passer l'anglais.
   mot_de_passe_faible:
     'Le mot de passe est refusé : il faut au moins 10 caractères, dont une minuscule, une majuscule et un chiffre.',
+  // L'acceptation des conditions est refusée côté serveur, pas seulement décochée à l'écran :
+  // une case qu'on peut contourner en appelant la fonction ne prouve rien.
+  conditions:
+    "Il faut accepter les conditions générales et la politique de confidentialité pour créer ton compte.",
 } as const
+
+/**
+ * L'acceptation des conditions, contrôlée là où elle compte : le serveur.
+ *
+ * Un booléen strictement `true` — pas « coché » au sens HTML, pas une chaîne `'true'`, pas une
+ * valeur absente. Le front envoie `conditions: true` quand la case est cochée.
+ */
+export function conditionsRefusees(v: unknown): string | null {
+  return v === true ? null : MESSAGES.conditions
+}

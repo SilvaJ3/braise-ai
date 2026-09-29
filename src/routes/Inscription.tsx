@@ -2,10 +2,12 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   erreurFormulaire,
+  MESSAGES,
   MOT_DE_PASSE_MIN,
   normaliserCode,
   normaliserEmail,
 } from '../../supabase/functions/_shared/inscription'
+import FooterLegal from '../components/FooterLegal'
 import { creerCompte } from '../lib/inscription'
 import { supabase } from '../lib/supabase'
 
@@ -26,6 +28,7 @@ export default function Inscription() {
   const [motDePasse, setMotDePasse] = useState('')
   const [confirmation, setConfirmation] = useState('')
   const [erreur, setErreur] = useState<string | null>(null)
+  const [accepte, setAccepte] = useState(false)
   const [busy, setBusy] = useState(false)
   const vientDuLien = Boolean(codeLien || emailLien)
 
@@ -40,10 +43,17 @@ export default function Inscription() {
       return
     }
 
+    // L'acceptation est vérifiée à l'écran ET sur le serveur : ici, c'est pour le dire tout de
+    // suite plutôt que d'aller chercher un refus ; là-bas, c'est ce qui la rend réelle.
+    if (!accepte) {
+      setErreur(MESSAGES.conditions)
+      return
+    }
+
     setBusy(true)
     setErreur(null)
     try {
-      await creerCompte({ code: codeN, email: emailN, password: motDePasse })
+      await creerCompte({ code: codeN, email: emailN, password: motDePasse, conditions: accepte })
       // Le compte vient d'être créé et son adresse est validée côté serveur : on connecte
       // directement, l'utilisatrice n'a pas à ressaisir ce qu'elle vient de taper.
       const { error } = await supabase.auth.signInWithPassword({ email: emailN, password: motDePasse })
@@ -119,6 +129,20 @@ export default function Inscription() {
           required
         />
 
+        <label htmlFor="accepte" style={{ marginTop: 14, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+          <input
+            id="accepte"
+            type="checkbox"
+            checked={accepte}
+            onChange={(e) => setAccepte(e.target.checked)}
+            style={{ width: 'auto', marginTop: 3 }}
+          />
+          <span style={{ fontSize: '0.9rem' }}>
+            J'ai lu et j'accepte les <Link to="/conditions">conditions générales</Link> et la{' '}
+            <Link to="/confidentialite">politique de confidentialité</Link>.
+          </span>
+        </label>
+
         {erreur && (
           <p className="muted" style={{ color: 'var(--accent)' }}>
             {erreur}
@@ -126,7 +150,7 @@ export default function Inscription() {
         )}
 
         <div style={{ marginTop: 16 }}>
-          <button className="primary" type="submit" disabled={busy}>
+          <button className="primary" type="submit" disabled={busy || !accepte}>
             {busy ? 'Création…' : 'Créer mon compte'}
           </button>
         </div>
@@ -134,6 +158,7 @@ export default function Inscription() {
       <p className="muted">
         Déjà un compte ? <Link to="/login">Se connecter</Link>
       </p>
+      <FooterLegal />
     </>
   )
 }
