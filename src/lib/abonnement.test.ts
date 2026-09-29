@@ -40,7 +40,7 @@ describe('montantOffre', () => {
 
   it('applique 29 € au fondateur, sur le mensuel seulement', () => {
     expect(montantOffre('mois', 'fondateur')).toBe(TARIF_FONDATEUR_CENTIMES)
-    // L'offre fondateur est « 29 € par mois pendant deux ans » : sur l'annuel, le coupon ne joue
+    // L'offre fondateur est « 29 € HTVA/mois pendant un an » : sur l'annuel, le coupon ne joue
     // pas, et c'est la même décision que celle du serveur (appliqueCouponFondateur).
     expect(montantOffre('an', 'fondateur')).toBe(39000)
     expect(montantOffre('mois', 'essai')).toBe(3900)
@@ -182,7 +182,7 @@ describe('libelleSouscription', () => {
 
 describe('noteFondateur', () => {
   it('ne parle de tarif fondateur qu’au fondateur', () => {
-    expect(noteFondateur('fondateur')).toContain('29 €/mois pendant deux ans')
+    expect(noteFondateur('fondateur')).toContain('29 € HTVA/mois la première année')
     expect(noteFondateur('mensuel')).toBeNull()
     expect(noteFondateur(null)).toBeNull()
   })
