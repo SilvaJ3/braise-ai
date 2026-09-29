@@ -4,13 +4,17 @@ Référence produit : `specs/spec-app-au-coin-du-feu.md` et `specs/vision-assist
 (hors repo, dans `files.zip`). Test à appliquer à chaque feature avant de la coder :
 *ça la décharge, ou ça lui ajoute une tâche ?*
 
+> **Réaligné sur l’état réel le 30/09/2026** (profil `dev` ; mesures : `git`, API de gestion
+> Supabase, API Stripe, DNS public). Ce qui suit décrit le dépôt `main` = `b8c715f` et la base
+> `braaise-app`. Le détail mesuré vit dans `CHANTIERS.md` (entrées des 28 et 29/09).
+
 ## État
 
 | Version | État |
 |---|---|
-| V1 — Planning réseaux sociaux + rappels au login | Fait, déployé (https://braise-ai.vercel.app) |
+| V1 — Planning réseaux sociaux + rappels au login | Fait, déployé en production sur **`artisan.braaise.io`** (`braise-ai.vercel.app` porte le même déploiement) |
 | V1.5 — Notifications push PWA | Fait (+ date/heure/rappel par entrée, auto-planification, fix mise à jour du service worker) |
-| V7 — Couche IA assistant | Démarrée en avance : chat d'idées (historique persistant, réponse en arrière-plan + notification push), bilan hebdo (cron lundi, tous les comptes), voix de marque éditable, catalogue produits, retour « ça a marché ? », recherche web dans le chat, boutiques (V2) branchées sur `buildContext` + suggestion `relance_boutique`. Reste à brancher sur V3. |
+| V7 — Couche IA assistant | Démarrée en avance : chat d'idées (historique persistant, réponse en arrière-plan + notification push), bilan hebdo (cron lundi, tous les comptes), voix de marque éditable, catalogue produits, retour « ça a marché ? », recherche web dans le chat, boutiques (V2) branchées sur `buildContext` + suggestion `relance_boutique`, stock et atelier du V3 branchés au contexte de l’assistant. |
 | V2 — CRM boutiques | Fait : tables `boutiques`/`boutique_contacts_log`, écran liste + fiche (mobile), lien `content_entries.boutique_id`, suggestion `relance_boutique` (calcul déterministe, seuil 21 j, cron hebdo). |
 | V3 — Atelier | **Fait** : tables `fournisseurs`, `matieres_premieres`, `produit_recettes` (BOM, UI dans Compte → Mes bougies → Recette), écran « Atelier » (Matières / À commander / Commandées / Fournisseurs / Importer), **import universel par IA**, `commandes`/`commande_lignes` (boutique et perso, statuts demande→confirmée→en prod→livrée), calcul du besoin matière en temps réel, `commandes_fournisseur`/`commande_fournisseur_lignes` (statuts à commander→commandée→reçue, réception qui incrémente le stock automatiquement), suggestion `alerte_stock` + stock dans le contexte de l'assistant. |
 | V4 — Bon de dépôt signé + envoi mail | **Fait** (voir plus bas). Le contrat cadre (13 articles) reste hors app : signé une fois par boutique, sur papier. |
@@ -27,35 +31,40 @@ Découpage en tranches livrables (voir `PROSPECTION.md` côté pilotage) :
 | T3 — Tunnel d'accueil (activité, lieu, catalogue de départ) | Fait, déployé |
 | T4 — Accueil vide propre + libellés génériques | Fait, déployé |
 | T5 — Plan, quota mensuel inclus, journalisation des tokens | Fait, déployé |
-| T5 bis — Encaissement Stripe + conditions générales | **Pas commencé — zéro ligne de code** (vérifié le 19/09 : aucun fichier de `src/` ne mentionne Stripe). Ce qui bloque, c'est **encaisser** : le numéro BCE, et un **compte Stripe dédié à Braaise** (la facturation doit être à sa structure). Le mode **test** ne bloque rien : page de prix, Checkout, abonnement, échec de paiement, webhook se développent et se vérifient sans vérification d'entreprise — la bascule en production se limite ensuite à la vérification et à l'échange des clés. |
+| T5 bis — Encaissement Stripe + conditions générales | **Fait, exercé en mode test** (réaligné le 30/09/2026). Le code Stripe est écrit et testé : `src/lib/abonnement.ts`, `src/routes/CompteMonCompte.tsx` (l’écran d’abonnement), fonctions `stripe-checkout` / `stripe-webhook` / `stripe-portal` déployées, `automatic_tax` + `tax_id_collection` sur toutes les sessions (migration `0064_abonnement_du_compte` appliquée). Les **conditions générales** sont écrites sur la branche `legal-et-premiers-pas` (non fusionnée) : `/conditions`, `/confidentialite`, case d’acceptation à l’inscription, migration `0073_conditions_acceptees` appliquée. Ce qui reste est **à toi** : vérification du compte Stripe, siège fiscal + enregistrement TVA, échange des clés, prix live. |
 | T6 — Carte « Pour démarrer » sur l'accueil (étapes lues dans les données) | **Fait, déployé** — vérifié en production le 19/09 : la carte s'affiche sur l'accueil, `assistant_profil.demarrage_ferme_at` est en base (migration 0042 appliquée). 193 tests. |
 | Entrée par le site — demande d'accès → invitation → inscription | **Fait, déployé le 19/09.** Formulaire sur braaise.io, table `demandes_acces`, validation par un tap depuis le mail, page `/acces` sur le site (Supabase ne peut pas servir de HTML : sa passerelle réécrit en `text/plain`), code et adresse pré-remplis à l'inscription. Parcours testé de bout en bout. |
-| **Places de fondateur bornées** | **Correctif écrit et testé le 19/09 — reste à appliquer.** La migration `0048_places_fondateur.sql` fait compter les places dans la fonction qui crée l'invitation (le seul endroit où la décision est atomique) : une place est prise par une invitation fondateur utilisée ou encore valable, une invitation expirée jamais utilisée la rend. Au-delà de dix, l'invitation part en tarif mensuel. **Deux des dix places sont déjà prises** (deux invitations de test utilisées). Vérifié par test transactionnel : plafond atteint → mensuel ; place libérée → fondateur ; place prise → mensuel ; mensuel demandé → jamais rétrogradé. Rien n'est appliqué en base tant que l'ordre n'est pas donné. |
-| **Écran « Demandes d'accès » dans l'app** | **À faire.** Aucun écran ne liste les invitations ni les demandes d'accès — la validation passe uniquement par le mail. |
-| **Installation PWA et notifications** (T8) | **À faire.** Comment se connecter, comment activer les notifications, comment ajouter Braaise à l'écran d'accueil. À ne pas confondre avec T7 : **T7 explique l'app, T8 explique comment l'installer.** |
+| **Places de fondateur bornées** | **Fait — migration `0048_places_fondateur` appliquée** (registre `20260919100156`, relu le 30/09/2026). La fonction qui crée l’invitation compte les places : une place est prise par une invitation fondateur utilisée ou encore valable, une invitation expirée jamais utilisée la rend. Au-delà de dix, l’invitation part en tarif mensuel. Mesuré en base le 30/09 : **4 invitations `fondateur`** — donc 4 des 10 places. |
+| **Écran « Demandes d’accès » dans l’app** | **Fait et en production** (21/09, `main` `d882ade` ; migration `0065_demandes_acces_ecran` appliquée). `src/routes/Demandes.tsx`, route **`/compte/demandes`** — valider sans passer par le mail. |
+| **Installation PWA et notifications** (T8) | **Fait** — `src/routes/CompteTelephone.tsx`, route **`/compte/telephone`** (déployé le 28/09) : comment se connecter, activer les notifications, ajouter Braaise à l’écran d’accueil, avec le pas-à-pas iPhone **et** Android. À ne pas confondre avec T7 : **T7 explique l’app, T8 explique comment l’installer.** |
 
-**Tarifs — décidés le 19/09/2026**, prix **HTVA** (un artisan assujetti récupère la TVA ; en
+**Tarifs — décidés le 19/09/2026, révisés le 29/09/2026**, prix **HTVA** (un artisan assujetti récupère la TVA ; en
 franchise il paie 21 % de plus) :
 
-- **Fondateur : 29 €/mois**, prix bloqué **2 ans**, pour les **10 premiers** comptes.
-- **Mensuel : 39 €/mois** ensuite.
-- **Annuel : 390 €/an** *(proposition, à confirmer)* — à 290 €/an il aurait été moins cher que le
-  tarif fondateur.
+- **Fondateur : 29 € HTVA/mois pendant la première année**, pour les **10 premiers** comptes —
+  coupon Stripe `gyaqAqVk` (« Fondateur — 10 € de moins, 1re année », 12 mois), relu à l’API le 30/09.
+- **Mensuel : 39 € HTVA/mois** ensuite — `price_1UL1o9HJnfqhoXjCI04rcxh6`, `tax_behavior=exclusive`.
+- **Annuel : 390 € HTVA/an** — `price_1UL1o9HJnfqhoXjC4WwiYdqN`, `tax_behavior=exclusive`. (Décidé, plus
+  une « proposition à confirmer ».)
 
-Ils vivent dans `_shared/compte.ts` (`PLANS`) et s'affichent dans « Mon compte ». **Reste à faire
-avant d'encaisser** : borner réellement les places de fondateur — aujourd'hui une invitation créée
-depuis le site donne toujours le plan `fondateur`, sans compter.
+Ils vivent dans `_shared/compte.ts` (`PLANS`) et s’affichent dans « Mon compte ». **Les places de
+fondateur sont réellement bornées** (migration `0048` appliquée — voir le tableau ci-dessus). Les
+anciens prix (`price_1UHLwk…`) et l’ancien coupon `BYfhMZY2` (24 mois) sont **remplacés** et ne sont
+plus référencés nulle part : la durée d’un coupon ne se modifie pas chez Stripe, il en fallait un neuf.
 
 ## T5 bis — encaissement Stripe : ce qui est fait, et le découpage
 
 **Côté Stripe (mode test, créé le 19/09/2026 — compte `acct_1UHLjJHJnfqhoXjC`, Belgique, euros) :**
 
 - Produit `Braaise` — `prod_VHvoji5vLJcTGG`
-- Prix **mensuel 39 € HTVA** — `price_1UHLwkHJnfqhoXjCmkP0Zt5w`
-- Prix **annuel 390 € HTVA** — `price_1UHLwkHJnfqhoXjCYPnjlN2o`
-- Coupon **fondateur −10 € pendant 24 mois** — `BYfhMZY2` → **29 € effectifs** sur le prix de 39 €,
-  et le tarif remonte tout seul à 39 € au terme des deux ans. Vérifié en relisant le coupon depuis
-  Stripe, pas en le supposant.
+- Prix **mensuel 39 € HTVA** — `price_1UL1o9HJnfqhoXjCI04rcxh6` (`tax_behavior=exclusive`)
+- Prix **annuel 390 € HTVA** — `price_1UL1o9HJnfqhoXjC4WwiYdqN` (`tax_behavior=exclusive`)
+- Coupon **fondateur −10 € pendant 12 mois** — `gyaqAqVk` → **29 € effectifs** la première année sur
+  le prix de 39 €, puis le tarif remonte seul à 39 €. Relu à l’API Stripe le 30/09 (`amount_off 1000`,
+  `duration=repeating`, `duration_in_months=12`), pas supposé.
+- L’ancien coupon `BYfhMZY2` (24 mois) et les deux anciens prix restent dans le compte, **plus
+  référencés nulle part**.
+
 - La clé secrète de test vit dans `.env.local` (ignoré par git, vérifié). **La clé publique n'est pas
   nécessaire** : le Checkout est hébergé par Stripe, tout passe par le serveur.
 
@@ -64,9 +73,13 @@ depuis le site donne toujours le plan `fondateur`, sans compter.
 1. ✅ **La fonction de paiement** (`stripe-checkout`) — **faite et vérifiée le 19/09**, déployée.
 2. ✅ **La fonction de retour** (`stripe-webhook`) — **faite et vérifiée le 19/09**, déployée
    (`--no-verify-jwt`, la signature Stripe fait office d'authentification).
-3. ⏳ **L'écran d'abonnement** dans `Mon compte` — le bouton, l'état réel et le portail Stripe.
-4. ⏳ **Les tests** — les cas moches (carte refusée, impayé, résiliation).
-5. ⏳ **La bascule** (seule étape bloquée par le n° BCE).
+3. ✅ **L’écran d’abonnement** dans `Mon compte` — **fait** (`src/routes/CompteMonCompte.tsx`, en
+   production depuis le 20/09).
+4. ✅ **Les tests** — **faits** : le parcours d’achat a été exercé de bout en bout sur la vraie base
+   (session créée, `amount_total 2900`, webhook qui écrit sur le compte, signature falsifiée refusée).
+5. ⏳ **La bascule** — le **n° BCE est obtenu** (`1043.060.596`, identifié le 26/09). Ce qui reste est
+   **ta** part dans Stripe : vérification du compte, **siège fiscal + enregistrement TVA** (sans quoi
+   `automatic_tax` rend 0 €), échange des clés, création des prix live.
 
 **Ce qui a été vérifié, pas supposé** (19/09, mode test) :
 
@@ -78,7 +91,7 @@ depuis le site donne toujours le plan `fondateur`, sans compter.
 - une **signature falsifiée est refusée** (HTTP 400) ;
 - le compte est rattaché à son client Stripe au premier paiement.
 
-## T5 ter — les packs de jetons (branche `jetons-et-packs`, non fusionnée, rien de déployé)
+## T5 ter — les packs de jetons (fusionné et en production)
 
 Le plafond du mois ne compte plus des **questions** mais des **jetons équivalents entrée** : un tour
 de chat enchaîne plusieurs appels au modèle, et un import de fichier sort jusqu'à 16 000 jetons. Deux
@@ -109,24 +122,19 @@ son numéro de TVA permet l'autoliquidation hors Belgique. Rien à créer côté
 TVA doit être réglée une fois dans le tableau de bord (adresse d'établissement), sinon Stripe Tax
 n'a rien à appliquer.
 
-**La migration `0069_jetons_et_packs` n'est pas appliquée** — elle vit dans le fichier sur la branche.
-Tant qu'elle n'y est pas, les fonctions serveur (assistant, import) **retombent sur l'ancien compteur
-de questions** au lieu de refuser quelqu'un, et l'écran `Mon compte` affiche les anciens compteurs :
-le repli est explicite, et testé.
+**La migration `0069_jetons_et_packs` est appliquée** (registre `20260927120000`) : le plafond du mois
+compte des **jetons**, les packs s’achètent, et les écrans comme les fonctions serveur lisent le
+nouveau compteur. Le repli sur l’ancien compteur de questions n’est plus le régime par défaut.
 
-**Ce qui reste de ton côté — 2 minutes, et c'est le seul point bloquant :** mon jeton n'a pas le droit
-d'écrire les secrets du projet (lecture seule). Il faut donc les poser une fois dans le tableau de
-Supabase (`Project Settings` → `Edge Functions` → `Secrets`) :
+**Les secrets Stripe sont posés** dans le projet `braaise-app` (API de gestion, relus le 29/09 à 16 h 15) :
 
-- `STRIPE_SECRET_KEY` — ta clé de test, celle qui est déjà dans `.env.local` ;
-- `STRIPE_PRIX_MENSUEL` = `price_1UHLwkHJnfqhoXjCmkP0Zt5w` ;
-- `STRIPE_PRIX_ANNUEL` = `price_1UHLwkHJnfqhoXjCYPnjlN2o` ;
-- `STRIPE_COUPON_FONDATEUR` = `BYfhMZY2` ;
-- `STRIPE_WEBHOOK_SECRET` — il est **déjà dans ton `.env.local`** (ligne `STRIPE_WEBHOOK_SECRET=…`),
-  tu la copies de là.
+- `STRIPE_SECRET_KEY` — clé de **test** (mode test : rien ne circule, uniquement des cartes de test) ;
+- `STRIPE_PRIX_MENSUEL` = `price_1UL1o9HJnfqhoXjCI04rcxh6` ;
+- `STRIPE_PRIX_ANNUEL` = `price_1UL1o9HJnfqhoXjC4WwiYdqN` ;
+- `STRIPE_COUPON_FONDATEUR` = `gyaqAqVk` ;
+- `STRIPE_WEBHOOK_SECRET` — `stripe-webhook` répond **400** (signature vérifiée) au lieu de 503.
 
-*(Variante : tu réautorises le connecteur avec la permission `edge_functions_secrets`, et je les pose
-moi-même — dis-le moi et je te guide en trois clics.)*
+Ce qui reste est la **bascule en mode live** (vérification du compte + prix live), et elle est à toi.
 
 Tant qu'on reste en mode test, **rien ne circule** : uniquement des cartes de test.
 
@@ -134,19 +142,17 @@ Tant qu'on reste en mode test, **rien ne circule** : uniquement des cartes de te
 
 | Quoi | Pourquoi c'est toi, et pas le code |
 |---|---|
-| **Le numéro BCE** | Le seul vrai blocage de Stripe : sans lui, pas d'encaissement. |
-| **Un compte Stripe dédié à Braaise** | La facturation doit être à ta structure, pas à celle d'un tiers. |
-| **Une ligne DNS chez OVH** | `_dmarc.braaise.io` est **absent** (vérifié le 19/09). Première étape, en surveillance seule : `TXT @ _dmarc.braaise.io` = `v=DMARC1; p=none; rua=mailto:contact@braaise.io; fo=1` — on passe à `quarantine` quand les rapports sont propres, jamais avant. |
-| **L'adresse e-mail d'Alexandra** | Pour lui ouvrir son compte du mini-CMS. |
-| **Deux décisions** | Fusionner la branche `cms-pilote` en production (le site d'Au Coin du Feu) ? Publier le dépôt `mini-cms` sur ton GitHub ? |
-| **Ouvrir la préproduction du CMS** | La branche `cms-pilote` est déployée en aperçu (derrière le login de l'équipe Vercel). Rien n'est en production. |
+| **La vérification du compte Stripe** | Sans elle, pas d’encaissement réel. Le **n° BCE est obtenu** (`1043.060.596`, identifié le 26/09). |
+| **Le siège fiscal + l’enregistrement TVA dans Stripe** | Sans eux, `automatic_tax` calcule **0 €** : le code est prêt, la donnée manque. |
+| **Les prix live** | À créer le jour de la bascule (les prix Stripe ne se modifient pas : il en faut des neufs). |
 
-Le **mini-CMS** (photos éditables pour les vitrines clients) vit hors de ce dépôt : schéma, règles
-d'accès et les 12 emplacements d'Au Coin du Feu posés dans le projet Supabase existant le 19/09
-(**zéro euro de plus** — un projet dédié coûterait ~9 €/mois, le calcul est facturé par projet), site
-câblé par repli local, page d'édition et rapport mensuel restant à faire.
+Le **mini-CMS** (photos éditables pour les vitrines clients) vit hors de ce dépôt et **tourne en
+production** depuis le 26/09 sur `cms.jrsb.be` : schéma, règles d’accès et les 12 emplacements d’Au
+Coin du Feu sont dans le projet Supabase existant (**zéro euro de plus** — un projet dédié coûterait
+~9 €/mois, le calcul est facturé par projet). Page d’édition et rapport mensuel de fréquentation :
+faits.
 
-## Onboarding de premier usage (décision, T6 fait / T7 à faire)
+## Onboarding de premier usage (décision, T6 fait / T7 partiel)
 
 Deux choses distinctes, souvent confondues :
 
@@ -355,9 +361,9 @@ note n'est pas un avis juridique.**
 - Lien avec les futures `commandes_boutique` (V3) : aujourd'hui le bon est autonome.
 - Décompte mensuel / facturation (articles 4 et 12 du contrat) : hors périmètre pour l'instant.
 - Le contrat cadre lui-même n'est pas dans l'app (décision assumée).
-- **Prérequis avant le premier envoi réel** : compte Resend + clé API. Le domaine peut
-  attendre : avec `MAIL_DOMAIN=resend.dev`, tout se teste depuis le bac à sable de Resend
-  (envoi limité à l'adresse du titulaire du compte).
+- **Prérequis avant le premier envoi réel** : **fait** — le compte Resend et sa clé sont en place,
+  `MAIL_DOMAIN=braaise.io`, et les bons de dépôt partent en production depuis le 19/09 (chaîne
+  éprouvée pour de vrai le 26/09, mail reçu).
 - Option écartée pour l'instant : connexion OAuth à la boîte Gmail de l'utilisateur (le mail
   partirait de sa vraie adresse, mais Google impose une validation de plusieurs semaines pour
   ce droit, et la connexion casse tous les 7 jours avant validation).
