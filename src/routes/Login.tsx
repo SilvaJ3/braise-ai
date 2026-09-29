@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
+import FooterLegal from '../components/FooterLegal'
 import { supabase } from '../lib/supabase'
 
 export default function Login() {
@@ -51,6 +52,7 @@ export default function Login() {
       <p className="muted" style={{ marginTop: 20, fontSize: '0.9rem' }}>
         <Link to="/inscription">J'ai un code d'invitation</Link>
       </p>
+      <FooterLegal />
     </form>
   )
 }
