@@ -89,6 +89,18 @@ describe('les textes légaux', () => {
     expect(CONFIDENTIALITE).toContain('Rue Cardinal Lavigerie 7, 1040 Etterbeek')
   })
 
+  // Le numéro est attribué, mais il n'est pas actif au 30/09/2026 (banque et Partena Professionnel
+  // en attente). Tant que c'est le cas, les pages le disent : jamais un numéro de TVA présenté comme
+  // actif. Ces lignes tombent le jour de l'activation — c'est le test qui le rappellera.
+  it('dit que l’immatriculation et la TVA ne sont pas encore actives', () => {
+    expect(CONDITIONS).toContain('immatriculation en cours')
+    expect(CONDITIONS).toContain('pas encore active')
+    expect(CONFIDENTIALITE).toContain('immatriculation en cours')
+    expect(CONFIDENTIALITE).toContain('pas encore active')
+    // et le prix ne peut pas annoncer une TVA qu'on ne facture pas encore
+    expect(CONDITIONS).toContain("aucun montant de TVA n'est")
+  })
+
   it('a un titre de document lisible', () => {
     expect(titreDocument(CONFIDENTIALITE)).toBe('En une phrase')
   })

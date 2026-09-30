@@ -4,11 +4,18 @@
 // d'un moteur de markdown : `## ` ouvre une section, `- ` une puce, le reste est un paragraphe.
 // Le lecteur : `src/lib/texte-legal.ts` (pur, testé).
 //
-// ÉTAT : brouillons rédigés le 29/09/2026, identité de l'éditeur renseignée le 29/09 au soir
-// (numéro d'entreprise 1043.060.596, identifié à la BCE depuis le 26/09/2026 ; numéro de TVA
-// BE 1043.060.596, assujetti au régime normal, déclarations trimestrielles). Restent la relecture
-// juridique/comptable et la date de mise à jour. La page porte un bandeau provisoire tant qu'un
-// crochet `[...]` subsiste.
+// ÉTAT : brouillons rédigés le 29/09/2026, identité de l'éditeur renseignée le 29/09 au soir.
+//
+// Statut de l'immatriculation, tel que JSB l'a précisé le 30/09/2026 : le numéro d'entreprise
+// 1043.060.596 est **attribué mais pas encore actif** — l'activation suit la confirmation de la
+// banque et de Partena Professionnel. Le numéro de TVA BE 1043.060.596 n'est donc **pas actif** non
+// plus. Les deux mentions portent cette réserve, et la section « Abonnement, prix et TVA » dit
+// qu'aucune TVA n'est ajoutée tant que l'identification n'est pas active.
+//
+// À FAIRE au moment où l'activation est confirmée : retirer les deux réserves (« immatriculation en
+// cours », « identification à la TVA en cours ») et la phrase de la section prix. Restent la
+// relecture juridique/comptable et la date de mise à jour. La page porte un bandeau provisoire tant
+// qu'un crochet `[...]` subsiste.
 //
 // La source de ces deux textes, avec les points à trancher : ~/projets-clients/braaise-legal/.
 
@@ -47,6 +54,9 @@ connexion sont expliquées dans l'application, à l'écran « Sur mon téléphon
 
 Les prix sont hors TVA. La TVA est calculée au moment du paiement selon ton pays ; ton numéro de TVA
 permet l'autoliquidation entre assujettis.
+
+L'identification à la TVA est en cours : tant qu'elle n'est pas active, aucun montant de TVA n'est
+ajouté au prix.
 
 L'abonnement se prend au mois (39 € HTVA par mois) ou à l'année (390 € HTVA par an), et il se
 renouvelle pour la même durée, sauf si tu le résilies. Le tarif fondateur est une réduction de
@@ -172,8 +182,9 @@ compétents.
 ## Éditeur
 
 Braaise est édité par Junior Silva Braga Almeida, indépendant à titre complémentaire (personne
-physique), dont le siège est situé Rue Cardinal Lavigerie 7, 1040 Etterbeek, Belgique — numéro
-d'entreprise 1043.060.596, numéro de TVA BE 1043.060.596. Contact : contact@braaise.io.
+physique), dont le siège est situé Rue Cardinal Lavigerie 7, 1040 Etterbeek, Belgique. Numéro
+d'entreprise : 1043.060.596 (attribué, immatriculation en cours). Numéro de TVA : BE 1043.060.596
+(identification en cours, pas encore active). Contact : contact@braaise.io.
 
 Dernière mise à jour : [DATE].`
 
@@ -282,6 +293,7 @@ en vigueur.
 ## Responsable du traitement
 
 Junior Silva Braga Almeida — Rue Cardinal Lavigerie 7, 1040 Etterbeek, Belgique — numéro
-d'entreprise 1043.060.596, TVA BE 1043.060.596. Contact : contact@braaise.io.
+d'entreprise 1043.060.596 (attribué, immatriculation en cours) — numéro de TVA BE 1043.060.596
+(identification en cours, pas encore active). Contact : contact@braaise.io.
 
 Dernière mise à jour : [DATE].`
