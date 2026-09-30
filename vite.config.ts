@@ -16,7 +16,7 @@ export default defineConfig({
       },
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Braaise',
+        name: "Braaise — l'assistant de l'atelier",
         short_name: 'Braaise',
         description: "Braaise — l'assistant de l'atelier : dépôts, commandes, planning",
         lang: 'fr',
