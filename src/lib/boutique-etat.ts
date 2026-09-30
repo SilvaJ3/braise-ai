@@ -60,6 +60,9 @@ export type BoutiqueEtat = {
   /** null quand aucun lien n'a jamais été créé pour cette boutique. */
   jeton: string | null
   lien_actif: boolean
+  /** Le rappel mensuel est ouvert pour cette boutique. Faux par défaut, et c'est l'artisan qui
+   *  l'ouvre (0074) : rien ne part sans ce geste. */
+  rappels_actifs: boolean
   bons_en_attente_de_confirmation: number
   pieces: PieceBoutique[]
   declarations: ReleveBoutique[]
@@ -94,6 +97,15 @@ export const MESSAGES_ERREUR: Record<string, string> = {
   bon_inconnu: "Ce bon n'est pas rattaché à cette boutique.",
   message_vide: 'Il manque le message.',
   rien_a_facturer: 'Rien à facturer : aucune vente déclarée depuis le dernier relevé.',
+  boutique_sans_lien: "Cette boutique n'a pas encore de lien : ouvre-lui d'abord un accès.",
+  achat_ferme: "Cette boutique achète ferme : il n'y a ni déclaration ni réassort à lui rappeler.",
+  boutique_manquante: 'Il manque la boutique.',
+}
+
+/** Le rappel mensuel n'a de sens qu'en dépôt-vente : dans un achat ferme, la boutique a acheté
+ *  les pièces, il n'y a plus rien à lui rappeler. */
+export function rappelPossible(etat: Pick<BoutiqueEtat, 'mode'>): boolean {
+  return etat.mode === 'depot_vente'
 }
 
 export function messageErreur(code: string): string {
