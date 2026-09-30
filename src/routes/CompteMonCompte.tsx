@@ -98,6 +98,15 @@ export default function CompteMonCompte() {
   const enveloppe = champsEnveloppe(data)
   const solde = enveloppe ? soldeJetons(data.plan, enveloppe.consommes, enveloppe.credits) : null
   const questionsRestantes = solde ? questionsIndicatives(solde.restant) : 0
+  // La jauge, en questions : le forfait du mois et les jetons achetés mis ensemble, ce qui est
+  // consommé par-dessus, et le pourcentage qui va avec. Personne ne lit 1 500 000 jetons ; tout le
+  // monde lit « 60 sur 300 ». Le jeton reste en dessous, dans le détail replié.
+  const questionsTotales = solde ? questionsIndicatives(solde.enveloppe + solde.credits) : 0
+  const questionsUtilisees = Math.max(0, questionsTotales - questionsRestantes)
+  const pourcent =
+    questionsTotales > 0
+      ? Math.min(100, Math.round((questionsUtilisees / questionsTotales) * 100))
+      : 100
   const prochainTour = enveloppe
     ? enveloppeDisponible(data.plan, enveloppe.consommes, enveloppe.credits, RESERVE_JETONS.assistant)
     : true
@@ -160,31 +169,47 @@ export default function CompteMonCompte() {
       <div className="card">
         {solde ? (
           <>
-            {/* Ce qu'un artisan vient lire : ce qu'il lui reste, et quand ça repart. En une phrase,
-                pas en jetons — le jeton est une unité de facturation, pas de travail. */}
-            <p style={{ margin: 0 }}>
+            {/* Ce qu'un artisan vient lire d'un coup d'œil : la jauge, et deux nombres qui se
+                lisent sans rien connaître du produit. En questions — le jeton est une unité de
+                facturation, pas de travail, et il ne dit rien à personne. */}
+            <div className="row">
+              <span>
+                {solde.epuise
+                  ? 'Forfait du mois utilisé'
+                  : `Il te reste environ ${questionsRestantes} question${
+                      questionsRestantes > 1 ? 's' : ''
+                    }`}
+              </span>
+              <div className="spacer" />
+              <span className="muted">
+                {questionsUtilisees} sur {questionsTotales} · {pourcent} %
+              </span>
+            </div>
+
+            <div
+              className="jauge"
+              role="progressbar"
+              aria-valuenow={questionsUtilisees}
+              aria-valuemin={0}
+              aria-valuemax={questionsTotales}
+              aria-label={`${questionsUtilisees} questions utilisées sur ${questionsTotales} ce mois-ci`}
+              style={{ marginTop: 10 }}
+            >
+              <div className="jauge-remplie" style={{ width: `${pourcent}%` }} />
+            </div>
+
+            <p className="muted" style={{ margin: '10px 0 0', fontSize: '0.85rem' }}>
               {solde.epuise
                 ? messageEnveloppeEpuisee(solde.enveloppe + solde.credits)
-                : `Il te reste environ ${questionsRestantes} question${
-                    questionsRestantes > 1 ? 's' : ''
-                  }.`}
+                : 'Le forfait repart le 1er du mois prochain.'}
+              {!solde.epuise &&
+                solde.restantEnveloppe === 0 &&
+                solde.restantCredits > 0 &&
+                ' Le forfait du mois est utilisé : la suite est prise sur tes jetons achetés.'}
+              {!solde.epuise &&
+                !prochainTour &&
+                " Ce qu'il reste ne suffit plus pour une question : attends le 1er, ou prends un pack."}
             </p>
-            {!solde.epuise && (
-              <p className="muted" style={{ margin: '6px 0 0', fontSize: '0.85rem' }}>
-                L'enveloppe du mois repart le 1er du mois prochain.
-              </p>
-            )}
-            {solde.restantEnveloppe === 0 && solde.restantCredits > 0 && (
-              <p className="muted" style={{ margin: '6px 0 0', fontSize: '0.85rem' }}>
-                L'enveloppe du mois est utilisée : ce qui suit est pris sur tes jetons achetés.
-              </p>
-            )}
-            {!solde.epuise && !prochainTour && (
-              <p className="muted" style={{ margin: '6px 0 0', fontSize: '0.85rem' }}>
-                Ce qu'il reste ne suffit plus pour une question : il faut attendre le 1er, ou prendre
-                un pack.
-              </p>
-            )}
           </>
         ) : (
           <>
