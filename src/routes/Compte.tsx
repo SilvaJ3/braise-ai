@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { ChevronRightIcon, LogoutIcon } from '../components/icons'
+import FooterLegal from '../components/FooterLegal'
 import { useAuth } from '../lib/auth'
 import { useEstAdmin } from '../lib/profil'
 import { supabase } from '../lib/supabase'
@@ -12,6 +13,7 @@ const ENTREES = [
   { to: '/compte/apparence', label: 'Apparence', hint: 'Couleurs de l’app' },
   { to: '/compte/notifications', label: 'Notifications', hint: 'Rappels et point hebdo' },
   { to: '/compte/telephone', label: 'Sur mon téléphone', hint: 'Installer l’app et activer les notifications' },
+  { to: '/compte/premiers-pas', label: 'Premiers pas', hint: 'Par où commencer, et à quoi sert chaque écran' },
   { to: '/compte/mot-de-passe', label: 'Mot de passe', hint: 'Changer ton mot de passe' },
 ]
 
@@ -61,6 +63,8 @@ export default function Compte() {
         <LogoutIcon size={18} />
         Se déconnecter
       </button>
+
+      <FooterLegal />
     </>
   )
 }

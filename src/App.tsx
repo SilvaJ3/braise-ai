@@ -29,7 +29,9 @@ import Marche from './routes/Marche'
 import Notifications from './routes/Notifications'
 import NotificationsCategorie from './routes/NotificationsCategorie'
 import Onboarding from './routes/Onboarding'
+import PageLegale from './routes/PageLegale'
 import Planning from './routes/Planning'
+import PremiersPas from './routes/PremiersPas'
 
 export default function App() {
   const { session, loading } = useAuth()
@@ -44,6 +46,10 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/inscription" element={<Inscription />} />
+        {/* Lisibles sans compte : on ne fait pas accepter des conditions qu'on ne peut pas ouvrir
+            avant d'avoir un compte. */}
+        <Route path="/conditions" element={<PageLegale document="conditions" />} />
+        <Route path="/confidentialite" element={<PageLegale document="confidentialite" />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     )
@@ -113,7 +119,10 @@ export default function App() {
         <Route path="/compte/apparence" element={<CompteApparence />} />
         <Route path="/compte/notifications" element={<CompteNotifications />} />
         <Route path="/compte/telephone" element={<CompteTelephone />} />
+        <Route path="/compte/premiers-pas" element={<PremiersPas />} />
         <Route path="/compte/mot-de-passe" element={<CompteMotDePasse />} />
+        <Route path="/conditions" element={<PageLegale document="conditions" />} />
+        <Route path="/confidentialite" element={<PageLegale document="confidentialite" />} />
         {/* Réservé à l'administration : la garde est dans l'écran, et le serveur refuse de toute
             façon de rendre les demandes à un compte qui n'administre pas. */}
         <Route path="/compte/demandes" element={<Demandes />} />

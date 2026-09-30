@@ -11,6 +11,7 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import {
+  conditionsRefusees,
   emailInvalide,
   MESSAGES,
   motDePasseInvalide,
@@ -48,6 +49,7 @@ type Resultat =
   | 'email_pris'
   | 'email_invalide'
   | 'mot_de_passe_faible'
+  | 'sans_conditions'
   | 'trop_de_tentatives'
   | 'erreur'
 
@@ -71,7 +73,11 @@ async function tropDeTentatives(email: string, ip: string | null): Promise<boole
       // pas : ils relèvent de la faute de frappe, et une faute de frappe ne doit pas fermer la
       // porte à quelqu'un qui essaie vraiment. Ce qu'on borne, c'est la recherche de code et la
       // création de comptes.
+      // Une case décochée n'est pas une tentative de deviner un code : elle ne compte pas dans le
+      // plafond non plus, sinon un formulaire mal câblé fermerait la porte à quelqu'un qui essaie
+      // vraiment.
       .neq('resultat', 'email_invalide')
+      .neq('resultat', 'sans_conditions')
     if (error) {
       // Un compteur illisible ne doit pas fermer la porte à une vraie inscription.
       console.error('[inscription] compteur', error)
@@ -115,6 +121,15 @@ Deno.serve(async (req) => {
   if (erreurMotDePasse) {
     await journaliser(email, ip, 'mot_de_passe_faible')
     return json({ error: erreurMotDePasse }, 400)
+  }
+
+  // L'acceptation des conditions, vérifiée ici et pas seulement à l'écran : la case existe dans le
+  // formulaire, mais un appel direct à cette fonction doit être refusé de la même façon. C'est
+  // cette ligne qui donne sa valeur à la date écrite sur le compte juste en dessous.
+  const refusConditions = conditionsRefusees(body.conditions)
+  if (refusConditions) {
+    await journaliser(email, ip, 'sans_conditions')
+    return json({ error: refusConditions }, 400)
   }
 
   if (await tropDeTentatives(email, ip)) {
@@ -170,7 +185,11 @@ Deno.serve(async (req) => {
   })
   if (errConfirmation) console.error('[inscription] confirmation du code', errConfirmation)
 
-  const { error: errProfil } = await admin.from('assistant_profil').insert({ user_id: userId })
+  // L'acceptation est datée ici, avec la clé de service : un compte accepte au moment où il se
+  // crée, et cette date ne peut venir que de ce chemin (le client ne peut pas l'écrire lui-même).
+  const { error: errProfil } = await admin
+    .from('assistant_profil')
+    .insert({ user_id: userId, conditions_acceptees_le: new Date().toISOString() })
   if (errProfil) console.error('[inscription] ligne de profil', errProfil)
 
   await journaliser(email, ip, 'ok')
