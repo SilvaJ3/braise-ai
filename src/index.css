@@ -170,6 +170,21 @@ a.notif-row {
   font-size: 0.88rem;
 }
 
+/* La jauge du forfait : ce qui est consommé sur ce qui est disponible, en questions. Une barre
+   plutôt qu'un cercle : elle se lit d'un trait, et elle reste lisible à 20 % comme à 95 %. */
+.jauge {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  overflow: hidden;
+}
+
+.jauge-remplie {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
 mark {
   background: var(--accent-soft);
   color: var(--ink);
