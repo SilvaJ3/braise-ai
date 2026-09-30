@@ -9,10 +9,12 @@
 // Le Checkout est hébergé par Stripe : la carte ne traverse jamais notre code, et l'application n'a
 // donc pas besoin de clé publique.
 //
-// La TVA est normale (21 % en Belgique) : `automatic_tax` la calcule selon le pays du client, et
-// `tax_id_collection` récupère le numéro de TVA des clients professionnels — c'est lui qui permet
-// l'autoliquidation hors Belgique. Sans les deux, le montant affiché serait hors taxe et
-// l'autoliquidation impossible.
+// La TVA : elle sera normale (21 % en Belgique) le jour où l'identification sera ACTIVE. Tant
+// qu'elle ne l'est pas (30/09), `automatic_tax` est FERMÉ : un abonnement payé porterait une TVA
+// que l'entreprise ne pourrait pas déclarer. Le jour de l'activation, repasser ce drapeau à `true`
+// (une ligne) et remettre la TVA au paiement.
+// `tax_id_collection` reste ouvert : il ne prélève rien, il garde le numéro de TVA du client
+// professionnel pour l'autoliquidation hors Belgique.
 //
 // Un client Stripe est créé au premier paiement puis réutilisé : c'est lui qui permet au webhook de
 // retrouver le compte.
@@ -144,7 +146,7 @@ Deno.serve(async (req) => {
   // Belgique. `customer_update` fait enregistrer l'adresse et le nom sur le client Stripe —
   // sans quoi un client qui existe déjà ne pourrait pas porter son numéro de TVA.
   const fiscalite = {
-    automatic_tax: { enabled: true },
+    automatic_tax: { enabled: false },
     tax_id_collection: { enabled: true },
     customer_update: { address: 'auto' as const, name: 'auto' as const },
   }
