@@ -1,8 +1,12 @@
 // Les deux mails du lien boutique : le point du 1er, la relance du 5.
 //
 // Ce que cette fonction NE fait pas, et c'est le principal : elle n'envoie rien tant que le
-// réglage `rappels_boutiques_actifs` (`reglages_produit`) ne vaut pas 'oui'. Un cron qui existe et
-// n'envoie rien est plus honnête qu'un envoi décidé à la place de l'artisan.
+// réglage `rappels_boutiques_actifs` (`reglages_produit`) ne vaut pas 'oui' — c'est un
+// coupe-circuit de produit, plus personne ne l'ouvre automatiquement (0074).
+//
+// Et ce coupe-circuit ouvert, il reste la vraie porte : `boutique_liens.rappels_actifs`, faux par
+// défaut, que l'artisan ouvre boutique par boutique depuis l'app. Aucun envoi décidé à sa place.
+// Les boutiques en achat ferme sont hors du lot : la base ne les retient pas (0074).
 //
 // Elle est appelée par pg_cron (07:00 UTC, tous les jours) avec l'en-tête `x-cron-secret`, vérifié
 // en base (`verify_cron_secret`) comme le fait la fonction `push` depuis 0003. Le jour décide de

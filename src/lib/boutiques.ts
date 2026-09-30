@@ -159,6 +159,22 @@ export function useMesBoutiquesEtat() {
   })
 }
 
+/** Ouvrir ou fermer le rappel mensuel d'une boutique (0074). Le choix appartient à l'artisan :
+ *  la base refuse une boutique en achat ferme, où il n'y a rien à rappeler. */
+export function useReglerRappelsBoutique() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ boutiqueId, actif }: { boutiqueId: string; actif: boolean }) => {
+      const { data, error } = await supabase.rpc('regler_rappels_boutique', {
+        p_boutique: boutiqueId,
+        p_actif: actif,
+      })
+      resultatRpc(data, error)
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: MES_BOUTIQUES_KEY }),
+  })
+}
+
 /** Valider un relevé, ou l'écarter en gardant la raison. Le statut change et la note de
  *  l'artisan s'ajoute à celle de la boutique — rien ne s'efface. */
 export function useCorrigerDeclaration() {

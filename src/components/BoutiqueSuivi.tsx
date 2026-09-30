@@ -8,6 +8,7 @@ import {
   jourDeIso,
   lienBoutiqueUrl,
   periodeLisible,
+  rappelPossible,
   resumeReleve,
   totalRestant,
   type BoutiqueEtat,
@@ -17,6 +18,7 @@ import {
   useCouperLienBoutique,
   useMarquerContestationVue,
   useMesBoutiquesEtat,
+  useReglerRappelsBoutique,
 } from '../lib/boutiques'
 import { fmtDateCourte, fmtEuro, fmtQte } from '../lib/depots'
 import {
@@ -476,8 +478,10 @@ function ReleveFacturable({ boutique }: { boutique: Boutique }) {
 /** Le lien : celui qu'elle transmet, et qu'elle peut couper d'un clic. */
 function Lien({ boutique, etat }: { boutique: Boutique; etat: BoutiqueEtat }) {
   const couper = useCouperLienBoutique()
+  const regler = useReglerRappelsBoutique()
   const [copie, setCopie] = useState<'ok' | 'ko' | null>(null)
   const lien = etat.jeton ? lienBoutiqueUrl(etat.jeton) : null
+  const possible = rappelPossible(etat)
 
   async function copier() {
     if (!lien) return
@@ -555,6 +559,43 @@ function Lien({ boutique, etat }: { boutique: Boutique; etat: BoutiqueEtat }) {
               ? "Ce lien ne remplace aucun document contractuel : le bon signé reste la pièce qui fait foi. Elle ne voit que ses pièces à elle — jamais ton stock, ni les autres boutiques."
               : "Cet accès est coupé : le lien ne répond plus, son historique reste. Tu peux lui en redonner un quand tu veux."}
           </p>
+        </div>
+      )}
+
+      {/* Le rappel mensuel : c'est toi qui l'ouvres, et seulement là où il y a quelque chose à
+          rappeler. Une boutique en achat ferme a acheté les pièces : ni déclaration, ni réassort. */}
+      {lien && (
+        <div className="card" style={{ marginTop: 12 }}>
+          <label
+            className="row"
+            htmlFor="rappel-boutique"
+            style={{ gap: 8, alignItems: 'center' }}
+          >
+            <input
+              id="rappel-boutique"
+              type="checkbox"
+              checked={etat.rappels_actifs}
+              disabled={!possible || regler.isPending}
+              onChange={(e) =>
+                regler.mutate({ boutiqueId: boutique.id, actif: e.target.checked })
+              }
+            />
+            <strong>Rappel mensuel à cette boutique</strong>
+          </label>
+
+          <p className="muted" style={{ margin: '8px 0 0' }}>
+            {!possible
+              ? "Pas de rappel ici : cette boutique achète ferme. Les pièces sont vendues, il n'y a ni déclaration ni réassort à lui rappeler."
+              : etat.rappels_actifs
+                ? "Ouvert : le 1er du mois, elle reçoit ce qu'elle a déclaré et ce qu'il lui reste d'après tes comptes ; le 5, une relance seulement s'il manque une déclaration. Jamais deux mails le même mois."
+                : "Fermé : rien ne lui est envoyé. Ouvre-le si tu veux qu'elle reçoive le point du 1er — c'est toi qui décides, et tu peux le refermer quand tu veux."}
+          </p>
+
+          {regler.isError && (
+            <p className="muted" style={{ margin: '8px 0 0', color: 'var(--accent)' }}>
+              {(regler.error as Error).message}
+            </p>
+          )}
         </div>
       )}
     </>

@@ -33,6 +33,12 @@ vi.mock('../lib/boutiques', () => ({
     error: null,
   }),
   useMarquerContestationVue: () => ({ mutate: vi.fn(), isPending: false }),
+  useReglerRappelsBoutique: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+    isError: false,
+    error: null,
+  }),
 }))
 
 // Le relevé facturable parle au réseau (fonction edge + table des relevés émis) : remplacé ici,
@@ -79,6 +85,7 @@ function etat(partiel: Partial<BoutiqueEtat> = {}): BoutiqueEtat {
     mode: 'depot_vente',
     jeton: JETON,
     lien_actif: true,
+    rappels_actifs: false,
     bons_en_attente_de_confirmation: 0,
     pieces: [],
     declarations: [],
@@ -287,6 +294,27 @@ describe('la fiche d’une boutique, côté artisan', () => {
     expect(html).toContain('accès coupé')
     expect(html).toContain('Cet accès est coupé')
     expect(html).not.toContain("Couper l'accès")
+  })
+
+  // Le rappel mensuel : deux vérités à tenir à l'écran. Rien ne part sans le geste de l'artisan,
+  // et une boutique en achat ferme n'est même pas concernée (0074).
+  it('n’envoie rien tant que l’artisan n’a pas ouvert le rappel de la boutique', () => {
+    const html = rendre({ mode: 'depot_vente', rappels_actifs: false })
+    expect(html).toContain('Rappel mensuel à cette boutique')
+    expect(html).toContain('Fermé : rien ne lui est envoyé')
+    expect(html).not.toContain('Ouvert : le 1er du mois')
+  })
+
+  it('dit ce que le rappel ouvert envoie, et quand', () => {
+    const html = rendre({ mode: 'depot_vente', rappels_actifs: true })
+    expect(html).toContain('Ouvert : le 1er du mois')
+    expect(html).toContain('Jamais deux mails le même mois')
+  })
+
+  it('ne propose aucun rappel pour une boutique en achat ferme', () => {
+    const html = rendre({ mode: 'achat_ferme', rappels_actifs: false })
+    expect(html).toContain('cette boutique achète ferme')
+    expect(html).not.toContain('Ouvre-le si tu veux')
   })
 
   it('ne promet pas de lien là où il n’y en a pas', () => {

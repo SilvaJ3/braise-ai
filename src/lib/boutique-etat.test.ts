@@ -173,6 +173,7 @@ describe('ce que les boutiques attendent', () => {
       mode: 'depot_vente',
       jeton: 'jeton',
       lien_actif: true,
+      rappels_actifs: false,
       bons_en_attente_de_confirmation: 0,
       pieces: [],
       declarations: [],
