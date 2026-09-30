@@ -47,7 +47,7 @@ const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')?.trim()
 const MAIL_DOMAIN = Deno.env.get('MAIL_DOMAIN')?.trim() || 'braaise.io'
 
-const APP_URL_DEFAUT = 'https://braise-ai.vercel.app'
+const APP_URL_DEFAUT = 'https://artisan.braaise.io'
 const ADRESSE_REPONSE = 'contact@braaise.io'
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY)

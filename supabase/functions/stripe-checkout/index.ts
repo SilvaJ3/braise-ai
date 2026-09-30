@@ -77,7 +77,7 @@ async function adresseApp(): Promise<string> {
     .eq('cle', 'app_url')
     .maybeSingle()
   const lue = typeof data?.valeur === 'string' ? data.valeur.trim() : ''
-  return (lue || 'https://braise-ai.vercel.app').replace(/\/+$/, '')
+  return (lue || 'https://artisan.braaise.io').replace(/\/+$/, '')
 }
 
 Deno.serve(async (req) => {

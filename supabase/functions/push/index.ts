@@ -9,7 +9,11 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-const APP_URL = 'https://braise-ai.vercel.app'
+// L'adresse publique de l'app. Deux alias servent le même déploiement : `artisan.braaise.io` est
+// celui qu'on annonce, l'ancien nom reste accepté comme origine d'un lien poussé (le jour où il
+// disparaît, la liste se réduit d'une ligne).
+const APP_URL = 'https://artisan.braaise.io'
+const ORIGINES_APP = [APP_URL, 'https://braise-ai.vercel.app']
 const VAPID_PUBLIC =
   'BLzRPJbag3rpK5ffOUdVkRfNZq3tua2RzadSjyNNb2u4iEUiCcbCiZnj3uPjOMFUKiUeSYGDSe1vkgWL7taGa7U'
 const VAPID_PRIVATE = Deno.env.get('VAPID_PRIVATE_KEY')?.replace(/["'\s]/g, '') || undefined
@@ -169,7 +173,8 @@ async function handleNotify(req: Request, body: Record<string, unknown>): Promis
   const userId = typeof body.user_id === 'string' ? body.user_id : ''
   const title = typeof body.title === 'string' ? body.title.slice(0, 100) : ''
   if (!userId || !title) return json({ error: 'user_id et title requis' }, 400)
-  const url = typeof body.url === 'string' && body.url.startsWith(APP_URL) ? body.url : undefined
+  const urlBody = typeof body.url === 'string' ? body.url : ''
+  const url = urlBody && ORIGINES_APP.some((o) => urlBody.startsWith(o)) ? urlBody : undefined
   const subs = await subsForUser(userId)
   const sent = await sendToSubs(subs, {
     title,

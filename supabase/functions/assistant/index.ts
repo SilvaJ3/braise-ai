@@ -41,7 +41,7 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-const APP_URL = 'https://braise-ai.vercel.app'
+const APP_URL = 'https://artisan.braaise.io'
 
 // Sonnet partout : bon rapport qualité/coût, ~5-10x moins cher qu'Opus pour le chat.
 const MODEL = 'claude-sonnet-5'
