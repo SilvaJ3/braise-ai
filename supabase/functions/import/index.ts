@@ -30,6 +30,7 @@ import {
 } from '../_shared/compte.ts'
 import { RESERVE_JETONS } from '../_shared/enveloppe.ts'
 import { corrigerJetons, reserverJetons } from '../_shared/enveloppe-rpc.ts'
+import { accesDuCompte } from '../_shared/essai-rpc.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -185,6 +186,11 @@ async function handle(req: Request): Promise<Response> {
   const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '')
   const { data: userData, error } = await admin.auth.getUser(token)
   if (error || !userData.user) return json({ error: 'non authentifié' }, 401)
+
+  // L'essai de sept jours (0075) : l'import est le poste le plus cher du produit, il se ferme avec
+  // l'assistant. Le refus tombe AVANT de lire le fichier et avant toute réservation de jetons.
+  const acces = await accesDuCompte(admin, userData.user.id)
+  if (!acces.autorise) return json({ error: acces.message }, 402)
 
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null
   if (!body) return json({ error: 'corps JSON invalide' }, 400)

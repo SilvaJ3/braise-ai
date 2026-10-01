@@ -30,8 +30,10 @@ export const POIDS_JETON = {
 
 /** Ce que le compte a droit chaque mois, par plan. Les formules payantes ont la même enveloppe. */
 export const ENVELOPPE_JETONS: Record<Plan, number> = {
-  // Un essai doit suffire à juger l'outil, pas à s'en servir un mois entier à l'œil.
-  essai: 400_000,
+  // L'essai dure sept jours (0075) et il est PLEIN : il donne ce que donne un abonnement, sinon
+  // « essayer » ne dit rien de ce qu'on achète. Le pire cas est borné (l'enveloppe entière,
+  // ≈ 2,80 € de modèle), et le compte qui la consomme est précisément celui qui a vu le produit.
+  essai: 1_500_000,
   fondateur: 1_500_000,
   mensuel: 1_500_000,
   annuel: 1_500_000,

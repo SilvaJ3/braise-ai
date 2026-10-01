@@ -32,6 +32,7 @@ import {
 } from '../_shared/compte.ts'
 import { RESERVE_JETONS } from '../_shared/enveloppe.ts'
 import { corrigerJetons, reserverJetons } from '../_shared/enveloppe-rpc.ts'
+import { accesDuCompte } from '../_shared/essai-rpc.ts'
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void }
 
@@ -544,6 +545,13 @@ async function handleChat(req: Request, userIdPret: string | undefined, corps: R
   // compteur (on réserve, puis on compare). Le coût réel n'est pas engagé — aucun appel au modèle
   // n'a lieu — et un compteur légèrement au-dessus du plafond ne change rien à l'affichage, qui
   // borne le « reste » à zéro.
+  // L'essai de sept jours (0075) : passé ce délai sans abonnement, l'assistant ne répond plus. La
+  // porte se ferme ICI, avant toute réservation de jetons — refuser un tour ne doit rien coûter, et
+  // le compte ne doit pas non plus voir son enveloppe du mois entamée par des questions refusées.
+  // Ce qui reste ouvert : les dépôts, le planning, les bons. L'artisan ne perd pas son travail.
+  const acces = await accesDuCompte(admin, userId)
+  if (!acces.autorise) return json({ error: acces.message }, 402)
+
   const profil = await loadProfil(userId).catch(() => null)
   const reservation = await reserverJetons(admin, userId, profil?.plan, RESERVE_JETONS.assistant)
   if (reservation.etat === 'refus') return json({ error: reservation.message }, 429)
@@ -706,10 +714,27 @@ type ResultatBilan = {
   alertes_stock: number
   /** L'enveloppe du mois était épuisée : rien n'a été demandé au modèle (ce n'est pas une panne). */
   enveloppe_epuisee?: boolean
+  /** L'essai du compte est terminé : le bilan ne se génère pas (ce n'est pas une panne non plus). */
+  essai_termine?: boolean
 }
 
 async function runWeeklyForUser(userId: string): Promise<ResultatBilan> {
   const today = new Date().toISOString().slice(0, 10)
+
+  // L'essai de sept jours (0075) : un compte dont l'essai est fini et qui n'a pas d'abonnement ne
+  // reçoit pas de bilan — c'est un appel au modèle, et plus rien ne le paie. La passe
+  // hebdomadaire des autres comptes n'en dépend pas : ce compte est simplement passé.
+  const acces = await accesDuCompte(admin, userId)
+  if (!acces.autorise) {
+    return {
+      ideas_inserted: 0,
+      ideas_ecartees: 0,
+      observations: 0,
+      relances: 0,
+      alertes_stock: 0,
+      essai_termine: true,
+    }
+  }
 
   // Le bilan est un appel au modèle comme un autre : il passe par l'enveloppe du mois (0069).
   // Quand l'enveloppe est épuisée, rien n'est généré — et on le dit, plutôt que de laisser croire

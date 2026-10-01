@@ -14,6 +14,13 @@ import type { Plan } from '../../supabase/functions/_shared/compte'
 // `stripe-checkout`) : on relit la même règle ici, sinon l'écran finirait par annoncer un prix que
 // Stripe ne prélève pas.
 import { appliqueCouponFondateur, euros } from '../../supabase/functions/_shared/stripe'
+import {
+  ESSAI_JOURS,
+  abonnementOuvreAcces,
+  accesAutorise,
+  essaiEnCours,
+  joursEssaiRestants,
+} from '../../supabase/functions/_shared/essai'
 
 /** La fréquence demandée à la page de paiement. Inconnue = le mois (jamais l'annuel par accident). */
 export type FrequenceAbonnement = 'mois' | 'an'
@@ -219,4 +226,89 @@ export function alerteTarif(
     return 'Ton abonnement est facturé 39 €/mois : le tarif fondateur ne s’applique plus. Écris-moi si tu penses que c’est une erreur.'
   }
   return null
+}
+
+/** Où en est l'essai de sept jours du compte, tel que l'écran le montre. */
+export type EtatEssai = {
+  /** L'essai court encore : le compte travaille. */
+  enCours: boolean
+  /** Jours restants, arrondis au jour supérieur (0 si l'essai est fini ou inconnu). */
+  joursRestants: number
+  /** La fin de l'essai écrite pour un artisan (« 8 octobre 2026 »), ou null. */
+  fin: string | null
+  /** La phrase à afficher, ou null quand il n'y a rien à dire de l'essai. */
+  phrase: string | null
+}
+
+/**
+ * L'essai, lu pour l'écran. La règle est celle du serveur (`_shared/essai.ts`) : le jour où le
+ * délai change, l'écran et le refus de l'assistant changent ensemble, sans qu'on ait à y penser.
+ *
+ * Un accès offert, ou un abonnement qui ouvre l'accès (actif, ou en retard parce que Stripe
+ * relance), fait taire l'essai : il n'y a plus rien à annoncer. Quand la base ne connaît pas
+ * encore la colonne (migration en retard), l'écran se tait aussi — il n'invente pas un essai
+ * terminé.
+ */
+export function etatEssai(
+  essaiFin: string | null | undefined,
+  statutBrut: unknown,
+  options: { accesGratuit?: boolean | null; maintenant?: Date } = {},
+): EtatEssai {
+  const maintenant = options.maintenant ?? new Date()
+  const fin = dateLisible(essaiFin)
+  if (options.accesGratuit) {
+    return {
+      enCours: false,
+      joursRestants: 0,
+      fin,
+      phrase: 'Ton accès est offert : rien n’est prélevé, et l’assistant comme les imports restent ouverts.',
+    }
+  }
+  if (abonnementOuvreAcces(statutBrut)) return { enCours: false, joursRestants: 0, fin, phrase: null }
+  if (!essaiFin) return { enCours: false, joursRestants: 0, fin: null, phrase: null }
+
+  if (essaiEnCours(essaiFin, maintenant)) {
+    const jours = joursEssaiRestants(essaiFin, maintenant)
+    const quand = fin ? ` — jusqu’au ${fin}` : ''
+    return {
+      enCours: true,
+      joursRestants: jours,
+      fin,
+      phrase: `Essai en cours : il te reste ${jours} jour${jours > 1 ? 's' : ''}${quand}.`,
+    }
+  }
+
+  return {
+    enCours: false,
+    joursRestants: 0,
+    fin,
+    phrase:
+      `Tes ${ESSAI_JOURS} jours d’essai sont terminés : l’assistant et les imports sont en pause ` +
+      'jusqu’à ton abonnement. Tes dépôts, ton planning et tes données restent accessibles.',
+  }
+}
+
+/**
+ * Ce que les écrans doivent appliquer pour savoir si l'outil répond encore : exactement la même
+ * fonction que le serveur, et non une règle écrite une seconde fois ici. L'écran ne décide de rien,
+ * il montre ce que le serveur fera.
+ */
+export function accesDuCompteAffiche(
+  compte: {
+    essai_fin?: string | null
+    abonnement_statut?: unknown
+    est_test?: boolean | null
+    acces_gratuit?: boolean | null
+  } | null | undefined,
+  maintenant: Date = new Date(),
+): boolean {
+  return accesAutorise(
+    {
+      essai_fin: compte?.essai_fin,
+      abonnement_statut: compte?.abonnement_statut as string | undefined,
+      est_test: compte?.est_test,
+      acces_gratuit: compte?.acces_gratuit,
+    },
+    maintenant,
+  )
 }
