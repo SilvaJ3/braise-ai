@@ -104,7 +104,44 @@ describe('Mon compte — la jauge du forfait, en questions', () => {
     etat.data = compte({ jetons_consommes: undefined, questions_utilisees: 12 })
     const html = rendre()
     expect(html).not.toContain('role="progressbar"')
-    // Les anciens quotas de questions du plan, pas l'enveloppe en jetons.
-    expect(html).toContain('12 sur 150')
+    // Les anciens quotas de questions du plan, pas l'enveloppe en jetons — et ils suivent
+    // désormais l'enveloppe (1,5 M ÷ 5 000 = 300 questions), pour ne pas la contredire.
+    expect(html).toContain('12 sur 300')
+  })
+})
+
+// L'essai de sept jours (0075) : ce que l'artisan lit de son essai, et ce qu'il lit lorsqu'il est
+// fini. La règle vient du module partagé avec le serveur — ici on vérifie seulement que l'écran
+// l'affiche, et qu'il ne dit rien d'un abonnement qui paie.
+describe('Mon compte — l’essai de sept jours', () => {
+  const dans = (jours: number) => new Date(Date.now() + jours * 86_400_000).toISOString()
+
+  beforeEach(() => {
+    etat.isLoading = false
+    etat.isError = false
+  })
+
+  it('annonce les jours restants, et que l’essai donne ce qu’un abonnement donne', () => {
+    etat.data = compte({ plan: 'essai', abonnement_statut: 'aucun', abonnement_fin: null, abonnement_prix_centimes: null, essai_fin: dans(4), jetons_consommes: 100_000 })
+    const html = rendre()
+    expect(html).toContain('Essai en cours : il te reste 4 jours')
+    // L'apostrophe sort échappée du rendu statique : on cherche la partie sans apostrophe.
+    expect(html).toContain('abonnement donne')
+    expect(html).toContain('S’abonner')
+  })
+
+  it('dit ce qui s’arrête et ce qui reste quand l’essai est fini', () => {
+    etat.data = compte({ plan: 'essai', abonnement_statut: 'aucun', abonnement_fin: null, abonnement_prix_centimes: null, essai_fin: dans(-1), jetons_consommes: 100_000 })
+    const html = rendre()
+    expect(html).toContain('Tes 7 jours d’essai sont terminés')
+    expect(html).toContain('restent accessibles')
+    expect(html).not.toContain('L’essai donne ce qu’un abonnement donne')
+  })
+
+  it('se tait quand un abonnement paie, et quand la base ne connaît pas encore l’essai', () => {
+    etat.data = compte({ essai_fin: dans(-30) })
+    expect(rendre()).not.toContain('essai')
+    etat.data = compte({ plan: 'essai', abonnement_statut: 'aucun', abonnement_fin: null, abonnement_prix_centimes: null, essai_fin: undefined, jetons_consommes: 0 })
+    expect(rendre()).not.toContain('essai')
   })
 })

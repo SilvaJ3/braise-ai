@@ -26,6 +26,7 @@ import { PACK_IDS, PACKS, type PackId } from '../../supabase/functions/_shared/p
 import {
   alerteTarif,
   etatAbonnement,
+  etatEssai,
   formuleFacturee,
   libelleSouscription,
   messagePaiement,
@@ -90,6 +91,9 @@ export default function CompteMonCompte() {
   }
 
   const infos = PLANS[data.plan]
+  // L'essai de sept jours (0075) : c'est la première chose que le compte lit — ce qu'il lui reste,
+  // et ce qui se passe après. La règle vient du module partagé avec le serveur, pas d'une copie.
+  const essai = etatEssai(data.essai_fin, data.abonnement_statut)
   const quotaQ = quotaQuestions(data.plan, data.quota_derogation)
   const quotaI = quotaImports(data.plan, data.quota_derogation)
   // L'enveloppe en jetons (0069) : tant que la base ne la connaît pas, l'écran garde les anciens
@@ -146,11 +150,17 @@ export default function CompteMonCompte() {
           <div className="spacer" />
           {infos.prix && <span className="muted">{infos.prix}</span>}
         </div>
-        {data.plan === 'essai' && (
+        {essai.phrase && (
           <p className="muted" style={{ margin: '6px 0 0' }}>
-            Tu es en essai. Les formules payantes incluent environ{' '}
-            {questionsIndicatives(ENVELOPPE_JETONS.mensuel)} questions par mois, imports de fichiers
-            compris — l'abonnement se prend juste en dessous, sans passer par moi.
+            {essai.phrase}
+            {essai.enCours && (
+              <>
+                {' '}
+                L'essai donne ce qu'un abonnement donne. Les formules payantes incluent environ{' '}
+                {questionsIndicatives(ENVELOPPE_JETONS.mensuel)} questions par mois, imports de
+                fichiers compris — l'abonnement se prend juste en dessous, sans passer par moi.
+              </>
+            )}
           </p>
         )}
       </div>

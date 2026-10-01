@@ -8,11 +8,17 @@
 export type Plan = 'essai' | 'fondateur' | 'mensuel' | 'annuel'
 
 export const PLANS: Record<Plan, { label: string; questions: number; imports: number; prix: string | null }> = {
-  // Un essai doit suffire à juger l'outil, pas à s'en servir un mois entier à l'œil.
-  essai: { label: 'Essai', questions: 40, imports: 3, prix: null },
-  fondateur: { label: 'Fondateur', questions: 150, imports: 20, prix: '29 €/mois HTVA — 1 an' },
-  mensuel: { label: 'Mensuel', questions: 150, imports: 20, prix: '39 €/mois HTVA' },
-  annuel: { label: 'Annuel', questions: 150, imports: 20, prix: '390 €/an HTVA' },
+  // L'essai dure sept jours (0075) et donne ce que donne un abonnement : c'est le DÉLAI qui
+  // distingue l'essai, pas un forfait plus maigre.
+  //
+  // `questions` et `imports` ne sont plus qu'un REPLI : depuis 0069 le plafond se compte en jetons
+  // (1,5 M pour tous les plans, essai compris), et ces deux nombres ne servent que si la base est en
+  // retard sur le code. Ils suivent donc l'enveloppe (1,5 M ÷ 5 000 jetons par question = 300)
+  // plutôt que de la contredire — deux chiffres qui divergent finissent par s'afficher.
+  essai: { label: 'Essai', questions: 300, imports: 20, prix: null },
+  fondateur: { label: 'Fondateur', questions: 300, imports: 20, prix: '29 €/mois HTVA — 1 an' },
+  mensuel: { label: 'Mensuel', questions: 300, imports: 20, prix: '39 €/mois HTVA' },
+  annuel: { label: 'Annuel', questions: 300, imports: 20, prix: '390 €/an HTVA' },
 }
 
 export function planValide(v: unknown): Plan {
@@ -111,6 +117,14 @@ export type UsageMois = {
   abonnement_fin: string | null
   /** Ce qui est réellement prélevé, remise déduite, en centimes (null = inconnu). */
   abonnement_prix_centimes: number | null
+  /**
+   * Fin de l'essai de sept jours (0075). C'est elle qui décide si le compte travaille encore :
+   * après, l'assistant et les imports se ferment jusqu'à l'abonnement. Absente tant que la
+   * migration n'est pas en base — l'écran ne dit alors rien de l'essai plutôt que d'inventer.
+   */
+  essai_fin?: string | null
+  /** Compte de démonstration (0075) : les écrans l'appliquent comme le serveur, sans porte. */
+  est_test?: boolean
 }
 
 /** Une ligne du détail mensuel : quel usage, quelle quantité. */

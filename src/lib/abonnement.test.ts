@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   OFFRES,
   TARIF_FONDATEUR_CENTIMES,
+  accesDuCompteAffiche,
   alerteTarif,
   dateLisible,
   etatAbonnement,
+  etatEssai,
   formuleFacturee,
   libelleSouscription,
   messagePaiement,
@@ -195,5 +197,53 @@ describe('alerteTarif', () => {
     expect(alerteTarif('fondateur', 39000)).toBeNull()
     expect(alerteTarif('fondateur', null)).toBeNull()
     expect(alerteTarif('mensuel', 3900)).toBeNull()
+  })
+})
+
+describe('etatEssai', () => {
+  const finDans = (jours: number) => new Date(MAINTENANT.getTime() + jours * 86_400_000).toISOString()
+
+  it('annonce les jours restants pendant l’essai, et jusqu’à quand', () => {
+    const e = etatEssai(finDans(3), 'aucun', MAINTENANT)
+    expect(e.enCours).toBe(true)
+    expect(e.joursRestants).toBe(3)
+    expect(e.phrase).toContain('3 jours')
+    expect(e.fin).toBe('23 septembre 2026')
+  })
+
+  it('parle au singulier quand il reste un jour', () => {
+    const e = etatEssai(finDans(0.5), 'aucun', MAINTENANT)
+    expect(e.joursRestants).toBe(1)
+    expect(e.phrase).toContain('1 jour ')
+  })
+
+  it('dit ce qui s’arrête, et ce qui reste, une fois l’essai fini', () => {
+    const e = etatEssai(finDans(-1), 'aucun', MAINTENANT)
+    expect(e.enCours).toBe(false)
+    expect(e.phrase).toContain('terminés')
+    expect(e.phrase).toContain('restent accessibles')
+  })
+
+  it('se tait dès qu’un abonnement ouvre l’accès, même en retard de paiement', () => {
+    for (const statut of ['actif', 'en_retard']) {
+      expect(etatEssai(finDans(-30), statut, MAINTENANT).phrase).toBeNull()
+    }
+  })
+
+  it('se tait quand la base ne connaît pas encore l’essai : rien d’inventé', () => {
+    expect(etatEssai(null, 'aucun', MAINTENANT).phrase).toBeNull()
+    expect(etatEssai(undefined, 'aucun', MAINTENANT).phrase).toBeNull()
+    expect(etatEssai('pas une date', 'aucun', MAINTENANT)).toMatchObject({ enCours: false, fin: null })
+  })
+})
+
+describe('accesDuCompteAffiche', () => {
+  const finDans = (jours: number) => new Date(MAINTENANT.getTime() + jours * 86_400_000).toISOString()
+
+  it('suit la règle du serveur : essai en cours, abonnement, ou compte de test', () => {
+    expect(accesDuCompteAffiche(finDans(2), 'aucun', false, MAINTENANT)).toBe(true)
+    expect(accesDuCompteAffiche(finDans(-2), 'aucun', false, MAINTENANT)).toBe(false)
+    expect(accesDuCompteAffiche(finDans(-2), 'actif', false, MAINTENANT)).toBe(true)
+    expect(accesDuCompteAffiche(finDans(-2), 'aucun', true, MAINTENANT)).toBe(true)
   })
 })

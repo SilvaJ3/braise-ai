@@ -55,9 +55,9 @@ describe('l’enveloppe par plan', () => {
     expect(enveloppeJetons('annuel')).toBe(ENVELOPPE_JETONS.fondateur)
   })
 
-  it('laisse l’essai plus serré, mais de quoi juger', () => {
+  it('donne à l’essai la même enveloppe qu’un abonnement : c’est le DÉLAI qui distingue l’essai', () => {
     expect(enveloppeJetons('essai')).toBeGreaterThan(0)
-    expect(enveloppeJetons('essai')).toBeLessThan(enveloppeJetons('mensuel'))
+    expect(enveloppeJetons('essai')).toBe(enveloppeJetons('mensuel'))
   })
 
   it('retombe sur l’essai pour un plan inconnu ou absent', () => {

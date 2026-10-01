@@ -22,9 +22,10 @@ describe('plans', () => {
     expect(planValide(42)).toBe('essai')
   })
 
-  it('donne à l’essai moins de marge qu’à un plan payant, mais de quoi juger', () => {
+  it('donne à l’essai la marge d’un plan payant : c’est le DÉLAI qui l’en distingue', () => {
     expect(PLANS.essai.questions).toBeGreaterThan(20)
-    expect(PLANS.essai.questions).toBeLessThan(PLANS.mensuel.questions)
+    expect(PLANS.essai.questions).toBe(PLANS.mensuel.questions)
+    expect(PLANS.essai.imports).toBe(PLANS.mensuel.imports)
     expect(PLANS.mensuel.questions).toBe(PLANS.annuel.questions)
   })
 })

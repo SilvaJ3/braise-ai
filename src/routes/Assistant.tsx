@@ -1,21 +1,33 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Reglages from '../components/Reglages'
 import { SparkleIcon } from '../components/icons'
 import { MAX_MESSAGE_CHARS, isPendingActive, useChatMessages, useSendMessage } from '../lib/assistant'
+import { accesDuCompteAffiche } from '../lib/abonnement'
 import { logEvent } from '../lib/events'
 import { Highlight } from '../lib/highlight'
+import { useMonCompte } from '../lib/profil'
 
 // L'historique est persistant (table chat_messages). La réponse est générée en
 // arrière-plan côté serveur : la personne peut fermer l'app, une notification push
 // la prévient quand c'est prêt.
 export default function Assistant() {
   const qc = useQueryClient()
+  const navigate = useNavigate()
   const [tab, setTab] = useState<'chat' | 'reglages'>('chat')
   const [input, setInput] = useState('')
   const endRef = useRef<HTMLDivElement>(null)
   const { data: messages = [] } = useChatMessages()
   const send = useSendMessage()
+
+  // L'essai de sept jours (0075) : quand il est fini et qu'aucun abonnement ne le remplace, le
+  // serveur refuse la question. L'écran le dit AVANT, avec la même règle que lui (`accesAutorise`),
+  // plutôt que de laisser écrire un message pour recevoir un refus. Tant que le compte n'est pas
+  // lu, on ne ferme rien : on ne montre pas une porte à quelqu'un qui a le droit d'entrer.
+  const { data: compte } = useMonCompte()
+  const accesOuvert =
+    !compte || accesDuCompteAffiche(compte.essai_fin, compte.abonnement_statut, compte.est_test)
 
   const pending = messages.some((m) => isPendingActive(m))
   const handledRef = useRef<string | null>(null)
@@ -124,24 +136,42 @@ export default function Assistant() {
           )}
           <div ref={endRef} />
 
-          <form className="row chat-input" onSubmit={submit}>
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={pending ? 'Réponse en cours…' : 'Écris ici…'}
-              style={{ flex: 1 }}
-              enterKeyHint="send"
-              maxLength={MAX_MESSAGE_CHARS}
-              disabled={pending}
-            />
-            <button
-              className="primary"
-              type="submit"
-              disabled={send.isPending || pending || !input.trim()}
-            >
-              Envoyer
-            </button>
-          </form>
+          {!accesOuvert ? (
+            <div className="card">
+              <strong>Ton essai est terminé</strong>
+              <p className="muted" style={{ margin: '6px 0 0' }}>
+                L'assistant et les imports sont en pause jusqu'à ton abonnement. Tes dépôts, ton
+                planning et tes données restent accessibles, et tout repart dès que l'abonnement
+                est pris.
+              </p>
+              <button
+                className="primary"
+                style={{ marginTop: 10 }}
+                onClick={() => navigate('/compte/mon-compte')}
+              >
+                Voir mon abonnement
+              </button>
+            </div>
+          ) : (
+            <form className="row chat-input" onSubmit={submit}>
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={pending ? 'Réponse en cours…' : 'Écris ici…'}
+                style={{ flex: 1 }}
+                enterKeyHint="send"
+                maxLength={MAX_MESSAGE_CHARS}
+                disabled={pending}
+              />
+              <button
+                className="primary"
+                type="submit"
+                disabled={send.isPending || pending || !input.trim()}
+              >
+                Envoyer
+              </button>
+            </form>
+          )}
         </>
       )}
     </>
