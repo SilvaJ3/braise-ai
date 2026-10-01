@@ -125,6 +125,8 @@ export type UsageMois = {
   essai_fin?: string | null
   /** Compte de démonstration (0075) : les écrans l'appliquent comme le serveur, sans porte. */
   est_test?: boolean
+  /** Accès offert par l'administrateur (0076) : rien n'est prélevé, et tout reste ouvert. */
+  acces_gratuit?: boolean
 }
 
 /** Une ligne du détail mensuel : quel usage, quelle quantité. */

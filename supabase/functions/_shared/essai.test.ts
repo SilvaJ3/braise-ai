@@ -76,6 +76,16 @@ describe('accesAutorise', () => {
     ).toBe(true)
   })
 
+  it('un accès offert ouvre la porte, même essai fini (0076)', () => {
+    expect(
+      accesAutorise({ essai_fin: finDans(-30), abonnement_statut: 'aucun', acces_gratuit: true }, MAINTENANT),
+    ).toBe(true)
+    // Et il ne suffit pas d'une valeur approchante : seul `true` ouvre.
+    expect(
+      accesAutorise({ essai_fin: finDans(-30), abonnement_statut: 'aucun', acces_gratuit: false }, MAINTENANT),
+    ).toBe(false)
+  })
+
   it('une date d’essai absente ou illisible laisse passer (base en retard sur le code)', () => {
     for (const v of [null, undefined, '', 'pas une date']) {
       expect(accesAutorise({ essai_fin: v }, MAINTENANT)).toBe(true)

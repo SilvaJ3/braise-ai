@@ -5,6 +5,7 @@ import type { FrequenceAbonnement } from './abonnement'
 import type { ActionDemande, DemandeAcces } from './demandes-acces'
 import type { Plan, UsageMois } from '../../supabase/functions/_shared/compte'
 import type { PackId } from '../../supabase/functions/_shared/packs'
+import type { CompteAdmin } from './admin-comptes'
 import type { ResultatValidation } from '../../supabase/functions/_shared/demande-acces'
 
 // Profil de compte : ce que le tunnel d'accueil remplit, et ce que l'assistant lit pour savoir à
@@ -199,6 +200,50 @@ export function useEstAdmin() {
       if (error) throw error
       return data === true
     },
+  })
+}
+
+/**
+ * Les comptes et leur accès, lus par un administrateur (`comptes_admin()`, 0076). La table
+ * `assistant_profil` n'est pas lisible pour les autres : c'est la fonction qui décide, et elle
+ * refuse un compte qui n'administre pas.
+ */
+export function useComptesAdmin(actif = true) {
+  return useQuery({
+    queryKey: ['comptes-admin'],
+    enabled: actif,
+    queryFn: async (): Promise<CompteAdmin[]> => {
+      const { data, error } = await supabase.rpc('comptes_admin', { p_limite: 200 })
+      if (error) throw error
+      return (data ?? []) as CompteAdmin[]
+    },
+  })
+}
+
+/**
+ * Ouvrir ou retirer l'accès offert d'un compte. Le geste s'écrit en base par une fonction réservée
+ * à l'administration (`regler_acces_gratuit()`, 0076) — le client n'a aucun droit d'écriture sur
+ * cette colonne, et c'est voulu : un accès offert est une décision, pas un réglage de profil.
+ */
+export function useReglerAccesGratuit() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ userId, gratuit }: { userId: string; gratuit: boolean }): Promise<boolean> => {
+      const { data, error } = await supabase.rpc('regler_acces_gratuit', {
+        p_user: userId,
+        p_gratuit: gratuit,
+      })
+      if (error) {
+        // Le refus du serveur se dit dans la langue du produit, pas en `acces_refuse`.
+        if (error.message.includes('acces_refuse')) {
+          throw new Error('Cet écran est réservé à l’administration de Braaise.')
+        }
+        throw error
+      }
+      return data === true
+    },
+    // L'écran relit la liste plutôt que de deviner le nouvel état : c'est la base qui tranche.
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['comptes-admin'] }),
   })
 }
 

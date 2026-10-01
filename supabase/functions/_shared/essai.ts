@@ -22,6 +22,8 @@ export type EtatAcces = {
   abonnement_statut?: string | null
   /** Compte de démonstration : aucun conséquence, donc aucune porte. */
   est_test?: boolean | null
+  /** Accès offert par l'administrateur (0076) : rien n'est prélevé, la porte reste ouverte. */
+  acces_gratuit?: boolean | null
 }
 
 /** Une date utilisable, ou null : une valeur illisible ne compte pas comme une date. */
@@ -60,6 +62,7 @@ export function abonnementOuvreAcces(statut: unknown): boolean {
  * Le compte peut-il travailler ?
  *
  *  · un compte de test passe toujours (il n'a aucune conséquence) ;
+ *  · un accès offert passe aussi, et c'est une décision nominative de l'administrateur (0076) ;
  *  · un abonnement actif ou en retard ouvre l'accès ;
  *  · sinon, c'est l'essai qui décide.
  *
@@ -69,6 +72,7 @@ export function abonnementOuvreAcces(statut: unknown): boolean {
  */
 export function accesAutorise(etat: EtatAcces | null | undefined, maintenant: Date = new Date()): boolean {
   if (etat?.est_test) return true
+  if (etat?.acces_gratuit) return true
   if (abonnementOuvreAcces(etat?.abonnement_statut)) return true
   const fin = dateFin(etat?.essai_fin)
   if (!fin) return true

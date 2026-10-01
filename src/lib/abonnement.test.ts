@@ -204,7 +204,7 @@ describe('etatEssai', () => {
   const finDans = (jours: number) => new Date(MAINTENANT.getTime() + jours * 86_400_000).toISOString()
 
   it('annonce les jours restants pendant l’essai, et jusqu’à quand', () => {
-    const e = etatEssai(finDans(3), 'aucun', MAINTENANT)
+    const e = etatEssai(finDans(3), 'aucun', { maintenant: MAINTENANT })
     expect(e.enCours).toBe(true)
     expect(e.joursRestants).toBe(3)
     expect(e.phrase).toContain('3 jours')
@@ -212,13 +212,13 @@ describe('etatEssai', () => {
   })
 
   it('parle au singulier quand il reste un jour', () => {
-    const e = etatEssai(finDans(0.5), 'aucun', MAINTENANT)
+    const e = etatEssai(finDans(0.5), 'aucun', { maintenant: MAINTENANT })
     expect(e.joursRestants).toBe(1)
     expect(e.phrase).toContain('1 jour ')
   })
 
   it('dit ce qui s’arrête, et ce qui reste, une fois l’essai fini', () => {
-    const e = etatEssai(finDans(-1), 'aucun', MAINTENANT)
+    const e = etatEssai(finDans(-1), 'aucun', { maintenant: MAINTENANT })
     expect(e.enCours).toBe(false)
     expect(e.phrase).toContain('terminés')
     expect(e.phrase).toContain('restent accessibles')
@@ -226,24 +226,38 @@ describe('etatEssai', () => {
 
   it('se tait dès qu’un abonnement ouvre l’accès, même en retard de paiement', () => {
     for (const statut of ['actif', 'en_retard']) {
-      expect(etatEssai(finDans(-30), statut, MAINTENANT).phrase).toBeNull()
+      expect(etatEssai(finDans(-30), statut, { maintenant: MAINTENANT }).phrase).toBeNull()
     }
   })
 
   it('se tait quand la base ne connaît pas encore l’essai : rien d’inventé', () => {
-    expect(etatEssai(null, 'aucun', MAINTENANT).phrase).toBeNull()
-    expect(etatEssai(undefined, 'aucun', MAINTENANT).phrase).toBeNull()
-    expect(etatEssai('pas une date', 'aucun', MAINTENANT)).toMatchObject({ enCours: false, fin: null })
+    expect(etatEssai(null, 'aucun', { maintenant: MAINTENANT }).phrase).toBeNull()
+    expect(etatEssai(undefined, 'aucun', { maintenant: MAINTENANT }).phrase).toBeNull()
+    expect(etatEssai('pas une date', 'aucun', { maintenant: MAINTENANT })).toMatchObject({ enCours: false, fin: null })
   })
 })
 
 describe('accesDuCompteAffiche', () => {
   const finDans = (jours: number) => new Date(MAINTENANT.getTime() + jours * 86_400_000).toISOString()
 
-  it('suit la règle du serveur : essai en cours, abonnement, ou compte de test', () => {
-    expect(accesDuCompteAffiche(finDans(2), 'aucun', false, MAINTENANT)).toBe(true)
-    expect(accesDuCompteAffiche(finDans(-2), 'aucun', false, MAINTENANT)).toBe(false)
-    expect(accesDuCompteAffiche(finDans(-2), 'actif', false, MAINTENANT)).toBe(true)
-    expect(accesDuCompteAffiche(finDans(-2), 'aucun', true, MAINTENANT)).toBe(true)
+  it('suit la règle du serveur : essai, abonnement, compte de test, ou accès offert', () => {
+    expect(accesDuCompteAffiche({ essai_fin: finDans(2), abonnement_statut: 'aucun' }, MAINTENANT)).toBe(true)
+    expect(accesDuCompteAffiche({ essai_fin: finDans(-2), abonnement_statut: 'aucun' }, MAINTENANT)).toBe(false)
+    expect(accesDuCompteAffiche({ essai_fin: finDans(-2), abonnement_statut: 'actif' }, MAINTENANT)).toBe(true)
+    expect(accesDuCompteAffiche({ essai_fin: finDans(-2), abonnement_statut: 'aucun', est_test: true }, MAINTENANT)).toBe(true)
+    // L'accès offert (0076) : une décision nominative, qui vaut même essai fini.
+    expect(accesDuCompteAffiche({ essai_fin: finDans(-2), abonnement_statut: 'aucun', acces_gratuit: true }, MAINTENANT)).toBe(true)
+    expect(accesDuCompteAffiche(null, MAINTENANT)).toBe(true)
+  })
+})
+
+describe('etatEssai — l’accès offert', () => {
+  const finDans = (jours: number) => new Date(MAINTENANT.getTime() + jours * 86_400_000).toISOString()
+
+  it('se dit, et se tait sur l’essai', () => {
+    const e = etatEssai(finDans(-30), 'aucun', { accesGratuit: true, maintenant: MAINTENANT })
+    expect(e.phrase).toContain('offert')
+    expect(e.phrase).not.toContain('terminés')
+    expect(e.enCours).toBe(false)
   })
 })

@@ -25,10 +25,17 @@ const ENTREE_ADMIN = {
   hint: 'Valider ou refuser sans passer par le mail',
 }
 
+// La seconde : qui utilise Braaise gratuitement (0076).
+const ENTREE_ADMIN_COMPTES = {
+  to: '/compte/comptes',
+  label: 'Comptes',
+  hint: 'Offrir l’accès, ou le retirer',
+}
+
 export default function Compte() {
   const { session } = useAuth()
   const admin = useEstAdmin()
-  const entrees = admin.data === true ? [...ENTREES, ENTREE_ADMIN] : ENTREES
+  const entrees = admin.data === true ? [...ENTREES, ENTREE_ADMIN, ENTREE_ADMIN_COMPTES] : ENTREES
 
   return (
     <>

@@ -93,7 +93,7 @@ export default function CompteMonCompte() {
   const infos = PLANS[data.plan]
   // L'essai de sept jours (0075) : c'est la première chose que le compte lit — ce qu'il lui reste,
   // et ce qui se passe après. La règle vient du module partagé avec le serveur, pas d'une copie.
-  const essai = etatEssai(data.essai_fin, data.abonnement_statut)
+  const essai = etatEssai(data.essai_fin, data.abonnement_statut, { accesGratuit: data.acces_gratuit })
   const quotaQ = quotaQuestions(data.plan, data.quota_derogation)
   const quotaI = quotaImports(data.plan, data.quota_derogation)
   // L'enveloppe en jetons (0069) : tant que la base ne la connaît pas, l'écran garde les anciens

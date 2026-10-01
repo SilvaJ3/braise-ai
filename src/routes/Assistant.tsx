@@ -26,8 +26,7 @@ export default function Assistant() {
   // plutôt que de laisser écrire un message pour recevoir un refus. Tant que le compte n'est pas
   // lu, on ne ferme rien : on ne montre pas une porte à quelqu'un qui a le droit d'entrer.
   const { data: compte } = useMonCompte()
-  const accesOuvert =
-    !compte || accesDuCompteAffiche(compte.essai_fin, compte.abonnement_statut, compte.est_test)
+  const accesOuvert = !compte || accesDuCompteAffiche(compte)
 
   const pending = messages.some((m) => isPendingActive(m))
   const handledRef = useRef<string | null>(null)

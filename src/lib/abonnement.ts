@@ -244,16 +244,26 @@ export type EtatEssai = {
  * L'essai, lu pour l'écran. La règle est celle du serveur (`_shared/essai.ts`) : le jour où le
  * délai change, l'écran et le refus de l'assistant changent ensemble, sans qu'on ait à y penser.
  *
- * Un abonnement qui ouvre l'accès (actif, ou en retard parce que Stripe relance) fait taire
- * l'essai : il n'y a plus rien à annoncer. Et quand la base ne connaît pas encore la colonne
- * (migration en retard), l'écran se tait aussi — il n'invente pas un essai terminé.
+ * Un accès offert, ou un abonnement qui ouvre l'accès (actif, ou en retard parce que Stripe
+ * relance), fait taire l'essai : il n'y a plus rien à annoncer. Quand la base ne connaît pas
+ * encore la colonne (migration en retard), l'écran se tait aussi — il n'invente pas un essai
+ * terminé.
  */
 export function etatEssai(
   essaiFin: string | null | undefined,
   statutBrut: unknown,
-  maintenant: Date = new Date(),
+  options: { accesGratuit?: boolean | null; maintenant?: Date } = {},
 ): EtatEssai {
+  const maintenant = options.maintenant ?? new Date()
   const fin = dateLisible(essaiFin)
+  if (options.accesGratuit) {
+    return {
+      enCours: false,
+      joursRestants: 0,
+      fin,
+      phrase: 'Ton accès est offert : rien n’est prélevé, et l’assistant comme les imports restent ouverts.',
+    }
+  }
   if (abonnementOuvreAcces(statutBrut)) return { enCours: false, joursRestants: 0, fin, phrase: null }
   if (!essaiFin) return { enCours: false, joursRestants: 0, fin: null, phrase: null }
 
@@ -284,10 +294,21 @@ export function etatEssai(
  * il montre ce que le serveur fera.
  */
 export function accesDuCompteAffiche(
-  essaiFin: string | null | undefined,
-  statutBrut: unknown,
-  estTest: boolean | null | undefined,
+  compte: {
+    essai_fin?: string | null
+    abonnement_statut?: unknown
+    est_test?: boolean | null
+    acces_gratuit?: boolean | null
+  } | null | undefined,
   maintenant: Date = new Date(),
 ): boolean {
-  return accesAutorise({ essai_fin: essaiFin, abonnement_statut: statutBrut as string, est_test: estTest }, maintenant)
+  return accesAutorise(
+    {
+      essai_fin: compte?.essai_fin,
+      abonnement_statut: compte?.abonnement_statut as string | undefined,
+      est_test: compte?.est_test,
+      acces_gratuit: compte?.acces_gratuit,
+    },
+    maintenant,
+  )
 }

@@ -19,6 +19,7 @@ import CompteNotifications from './routes/CompteNotifications'
 import CompteTelephone from './routes/CompteTelephone'
 import Commande from './routes/Commande'
 import Demandes from './routes/Demandes'
+import ComptesAdmin from './routes/ComptesAdmin'
 import Depot from './routes/Depot'
 import EspaceBoutique from './routes/EspaceBoutique'
 import EspaceFournisseur from './routes/EspaceFournisseur'
@@ -126,6 +127,9 @@ export default function App() {
         {/* Réservé à l'administration : la garde est dans l'écran, et le serveur refuse de toute
             façon de rendre les demandes à un compte qui n'administre pas. */}
         <Route path="/compte/demandes" element={<Demandes />} />
+        {/* Qui utilise Braaise gratuitement (0076) : même garde, et l'écriture passe par une
+            fonction qui refuse un compte qui n'administre pas. */}
+        <Route path="/compte/comptes" element={<ComptesAdmin />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <BottomNav />

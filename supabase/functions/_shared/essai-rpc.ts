@@ -21,7 +21,7 @@ export type DecisionAcces = { autorise: true } | { autorise: false; message: str
 export async function accesDuCompte(admin: SupabaseClient, userId: string): Promise<DecisionAcces> {
   const { data, error } = await admin
     .from('assistant_profil')
-    .select('essai_fin, abonnement_statut, est_test')
+    .select('essai_fin, abonnement_statut, est_test, acces_gratuit')
     .eq('user_id', userId)
     .maybeSingle()
   if (error) {
