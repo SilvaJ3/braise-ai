@@ -218,10 +218,27 @@ describe('etatEssai', () => {
   })
 
   it('dit ce qui s’arrête, et ce qui reste, une fois l’essai fini', () => {
-    const e = etatEssai(finDans(-1), 'aucun', { maintenant: MAINTENANT })
+    // Un essai qui est allé jusqu'au bout sans être payé : Stripe finit par résilier l'abonnement.
+    const e = etatEssai(finDans(-1), 'resilie', { maintenant: MAINTENANT })
     expect(e.enCours).toBe(false)
     expect(e.phrase).toContain('terminés')
-    expect(e.phrase).toContain('restent accessibles')
+    expect(e.phrase).toContain('toujours là')
+  })
+
+  it('annonce l’essai à un compte qui ne l’a jamais commencé', () => {
+    // `aucun` = aucune souscription n'a jamais été ouverte. Depuis le 02/10/2026, l'essai s'ouvre en
+    // enregistrant la carte : le dire AVANT vaut mieux que de laisser croire à un essai consommé.
+    const e = etatEssai(finDans(-1), 'aucun', { maintenant: MAINTENANT })
+    expect(e.phrase).toContain('commencent quand tu enregistres ta carte')
+    expect(e.phrase).toContain('deux jours avant')
+  })
+
+  it('dit l’impayé quand la porte a été fermée après trois relances', () => {
+    const e = etatEssai(finDans(-30), 'en_retard', {
+      accesFermeLe: '2026-10-01T00:00:00.000Z',
+      maintenant: MAINTENANT,
+    })
+    expect(e.phrase).toContain('trois relances')
   })
 
   it('se tait dès qu’un abonnement ouvre l’accès, même en retard de paiement', () => {

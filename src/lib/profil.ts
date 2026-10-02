@@ -135,9 +135,20 @@ export function useTerminerOnboarding() {
  */
 export function useOuvrirPaiement() {
   return useMutation({
-    mutationFn: async (frequence: FrequenceAbonnement): Promise<string> => {
+    mutationFn: async (demande: {
+      frequence: FrequenceAbonnement
+      /**
+       * L'accord d'accès immédiat, coché à l'écran. La fonction `stripe-checkout` REFUSE un
+       * abonnement sans lui (art. VI.47 CDE) : ce n'est pas une case décorative, c'est ce qui
+       * permet au premier mois prélevé de tenir.
+       */
+      renonceRetractation: boolean
+    }): Promise<string> => {
       const { data, error } = await supabase.functions.invoke('stripe-checkout', {
-        body: { frequence },
+        body: {
+          frequence: demande.frequence,
+          renonce_retractation: demande.renonceRetractation,
+        },
       })
       if (error) throw new Error(await functionErrorMessage(error))
       const url = (data as { url?: string } | null)?.url

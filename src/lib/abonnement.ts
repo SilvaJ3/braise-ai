@@ -20,6 +20,9 @@ import {
   accesAutorise,
   essaiEnCours,
   joursEssaiRestants,
+  messageEssaiAJournir,
+  messageEssaiTermine,
+  messageImpaye,
 } from '../../supabase/functions/_shared/essai'
 
 /** La fréquence demandée à la page de paiement. Inconnue = le mois (jamais l'annuel par accident). */
@@ -162,6 +165,14 @@ export function messagePaiement(param: string | null | undefined): MessagePaieme
         'Paiement reçu. Ton abonnement s’active — ça peut prendre quelques secondes avant de s’afficher ici.',
     }
   }
+  // Le retour d'un essai qui vient de s'ouvrir : on n'écrit pas « paiement reçu », il n'y en a pas
+  // encore eu un seul — on dit ce qui commence, et quand le premier prélèvement tombe.
+  if (param === 'essai') {
+    return {
+      ton: 'ok',
+      texte: `Ton essai de ${ESSAI_JOURS} jours a commencé. Aucun prélèvement avant la fin de l’essai : tu reçois un rappel deux jours avant, puis la veille, et tu peux arrêter à tout moment depuis cet écran.`,
+    }
+  }
   if (param === 'pack') {
     return {
       ton: 'ok',
@@ -252,7 +263,12 @@ export type EtatEssai = {
 export function etatEssai(
   essaiFin: string | null | undefined,
   statutBrut: unknown,
-  options: { accesGratuit?: boolean | null; maintenant?: Date } = {},
+  options: {
+    accesGratuit?: boolean | null
+    /** La fermeture décidée après trois relances (0077) : elle passe avant le statut de paiement. */
+    accesFermeLe?: string | null
+    maintenant?: Date
+  } = {},
 ): EtatEssai {
   const maintenant = options.maintenant ?? new Date()
   const fin = dateLisible(essaiFin)
@@ -263,6 +279,9 @@ export function etatEssai(
       fin,
       phrase: 'Ton accès est offert : rien n’est prélevé, et l’assistant comme les imports restent ouverts.',
     }
+  }
+  if (options.accesFermeLe) {
+    return { enCours: false, joursRestants: 0, fin, phrase: messageImpaye() }
   }
   if (abonnementOuvreAcces(statutBrut)) return { enCours: false, joursRestants: 0, fin, phrase: null }
   if (!essaiFin) return { enCours: false, joursRestants: 0, fin: null, phrase: null }
@@ -278,13 +297,16 @@ export function etatEssai(
     }
   }
 
+  // Deux causes possibles à un essai qui n'ouvre plus l'accès, et l'écran ne doit pas les confondre :
+  // un compte qui n'a JAMAIS commencé son essai (la carte l'ouvre — c'est l'état d'un compte neuf
+  // depuis le 02/10/2026), et un essai terminé (l'abonnement le rouvre). Les phrases viennent du
+  // module partagé avec le serveur : ce que l'écran annonce est ce que le serveur fera.
+  const statut = typeof statutBrut === 'string' ? statutBrut : 'aucun'
   return {
     enCours: false,
     joursRestants: 0,
     fin,
-    phrase:
-      `Tes ${ESSAI_JOURS} jours d’essai sont terminés : l’assistant et les imports sont en pause ` +
-      'jusqu’à ton abonnement. Tes dépôts, ton planning et tes données restent accessibles.',
+    phrase: statut === 'aucun' ? messageEssaiAJournir() : messageEssaiTermine(),
   }
 }
 
@@ -299,6 +321,7 @@ export function accesDuCompteAffiche(
     abonnement_statut?: unknown
     est_test?: boolean | null
     acces_gratuit?: boolean | null
+    acces_ferme_le?: string | null
   } | null | undefined,
   maintenant: Date = new Date(),
 ): boolean {
@@ -308,6 +331,7 @@ export function accesDuCompteAffiche(
       abonnement_statut: compte?.abonnement_statut as string | undefined,
       est_test: compte?.est_test,
       acces_gratuit: compte?.acces_gratuit,
+      acces_ferme_le: compte?.acces_ferme_le,
     },
     maintenant,
   )

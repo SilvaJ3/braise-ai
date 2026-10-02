@@ -23,6 +23,21 @@ export function prixPour(f: Frequence, ids: IdentifiantsStripe): string {
 }
 
 /**
+ * La demande d'accès immédiat et la renonciation au droit de rétractation, écrites UNE fois : elles
+ * s'affichent à l'écran avant la case à cocher, partent sur la page de paiement Stripe, et sont la
+ * raison pour laquelle une personne qui paie au 8e jour ne peut plus se rétracter pendant quatorze
+ * jours (art. VI.47 et s. CDE — c'est l'accord exprès qui fait commencer le service tout de suite).
+ * Sans cet accord, le service est un contrat à distance ordinaire : la personne peut demander à être
+ * remboursée pendant quatorze jours, et la vente d'un premier mois ne tient pas.
+ */
+export const RENONCIATION_RETRACTATION =
+  "En validant, tu acceptes les conditions générales et tu demandes que ton accès commence tout de suite : tu renonces ainsi au droit de rétractation de 14 jours. Ton abonnement reste résiliable à tout moment depuis « Mon compte »."
+
+/** Ce que répond la fonction quand l'accord manque : l'écran l'affiche tel quel. */
+export const RENONCIATION_REQUISE =
+  "Coche l'accord d'accès immédiat avant de continuer : sans lui, ton abonnement ne peut pas démarrer aujourd'hui."
+
+/**
  * Le tarif fondateur ne s'applique qu'à l'abonnement **mensuel** : l'offre est « 29 € HTVA par mois
  * la première année ». Sur l'annuel, le même coupon donnerait 380 €/an — un prix qui n'a jamais été
  * décidé. Donc on ne l'applique pas, et le fondateur qui choisit l'annuel paie 390 €/an.
@@ -54,7 +69,13 @@ export type AbonnementStripe = {
   id?: string | null
   status?: string | null
   current_period_end?: number | null
-  items?: { data?: Array<{ price?: { unit_amount?: number | null } | null }> } | null
+  /** Fin de l'essai, quand l'abonnement est en essai : `null` sur un abonnement payé. */
+  trial_end?: number | null
+  /** L'abonnement s'arrête à la fin de la période : personne ne sera prélevé une fois de plus. */
+  cancel_at_period_end?: boolean | null
+  items?: {
+    data?: Array<{ price?: { id?: string | null; unit_amount?: number | null } | null }> | null
+  } | null
   discount?: { coupon?: { amount_off?: number | null; percent_off?: number | null } | null } | null
 }
 
@@ -78,13 +99,20 @@ export function montantEffectif(
  * Ce qu'on écrit sur le compte à partir d'un abonnement Stripe. Un abonnement sans fin de période
  * connue n'écrase pas une date déjà enregistrée : on ne remplace pas une information par du vide.
  */
-export function champsDepuisAbonnement(sub: AbonnementStripe): {
+export function champsDepuisAbonnement(
+  sub: AbonnementStripe,
+  repere?: { prixAnnuel?: string | null },
+): {
   stripe_subscription_id: string | null
   abonnement_statut: 'actif' | 'en_retard' | 'resilie' | 'aucun'
   abonnement_fin: string | null
   abonnement_prix_centimes: number | null
+  essai_fin: string | null
+  abonnement_annule: boolean
+  abonnement_frequence: 'mois' | 'an' | null
 } {
   const prix = sub.items?.data?.[0]?.price ?? null
+  const annuel = repere?.prixAnnuel ?? null
   return {
     stripe_subscription_id: sub.id ?? null,
     abonnement_statut: statutDepuisStripe(sub.status),
@@ -93,6 +121,10 @@ export function champsDepuisAbonnement(sub: AbonnementStripe): {
         ? new Date(sub.current_period_end * 1000).toISOString()
         : null,
     abonnement_prix_centimes: montantEffectif(prix?.unit_amount ?? null, sub.discount?.coupon ?? null),
+    essai_fin:
+      typeof sub.trial_end === 'number' ? new Date(sub.trial_end * 1000).toISOString() : null,
+    abonnement_annule: sub.cancel_at_period_end === true,
+    abonnement_frequence: prix?.id && annuel ? (prix.id === annuel ? 'an' : 'mois') : null,
   }
 }
 
