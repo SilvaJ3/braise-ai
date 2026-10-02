@@ -9,12 +9,15 @@
 // Le Checkout est hébergé par Stripe : la carte ne traverse jamais notre code, et l'application n'a
 // donc pas besoin de clé publique.
 //
-// La TVA : elle sera normale (21 % en Belgique) le jour où l'identification sera ACTIVE. Tant
-// qu'elle ne l'est pas (30/09), `automatic_tax` est FERMÉ : un abonnement payé porterait une TVA
-// que l'entreprise ne pourrait pas déclarer. Le jour de l'activation, repasser ce drapeau à `true`
-// (une ligne) et remettre la TVA au paiement.
-// `tax_id_collection` reste ouvert : il ne prélève rien, il garde le numéro de TVA du client
-// professionnel pour l'autoliquidation hors Belgique.
+// La TVA : ACTIVE depuis le 02/10/2026 (immatriculation confirmée, assujetti au régime normal).
+// `automatic_tax` est donc ouvert — les prix se lisent HTVA et 21 % s'ajoutent. Deux réglages
+// restent à poser dans le tableau de bord Stripe, et sans eux la taxe calculée vaut 0 € : le siège
+// de l'entreprise et l'enregistrement du numéro de TVA belge.
+// `tax_id_collection` garde le numéro de TVA du client professionnel pour l'autoliquidation hors
+// Belgique.
+//
+// L'essai de sept jours s'ouvre ICI, avec la carte (`trial_period_days`, carte exigée), et une
+// seule fois par compte (02/10/2026) : voir `_shared/essai.ts` pour la règle.
 //
 // Un client Stripe est créé au premier paiement puis réutilisé : c'est lui qui permet au webhook de
 // retrouver le compte.
@@ -28,8 +31,11 @@ import {
   appliqueCouponFondateur,
   frequenceValide,
   prixPour,
+  RENONCIATION_REQUISE,
+  RENONCIATION_RETRACTATION,
   type IdentifiantsStripe,
 } from '../_shared/stripe.ts'
+import { abonnementOuvreAcces, ESSAI_JOURS } from '../_shared/essai.ts'
 import { metadonneesPack, packValide, prixPack, type IdentifiantsPacks } from '../_shared/packs.ts'
 
 const CORS = {
@@ -99,7 +105,12 @@ Deno.serve(async (req) => {
   if (erreurAuth || !auth?.user) return json({ erreur: 'non authentifié' }, 401)
   const utilisateur = auth.user
 
-  const corps = (await req.json().catch(() => ({}))) as { frequence?: unknown; pack?: unknown }
+  const corps = (await req.json().catch(() => ({}))) as {
+    frequence?: unknown
+    pack?: unknown
+    /** L'accord exprès d'accès immédiat, coché à l'écran : voir `RENONCIATION_RETRACTATION`. */
+    renonce_retractation?: unknown
+  }
   const frequence = frequenceValide(corps?.frequence)
   // Un identifiant de pack inconnu ne retombe sur rien : on refuse au lieu de vendre autre chose.
   const pack = corps?.pack === undefined ? null : packValide(corps.pack)
@@ -113,9 +124,29 @@ Deno.serve(async (req) => {
 
   const { data: profil } = await admin
     .from('assistant_profil')
-    .select('plan, stripe_customer_id')
+    .select('plan, stripe_customer_id, stripe_subscription_id, abonnement_statut')
     .eq('user_id', utilisateur.id)
     .maybeSingle()
+
+  // Un compte déjà en abonnement (ou en essai) n'en ouvre pas un second : il gère le sien depuis
+  // « Mon compte ». Sans cette garde, un clic de trop créait deux abonnements chez Stripe, et la
+  // personne était prélevée deux fois.
+  const dejaAbonne = abonnementOuvreAcces(profil?.abonnement_statut)
+  if (!pack && dejaAbonne) {
+    return json({ erreur: 'Ton abonnement est déjà en cours : gère-le depuis « Mon compte ».' }, 409)
+  }
+
+  // L'essai de sept jours s'ouvre UNE fois, avec la carte (décision du 02/10/2026). Le repère est
+  // l'abonnement Stripe déjà rattaché au compte : un compte qui a déjà eu le sien paie tout de
+  // suite. Un essai qui se rouvrirait à chaque passage ne serait plus un essai.
+  const premierEssai = !pack && !profil?.stripe_subscription_id
+
+  // La renonciation au droit de rétractation (art. VI.47 CDE) : sans accord exprès, la personne qui
+  // paie au 8e jour peut encore se rétracter pendant quatorze jours à compter de la conclusion du
+  // contrat. L'écran la demande, cette fonction REFUSE un abonnement sans elle, et la phrase est
+  // aussi portée par la page de paiement (`custom_text`) — on ne l'impose pas en la cachant.
+  const renonce = corps?.renonce_retractation === true
+  if (!pack && !renonce) return json({ erreur: RENONCIATION_REQUISE, renonciation: true }, 400)
 
   const stripe = new Stripe(cle)
   const url = await adresseApp()
@@ -141,14 +172,31 @@ Deno.serve(async (req) => {
 
   const fondateur = appliqueCouponFondateur(profil?.plan, frequence)
 
-  // La TVA et le recouvrement du numéro de TVA valent pour les deux achats : la TVA belge (21 %)
-  // s'ajoute au montant, et le numéro du client professionnel permet l'autoliquidation hors
-  // Belgique. `customer_update` fait enregistrer l'adresse et le nom sur le client Stripe —
-  // sans quoi un client qui existe déjà ne pourrait pas porter son numéro de TVA.
+  // La TVA est ACTIVE depuis le 02/10/2026 (BCE 1043.060.596 immatriculé, assujetti au régime
+  // normal) : les prix se lisent HTVA et 21 % s'ajoutent, c'est Stripe Tax qui les calcule. Deux
+  // réglages restent à poser dans le tableau de bord Stripe, et sans eux Stripe Tax calcule 0 € :
+  // le siège de l'entreprise et l'enregistrement du numéro de TVA belge.
+  // Le recouvrement du numéro de TVA du client vaut pour les deux achats : il permet
+  // l'autoliquidation hors Belgique. `customer_update` fait enregistrer l'adresse et le nom sur le
+  // client Stripe — sans quoi un client qui existe déjà ne pourrait pas porter son numéro de TVA.
   const fiscalite = {
-    automatic_tax: { enabled: false },
+    automatic_tax: { enabled: true },
     tax_id_collection: { enabled: true },
     customer_update: { address: 'auto' as const, name: 'auto' as const },
+  }
+
+  // La renonciation est DATÉE avant d'ouvrir le paiement, et l'écriture est vérifiée : c'est la
+  // seule preuve qu'on a demandé l'accord. Une vente dont on ne peut pas prouver la date se
+  // rétracte, donc on ne l'ouvre pas.
+  if (!pack && renonce) {
+    const { error } = await admin
+      .from('assistant_profil')
+      .update({ retractation_renoncee_le: new Date().toISOString() })
+      .eq('user_id', utilisateur.id)
+    if (error) {
+      console.error('[stripe-checkout] renonciation non datée', error)
+      return json({ erreur: 'Le paiement n’a pas pu être ouvert.' }, 502)
+    }
   }
 
   try {
@@ -173,6 +221,10 @@ Deno.serve(async (req) => {
           customer: client,
           line_items: [{ price: prixPour(frequence, ids!), quantity: 1 }],
           ...fiscalite,
+          // La carte est exigée MÊME pendant l'essai : c'est elle qui fait du 8e jour un prélèvement
+          // et non une décision à prendre. Un essai sans carte laissait l'artisan s'installer dans
+          // un outil qu'il ne payait jamais (décision du 02/10/2026).
+          payment_method_collection: 'always',
           // Le prix est en euros et doit s'afficher en euros. Sans ce verrou, Stripe adapte la devise
           // au pays qu'il croit deviner chez le visiteur : la page de paiement a affiché « CA$48,45 »
           // pour un prix de 3 900 cents, alors que la base écrivait bien 2 900 (constat du 20/09/2026).
@@ -181,8 +233,15 @@ Deno.serve(async (req) => {
           // Le tarif fondateur est appliqué tout seul : il n'y a pas de code à saisir.
           discounts: fondateur ? [{ coupon: ids!.couponFondateur }] : undefined,
           client_reference_id: utilisateur.id,
-          subscription_data: { metadata: { user_id: utilisateur.id } },
-          success_url: `${url}/compte/mon-compte?paiement=ok`,
+          subscription_data: {
+            metadata: { user_id: utilisateur.id },
+            // L'essai s'ouvre UNE fois : un compte qui a déjà eu le sien paie dès le premier jour.
+            ...(premierEssai ? { trial_period_days: ESSAI_JOURS } : {}),
+          },
+          // La phrase est aussi sur la page de paiement : la carte est donnée après l'avoir lue,
+          // pas seulement après avoir coché une case chez nous.
+          custom_text: { submit: { message: RENONCIATION_RETRACTATION } },
+          success_url: `${url}/compte/mon-compte?paiement=${premierEssai ? 'essai' : 'ok'}`,
           cancel_url: `${url}/compte/mon-compte?paiement=annule`,
         })
     if (!session.url) {

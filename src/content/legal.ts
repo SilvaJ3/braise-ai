@@ -6,16 +6,13 @@
 //
 // ÉTAT : brouillons rédigés le 29/09/2026, identité de l'éditeur renseignée le 29/09 au soir.
 //
-// Statut de l'immatriculation, tel que JSB l'a précisé le 30/09/2026 : le numéro d'entreprise
-// 1043.060.596 est **attribué mais pas encore actif** — l'activation suit la confirmation de la
-// banque et de Partena Professionnel. Le numéro de TVA BE 1043.060.596 n'est donc **pas actif** non
-// plus. Les deux mentions portent cette réserve, et la section « Abonnement, prix et TVA » dit
-// qu'aucune TVA n'est ajoutée tant que l'identification n'est pas active.
+// Statut de l'immatriculation, confirmé par JSB le 02/10/2026 : le numéro d'entreprise 1043.060.596
+// est **actif**, et le numéro de TVA BE 1043.060.596 est **activé** — assujetti au régime normal,
+// donc 21 % de TVA en Belgique, calculés au paiement par Stripe Tax. Les deux réserves qui
+// figuraient ici (« attribué mais pas encore actif », « identification en cours ») sont tombées.
 //
-// À FAIRE au moment où l'activation est confirmée : retirer les deux réserves (« immatriculation en
-// cours », « identification à la TVA en cours ») et la phrase de la section prix. Restent la
-// relecture juridique/comptable et la date de mise à jour. La page porte un bandeau provisoire tant
-// qu'un crochet `[...]` subsiste.
+// À FAIRE ensuite : la relecture juridique/comptable et la date de mise à jour. La page porte un
+// bandeau provisoire tant qu'un crochet `[...]` subsiste.
 //
 // La source de ces deux textes, avec les points à trancher : ~/projets-clients/braaise-legal/.
 
@@ -50,19 +47,30 @@ Braaise s'installe depuis le navigateur, sur le téléphone, comme une applicati
 pas d'application dans l'App Store ni sur Google Play. L'installation, les notifications et la
 connexion sont expliquées dans l'application, à l'écran « Sur mon téléphone ».
 
+## L'essai
+
+L'essai dure sept jours et s'ouvre en enregistrant un moyen de paiement : la carte est demandée à
+l'entrée, aucun prélèvement n'a lieu avant la fin de l'essai, et tu es prévenu deux jours avant, puis
+la veille. Tu peux arrêter l'abonnement avant cette date depuis « Mon compte » : rien n'est alors
+prélevé, et tu gardes l'accès jusqu'au bout des sept jours.
+
+En validant l'abonnement, tu demandes que l'accès commence immédiatement et tu renonces au droit de
+rétractation de quatorze jours. Ton abonnement reste résiliable à tout moment, et l'accès reste
+ouvert jusqu'à la fin de la période déjà payée.
+
 ## Abonnement, prix et TVA
 
 Les prix sont hors TVA. La TVA est calculée au moment du paiement selon ton pays ; ton numéro de TVA
-permet l'autoliquidation entre assujettis.
+permet l'autoliquidation entre assujettis. En Belgique, le taux appliqué est de 21 %.
 
-L'identification à la TVA est en cours : tant qu'elle n'est pas active, aucun montant de TVA n'est
-ajouté au prix.
-
-L'abonnement se prend au mois (39 € HTVA par mois) ou à l'année (390 € HTVA par an), et il se
-renouvelle pour la même durée, sauf si tu le résilies. Le tarif fondateur est une réduction de
-10 € HTVA par mois, appliquée la première année aux comptes invités comme fondateurs, dans la limite
-des places prévues ; ensuite, l'abonnement continue au tarif en vigueur. Le tarif fondateur ne se
-transfère pas à un autre compte.
+L'abonnement se prend au mois (39 € HTVA par mois) ou à l'année (390 € HTVA par an). Le mois est
+sans engagement : il se résilie à tout moment depuis « Mon compte », et il reste actif jusqu'à la fin
+de la période payée. L'année se renouvelle pour une nouvelle année, sauf si tu l'arrêtes avant
+l'échéance — cet avis t'est envoyé au plus tard quinze jours avant la date limite pour t'y opposer,
+et la résiliation reste possible à tout moment ensuite, sans frais. Le tarif fondateur est une
+réduction de 10 € HTVA par mois, appliquée la première année aux comptes invités comme fondateurs,
+dans la limite des places prévues ; ensuite, l'abonnement continue au tarif en vigueur. Le tarif
+fondateur ne se transfère pas à un autre compte.
 
 Le paiement est traité par Stripe : ta carte ne passe jamais par Braaise, et nous ne conservons
 aucune donnée de carte.
@@ -183,8 +191,8 @@ compétents.
 
 Braaise est édité par Junior Silva Braga Almeida, indépendant à titre complémentaire (personne
 physique), dont le siège est situé Rue Cardinal Lavigerie 7, 1040 Etterbeek, Belgique. Numéro
-d'entreprise : 1043.060.596 (attribué, immatriculation en cours). Numéro de TVA : BE 1043.060.596
-(identification en cours, pas encore active). Contact : contact@braaise.io.
+d'entreprise : 1043.060.596. Numéro de TVA : BE 1043.060.596 (assujetti au régime normal).
+Contact : contact@braaise.io.
 
 Dernière mise à jour : [DATE].`
 
@@ -293,7 +301,7 @@ en vigueur.
 ## Responsable du traitement
 
 Junior Silva Braga Almeida — Rue Cardinal Lavigerie 7, 1040 Etterbeek, Belgique — numéro
-d'entreprise 1043.060.596 (attribué, immatriculation en cours) — numéro de TVA BE 1043.060.596
-(identification en cours, pas encore active). Contact : contact@braaise.io.
+d'entreprise 1043.060.596 — numéro de TVA BE 1043.060.596 (assujetti au régime normal).
+Contact : contact@braaise.io.
 
 Dernière mise à jour : [DATE].`

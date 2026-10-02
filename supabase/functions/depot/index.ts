@@ -23,6 +23,7 @@ import { baseLienBoutique, lienBoutique } from '../_shared/lien-boutique.ts'
 import { construireMailBon } from '../_shared/mail-bon.ts'
 import { envoyerMail } from '../_shared/mailer.ts'
 import { construirePresentation, fautPresenter } from '../_shared/presentation-boutique.ts'
+import { accesDuCompte } from '../_shared/essai-rpc.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -530,6 +531,14 @@ Deno.serve(async (req) => {
     const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '')
     const { data: userData, error } = await admin.auth.getUser(token)
     if (error || !userData.user) return json({ error: 'non authentifié' }, 401)
+
+    // Le bon de dépôt est ce que l'artisan fait tous les jours : c'est donc lui, et pas seulement
+    // l'assistant, qui distingue un compte qui paie d'un compte qui consulte. Passé l'essai, un
+    // compte sans abonnement relit ses bons, son planning et son stock — mais n'en émet plus de
+    // nouveau, et n'en renvoie plus. La boutique, elle, n'est jamais pénalisée : c'est le geste de
+    // l'artisan qui est fermé, pas la page du lien.
+    const acces = await accesDuCompte(admin, userData.user.id)
+    if (!acces.autorise) return json({ error: acces.message, essai_termine: true }, 402)
 
     const body = ((await req.json().catch(() => null)) ?? {}) as Record<string, unknown>
     const mode = body.mode ?? 'apercu'

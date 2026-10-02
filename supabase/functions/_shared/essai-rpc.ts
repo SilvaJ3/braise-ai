@@ -5,7 +5,7 @@
 // par les deux fonctions qui consomment des jetons (assistant, import) — deux copies divergeraient.
 
 import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2'
-import { accesAutorise, messageEssaiTermine, type EtatAcces } from './essai.ts'
+import { accesAutorise, messageAccesRefuse, type EtatAcces } from './essai.ts'
 
 /** Ce que la fonction appelante doit faire : laisser passer, ou refuser avec la phrase. */
 export type DecisionAcces = { autorise: true } | { autorise: false; message: string }
@@ -21,7 +21,7 @@ export type DecisionAcces = { autorise: true } | { autorise: false; message: str
 export async function accesDuCompte(admin: SupabaseClient, userId: string): Promise<DecisionAcces> {
   const { data, error } = await admin
     .from('assistant_profil')
-    .select('essai_fin, abonnement_statut, est_test, acces_gratuit')
+    .select('essai_fin, abonnement_statut, est_test, acces_gratuit, acces_ferme_le')
     .eq('user_id', userId)
     .maybeSingle()
   if (error) {
@@ -30,6 +30,8 @@ export async function accesDuCompte(admin: SupabaseClient, userId: string): Prom
   }
   const etat = (data ?? null) as EtatAcces | null
   if (accesAutorise(etat)) return { autorise: true }
-  console.log('[essai] terminé pour ce compte', userId)
-  return { autorise: false, message: messageEssaiTermine() }
+  // La phrase dépend de la CAUSE de la fermeture (jamais commencé, essai fini, impayé) : une seule
+  // phrase pour trois situations ferait dire à l'app quelque chose de faux dans deux cas sur trois.
+  console.log('[essai] accès refusé pour ce compte', userId)
+  return { autorise: false, message: messageAccesRefuse(etat) }
 }

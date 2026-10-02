@@ -1,4 +1,7 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+// La phrase de l'accord d'accès immédiat, partagée avec le serveur : c'est littéralement celle que
+// `stripe-checkout` refuse de ne pas recevoir (art. VI.47 CDE), et celle que porte la page Stripe.
+import { RENONCIATION_RETRACTATION } from '../../supabase/functions/_shared/stripe'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
@@ -93,7 +96,10 @@ export default function CompteMonCompte() {
   const infos = PLANS[data.plan]
   // L'essai de sept jours (0075) : c'est la première chose que le compte lit — ce qu'il lui reste,
   // et ce qui se passe après. La règle vient du module partagé avec le serveur, pas d'une copie.
-  const essai = etatEssai(data.essai_fin, data.abonnement_statut, { accesGratuit: data.acces_gratuit })
+  const essai = etatEssai(data.essai_fin, data.abonnement_statut, {
+    accesGratuit: data.acces_gratuit,
+    accesFermeLe: data.acces_ferme_le,
+  })
   const quotaQ = quotaQuestions(data.plan, data.quota_derogation)
   const quotaI = quotaImports(data.plan, data.quota_derogation)
   // L'enveloppe en jetons (0069) : tant que la base ne la connaît pas, l'écran garde les anciens
@@ -369,9 +375,16 @@ function Abonnement({
   const erreur = paiement.error?.message ?? portail.error?.message ?? null
   const rienAGerer = portail.isSuccess && !portail.data
 
+  // L'accord d'accès immédiat (art. VI.47 CDE) : sans lui, le serveur REFUSE d'ouvrir l'abonnement.
+  // La phrase qui l'accompagne est celle du module partagé — la même que celle posée sur la page de
+  // paiement Stripe : on ne fait pas cocher ce qu'on ne montre pas.
+  const [accord, setAccord] = useState(false)
+
   const souscrire = async (frequence: FrequenceAbonnement) => {
     // `assign` et non une navigation interne : la page suivante est celle de Stripe, hors de l'app.
-    const url = await paiement.mutateAsync(frequence).catch(() => null)
+    const url = await paiement
+      .mutateAsync({ frequence, renonceRetractation: accord })
+      .catch(() => null)
     if (url) window.location.assign(url)
   }
 
@@ -418,15 +431,29 @@ function Abonnement({
                 {note}
               </p>
             )}
+            <label
+              className="row"
+              style={{ marginTop: 10, gap: 8, alignItems: 'flex-start', cursor: 'pointer' }}
+            >
+              <input
+                type="checkbox"
+                checked={accord}
+                onChange={(e) => setAccord(e.target.checked)}
+                style={{ marginTop: 3 }}
+              />
+              <span className="muted" style={{ fontSize: '0.85rem' }}>
+                {RENONCIATION_RETRACTATION}
+              </span>
+            </label>
             <div className="row" style={{ marginTop: 10 }}>
               <button
                 className="primary"
-                disabled={paiement.isPending}
+                disabled={paiement.isPending || !accord}
                 onClick={() => souscrire('mois')}
               >
                 {paiement.isPending ? 'Ouverture…' : libelleSouscription('mois', plan)}
               </button>
-              <button disabled={paiement.isPending} onClick={() => souscrire('an')}>
+              <button disabled={paiement.isPending || !accord} onClick={() => souscrire('an')}>
                 {libelleSouscription('an', plan)}
               </button>
             </div>

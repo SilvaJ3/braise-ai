@@ -131,10 +131,13 @@ describe('Mon compte — l’essai de sept jours', () => {
   })
 
   it('dit ce qui s’arrête et ce qui reste quand l’essai est fini', () => {
-    etat.data = compte({ plan: 'essai', abonnement_statut: 'aucun', abonnement_fin: null, abonnement_prix_centimes: null, essai_fin: dans(-1), jetons_consommes: 100_000 })
+    // `resilie` et non `aucun` : un essai qui est allé au bout sans paiement finit résilié chez
+    // Stripe, alors que `aucun` désigne aujourd'hui un compte qui n'a jamais commencé le sien.
+    etat.data = compte({ plan: 'essai', abonnement_statut: 'resilie', abonnement_fin: null, abonnement_prix_centimes: null, essai_fin: dans(-1), jetons_consommes: 100_000 })
     const html = rendre()
-    expect(html).toContain('Tes 7 jours d’essai sont terminés')
-    expect(html).toContain('restent accessibles')
+    expect(html).toContain('sont terminés')
+    expect(html).toContain('nouveaux bons de dépôt')
+    expect(html).toContain('toujours là')
     expect(html).not.toContain('L’essai donne ce qu’un abonnement donne')
   })
 

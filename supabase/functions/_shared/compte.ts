@@ -127,6 +127,14 @@ export type UsageMois = {
   est_test?: boolean
   /** Accès offert par l'administrateur (0076) : rien n'est prélevé, et tout reste ouvert. */
   acces_gratuit?: boolean
+  /**
+   * La fermeture décidée après trois relances restées sans paiement (0077). Elle se lit à part du
+   * statut de paiement : `en_retard` laisse travailler, cette date-là ferme — et une facture
+   * finalement payée la remet à zéro.
+   */
+  acces_ferme_le?: string | null
+  /** Fréquence réelle de l'abonnement, lue sur l'identifiant du prix Stripe (0077). */
+  abonnement_frequence?: 'mois' | 'an' | null
 }
 
 /** Une ligne du détail mensuel : quel usage, quelle quantité. */

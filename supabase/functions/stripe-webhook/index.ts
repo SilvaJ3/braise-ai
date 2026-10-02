@@ -21,12 +21,29 @@ const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY)
 
+/** L'identifiant du prix annuel : il sert à écrire la fréquence réelle de l'abonnement (0077). */
+const PRIX_ANNUEL = Deno.env.get('STRIPE_PRIX_ANNUEL')?.trim() ?? null
+
 /** Écrit l'état de l'abonnement sur le compte, retrouvé par son client Stripe. */
 async function majDepuisAbonnement(stripe: Stripe, abonnementId: string, userIdConnu?: string | null) {
   const sub = await stripe.subscriptions.retrieve(abonnementId, { expand: ['discount'] })
   const champs = champsDepuisAbonnement(
     sub as unknown as Parameters<typeof champsDepuisAbonnement>[0],
+    { prixAnnuel: PRIX_ANNUEL },
   )
+
+  // `essai_fin` ne s'écrit que quand Stripe dit qu'il y a un essai : un abonnement payé n'en a plus,
+  // et écraser la date par du vide effacerait la trace du passage par l'essai.
+  const ecriture: Record<string, unknown> = { ...champs }
+  if (!champs.essai_fin) delete ecriture.essai_fin
+
+  // Un paiement revenu à bien rouvre la porte et remet les relances à zéro. C'est ce qui rend la
+  // fermeture réversible : la personne met sa carte à jour, Stripe encaisse, tout repart sans que
+  // personne n'ait à intervenir.
+  if (champs.abonnement_statut === 'actif') {
+    ecriture.acces_ferme_le = null
+    ecriture.impaye_relances = 0
+  }
 
   // Le compte est retrouvé par l'identifiant du client Stripe — c'est le lien posé au paiement.
   const clientId = typeof sub.customer === 'string' ? sub.customer : sub.customer?.id
