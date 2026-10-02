@@ -320,6 +320,7 @@ export function accesDuCompteAffiche(
     essai_fin?: string | null
     abonnement_statut?: unknown
     est_test?: boolean | null
+    demo?: boolean | null
     acces_gratuit?: boolean | null
     acces_ferme_le?: string | null
   } | null | undefined,
@@ -330,6 +331,7 @@ export function accesDuCompteAffiche(
       essai_fin: compte?.essai_fin,
       abonnement_statut: compte?.abonnement_statut as string | undefined,
       est_test: compte?.est_test,
+      demo: compte?.demo,
       acces_gratuit: compte?.acces_gratuit,
       acces_ferme_le: compte?.acces_ferme_le,
     },

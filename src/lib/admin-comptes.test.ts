@@ -14,6 +14,7 @@ function compte(over: Partial<CompteAdmin> = {}): CompteAdmin {
     acces_gratuit: false,
     acces_gratuit_depuis: null,
     est_test: false,
+    demo: false,
     ouvert_le: '2026-09-29T08:00:00.000Z',
     ...over,
   }
@@ -38,6 +39,18 @@ describe('etatCompte', () => {
   it('un compte de test garde l’accès et n’a rien à régler', () => {
     const e = etatCompte(compte({ est_test: true, essai_fin: dans(-30) }), MAINTENANT)
     expect(e).toMatchObject({ ouvert: true, badge: 'Compte de test', basculable: false })
+    expect(e.phrase).toContain('deviendra un compte utilisateur')
+  })
+
+  it('un compte de démonstration se distingue du compte de test (02/10)', () => {
+    const e = etatCompte(compte({ demo: true, essai_fin: dans(-30) }), MAINTENANT)
+    expect(e).toMatchObject({ ouvert: true, badge: 'Démonstration', basculable: false })
+    expect(e.phrase).toContain('n’écrit à une boutique')
+  })
+
+  it('la démonstration passe avant le test quand les deux drapeaux sont posés', () => {
+    const e = etatCompte(compte({ demo: true, est_test: true }), MAINTENANT)
+    expect(e.badge).toBe('Démonstration')
   })
 
   it('un abonnement qui paie se lit « Abonné », même essai fini', () => {

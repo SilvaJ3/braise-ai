@@ -44,8 +44,13 @@ export type EtatAcces = {
   essai_fin?: string | null
   /** Statut de paiement écrit par `stripe-webhook` : aucun / actif / en_retard / resilie. */
   abonnement_statut?: string | null
-  /** Compte de démonstration : aucun conséquence, donc aucune porte. */
+  /** Compte de test (un testeur, futur utilisateur) : aucune conséquence, donc aucune porte. */
   est_test?: boolean | null
+  /**
+   * Compte de démonstration : l'outil qu'on montre à quelqu'un. Aucune porte non plus, et — à la
+   * différence du compte de test — aucun de ses envois ne part vers un tiers (`demo.ts`).
+   */
+  demo?: boolean | null
   /** Accès offert par l'administrateur (0076) : rien n'est prélevé, la porte reste ouverte. */
   acces_gratuit?: boolean | null
   /**
@@ -109,7 +114,8 @@ export function abonnementOuvreAcces(statut: unknown): boolean {
 /**
  * Le compte peut-il travailler ?
  *
- *  · un compte de test passe toujours (il n'a aucune conséquence) ;
+ *  · un compte de test passe toujours (il n'a aucune conséquence), et un compte de démonstration
+ *    aussi ;
  *  · un accès offert passe aussi, et c'est une décision nominative de l'administrateur (0076) ;
  *  · la fermeture décidée par l'application passe AVANT le statut de paiement : trois relances
  *    restées sans réponse ferment la porte, et c'est tout l'objet de la colonne ;
@@ -122,6 +128,7 @@ export function abonnementOuvreAcces(statut: unknown): boolean {
  */
 export function accesAutorise(etat: EtatAcces | null | undefined, maintenant: Date = new Date()): boolean {
   if (etat?.est_test) return true
+  if (etat?.demo) return true
   if (etat?.acces_gratuit) return true
   if (etat?.acces_ferme_le) return false
   if (abonnementOuvreAcces(etat?.abonnement_statut)) return true
