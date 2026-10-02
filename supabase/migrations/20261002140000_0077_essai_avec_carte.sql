@@ -210,6 +210,9 @@ grant execute on function public.abonnements_a_rappeler() to service_role;
 -- Le cron des rappels : tous les jours à 07:15 UTC, comme les rappels boutique à 07:00. Les deux
 -- fonctions sont distinctes parce qu'elles ne parlent pas aux mêmes personnes — mais elles
 -- partagent le même secret d'appel (Vault) et la même vérification (`verify_cron_secret`).
+-- L'adresse est celle du projet Supabase, écrite en clair comme dans 0003, 0007 et 0062 : ce n'est
+-- PAS `app_url` (qui porte l'adresse de l'application, chez Vercel) — s'y tromper ferait appeler
+-- Vercel à 07:15 tous les jours, sans que personne ne s'en aperçoive.
 do $$
 begin
   if exists (select 1 from cron.job where jobname = 'abonnement-rappels') then
@@ -220,12 +223,13 @@ begin
     '15 7 * * *',
     $cron$
       select net.http_post(
-        url := (select valeur from public.reglages_produit where cle = 'app_url') || '/functions/v1/abonnement-rappels',
+        url := 'https://nnssqleqvfafbkkxyqne.supabase.co/functions/v1/abonnement-rappels',
         headers := jsonb_build_object(
-          'content-type', 'application/json',
+          'Content-Type', 'application/json',
           'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'assistant_cron_secret')
         ),
-        body := '{}'::jsonb
+        body := jsonb_build_object('mode', 'quotidien'),
+        timeout_milliseconds := 60000
       );
     $cron$
   );
