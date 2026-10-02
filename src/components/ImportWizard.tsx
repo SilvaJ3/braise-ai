@@ -141,6 +141,18 @@ export default function ImportWizard({ initialEntity }: { initialEntity?: Import
               {error}
             </p>
           )}
+
+          {/* Le modèle d'import, le MÊME fichier que la pièce jointe du mail d'accueil (une seule
+              source : `public/modele-import-braaise.xlsx`, embarqué aussi dans
+              `_shared/modele-import.ts`). Un artisan qui n'a pas encore de tableau à importer part
+              de là. */}
+          <p className="muted" style={{ margin: '8px 0 0' }}>
+            Pas encore de fichier ?{' '}
+            <a href={`${import.meta.env.BASE_URL}modele-import-braaise.xlsx`} download>
+              Le modèle à remplir
+            </a>{' '}
+            contient une feuille par chose à importer, avec les colonnes expliquées.
+          </p>
         </div>
       )}
 

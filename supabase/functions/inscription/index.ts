@@ -18,6 +18,8 @@ import {
   normaliserCode,
   normaliserEmail,
 } from '../_shared/inscription.ts'
+import { construireMailAccueil } from '../_shared/mail-accueil.ts'
+import { envoyerMail } from '../_shared/mailer.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -34,7 +36,34 @@ const MAX_TENTATIVES_PAR_HEURE = 12
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
+// Secrets de l'envoi, les mêmes que `depot` et `abonnement-rappels` : Resend + le domaine vérifié.
+const MAIL_DOMAIN = Deno.env.get('MAIL_DOMAIN')?.trim() || 'braaise.io'
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
+// Surcharge possible par secret ; à défaut, l'adresse de l'app vit en base (`reglages_produit.app_url`),
+// comme pour `demande-acces`. Elle n'est JAMAIS écrite en dur : la valeur de production est
+// `https://artisan.braaise.io`, et elle change sans redéploiement depuis la base.
+const APP_URL_ENV = Deno.env.get('APP_URL')?.trim()
+
 const admin = createClient(SUPABASE_URL, SERVICE_KEY)
+
+/**
+ * L'adresse de l'application pour le lien du mail d'accueil : le secret s'il est posé, sinon la
+ * base. Rendue sans barre oblique finale ; une chaîne vide veut dire « introuvable » — l'appelant
+ * décide alors de ne rien envoyer plutôt que d'envoyer un lien qui ne mène nulle part.
+ */
+async function adresseApp(): Promise<string> {
+  if (APP_URL_ENV) return APP_URL_ENV.replace(/\/+$/, '')
+  const { data, error } = await admin
+    .from('reglages_produit')
+    .select('valeur')
+    .eq('cle', 'app_url')
+    .maybeSingle()
+  if (error) {
+    console.error('[inscription] adresse de l’app', error)
+    return ''
+  }
+  return String((data as { valeur?: string } | null)?.valeur ?? '').trim().replace(/\/+$/, '')
+}
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -191,6 +220,36 @@ Deno.serve(async (req) => {
     .from('assistant_profil')
     .insert({ user_id: userId, conditions_acceptees_le: new Date().toISOString() })
   if (errProfil) console.error('[inscription] ligne de profil', errProfil)
+
+  // 4. Le mail d'accueil — le lien de l'app et le modèle d'import en pièce jointe.
+  //    Il part APRÈS coup, et son échec ne peut JAMAIS faire échouer l'inscription : à cet instant
+  //    le compte existe et le code est consommé. Un envoi raté se renvoie ; une inscription perdue
+  //    ne se rattrape pas. D'où l'enveloppe, la journalisation, et la réponse `{ ok: true }` qui ne
+  //    dépend de rien de ce qui suit.
+  try {
+    const urlApp = await adresseApp()
+    if (!urlApp) {
+      console.error('[inscription] mail d’accueil non envoyé : adresse de l’app introuvable')
+    } else {
+      const mail = construireMailAccueil({ urlApp })
+      await envoyerMail(
+        { apiKey: RESEND_API_KEY, domain: MAIL_DOMAIN, timeoutMs: 15_000 },
+        {
+          fromName: 'Braaise',
+          // Les réponses doivent revenir au bon endroit : c'est `contact@braaise.io` (voir le
+          // brouillon du mail et la doctrine d'envoi).
+          replyTo: 'contact@braaise.io',
+          to: [email],
+          subject: mail.subject,
+          text: mail.text,
+          html: mail.html,
+          attachments: mail.attachments,
+        },
+      )
+    }
+  } catch (e) {
+    console.error('[inscription] mail d’accueil', e)
+  }
 
   await journaliser(email, ip, 'ok')
   return json({ ok: true, email, plan: invitation.plan })
