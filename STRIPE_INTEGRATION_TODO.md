@@ -68,6 +68,32 @@ Fichier : [`supabase/functions/stripe-checkout/index.ts`](supabase/functions/str
 
 ---
 
+## Webhooks — déjà couverts, mesuré le 02/10/2026
+
+Le gestionnaire demandé par la documentation existe déjà et traite **tous les événements
+recommandés** — rien à ajouter : [`supabase/functions/stripe-webhook/index.ts`](supabase/functions/stripe-webhook/index.ts)
+couvre `checkout.session.completed` (+ `checkout.session.async_payment_succeeded`),
+`customer.subscription.created|updated|deleted`, `invoice.paid` et `invoice.payment_failed`.
+
+L'endpoint **en mode test** est en place, lu à l'API (clé de test) :
+
+| Endpoint | URL | État | Événements |
+|---|---|---|---|
+| `we_1UHM2K…T78Gmi` | `https://nnssqleqvfafbkkxyqne.supabase.co/functions/v1/stripe-webhook` | `enabled` | les 6 ci-dessus |
+
+**Ce qui n'est pas prouvé** : la même lecture en **mode production** demande la clé live, qui n'est
+pas sur cette machine. À vérifier dans le tableau de bord (Développeurs → Webhooks) que l'endpoint
+live porte bien ces événements — sinon une échéance d'abonnement échouée passerait inaperçue.
+
+## Version d'API — volontairement non épinglée
+
+Le code initialise le client sans version (`new Stripe(cle)`) : l'appel suit donc la version par
+défaut du compte. La console Checkout Studio affiche, elle, un en-tête `stripe-version: 2026-08-26.dahlia`.
+Épingler cette version est **une décision, pas une formalité** : elle change le contrat de toutes les
+réponses Stripe d'un coup. Constat qui rassure : le compte répond déjà comme une version récente —
+il refuse `ui_mode: hosted` en exigeant `hosted_page`, exactement ce que Studio configure.
+Pour épingler : `new Stripe(cle, { apiVersion: '2026-08-26.dahlia' })` — une ligne, quand tu veux.
+
 ## Setup and next steps
 
 ### Variables d'environnement
