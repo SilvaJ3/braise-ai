@@ -27,6 +27,22 @@ export type LigneAbonnementBoutique = {
   annule?: boolean | null
 }
 
+/**
+ * Ce que rend la base, ramené à une ligne utilisable, ou null : une réponse d'erreur (`non_connecte`,
+ * `pas_un_compte_boutique`) ou illisible n'est pas un abonnement, et l'écran n'a alors rien à dire.
+ */
+export function lireAbonnementBoutique(brut: unknown): LigneAbonnementBoutique | null {
+  if (typeof brut !== 'object' || brut === null) return null
+  const o = brut as Record<string, unknown>
+  if (o.erreur || o.ok !== true) return null
+  return {
+    statut: o.statut,
+    acces_offert_jusqu_au: typeof o.acces_offert_jusqu_au === 'string' ? o.acces_offert_jusqu_au : null,
+    fin: typeof o.fin === 'string' ? o.fin : null,
+    annule: o.annule === true,
+  }
+}
+
 export type EtatBoutique = {
   statut: StatutBoutique
   badge: string

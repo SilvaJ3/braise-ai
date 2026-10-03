@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { etatAbonnementBoutique, statutBoutique } from './abonnement-boutique'
+import { etatAbonnementBoutique, lireAbonnementBoutique, statutBoutique } from './abonnement-boutique'
 
 const M = new Date('2026-10-20T10:00:00.000Z')
 
@@ -7,6 +7,25 @@ describe('statutBoutique', () => {
   it('garde les cinq statuts, le reste compte pour « aucun »', () => {
     for (const s of ['aucun', 'offert', 'actif', 'en_retard', 'resilie'] as const) expect(statutBoutique(s)).toBe(s)
     for (const v of [undefined, null, '', 'trialing', 42]) expect(statutBoutique(v)).toBe('aucun')
+  })
+})
+
+describe('lireAbonnementBoutique', () => {
+  it('une réponse d’erreur ou illisible n’est pas un abonnement', () => {
+    for (const brut of [null, undefined, 'x', 3, {}, { erreur: 'non_connecte' }, { erreur: 'pas_un_compte_boutique' }, { ok: false }]) {
+      expect(lireAbonnementBoutique(brut)).toBeNull()
+    }
+  })
+
+  it('lit ce que rend la base et ignore le reste (prix, fréquence)', () => {
+    const l = lireAbonnementBoutique({
+      ok: true, statut: 'offert', acces_offert: true, acces_offert_jusqu_au: '2027-01-20', prix_centimes: null, frequence: null, fin: null, annule: false,
+    })
+    expect(l).toEqual({ statut: 'offert', acces_offert_jusqu_au: '2027-01-20', fin: null, annule: false })
+  })
+
+  it('des dates de mauvais type deviennent null', () => {
+    expect(lireAbonnementBoutique({ ok: true, statut: 'actif', fin: 12, acces_offert_jusqu_au: {} })).toMatchObject({ fin: null, acces_offert_jusqu_au: null })
   })
 })
 

@@ -6,6 +6,7 @@
 // la boutique sont retrouvés à partir du compte connecté.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { lireAbonnementBoutique, type LigneAbonnementBoutique } from './abonnement-boutique'
 import { lireBons, lireEtat, messageEspace, type BonEspace, type EtatEspace } from './espace-boutique'
 import { supabase } from './supabase'
 
@@ -40,7 +41,24 @@ export function useMonCompteBoutique(actif = true) {
   })
 }
 
-export type ResultatEspace = { etat: EtatEspace | null; erreur: string | null }
+/**
+ * L'abonnement de la boutique connectée (migration 0082), ou null s'il n'y a rien à montrer. Une
+ * erreur — notamment la fonction pas encore en base — vaut « rien à montrer » : l'espace ne doit
+ * jamais casser, ni laisser voir un lien vers un écran vide, pour une fonction qui n'existe pas encore.
+ */
+export function useMonAbonnementBoutique() {
+  return useQuery({
+    queryKey: ['abonnement-boutique'],
+    retry: false,
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<LigneAbonnementBoutique | null> => {
+      const { data, error } = await supabase.rpc('mon_abonnement_boutique')
+      return error ? null : lireAbonnementBoutique(data)
+    },
+  })
+}
+
+export type ResultatEspace ={ etat: EtatEspace | null; erreur: string | null }
 
 /** Tout ce que la boutique voit : ses artisans, leurs pièces, leurs bons à confirmer. */
 export function useEspaceBoutique() {
