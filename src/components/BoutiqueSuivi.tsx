@@ -20,6 +20,7 @@ import {
   useMesBoutiquesEtat,
   useReglerRappelsBoutique,
 } from '../lib/boutiques'
+import { libelleTardif } from '../lib/contestation'
 import { fmtDateCourte, fmtEuro, fmtQte } from '../lib/depots'
 import {
   LIBELLE_TOTAL,
@@ -135,6 +136,11 @@ function Signale({ etat }: { etat: BoutiqueEtat }) {
             {estNouveau(c) && <span className="badge">nouveau</span>}
           </div>
           <p style={{ margin: '8px 0 4px' }}>« {c.message} »</p>
+          {libelleTardif(c.date_depot, c.cree_le) && (
+            <p style={{ margin: '0 0 4px' }}>
+              <span className="badge">{libelleTardif(c.date_depot, c.cree_le)}</span>
+            </p>
+          )}
           <p className="muted" style={{ margin: 0 }}>
             Reçu le {jourDeIso(c.cree_le)}. Le bon n'a pas été modifié — c'est à toi de trancher :
             un nouveau bon, une reprise, ou une correction de stock.

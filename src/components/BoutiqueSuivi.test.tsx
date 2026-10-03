@@ -348,6 +348,45 @@ describe('la fiche d’une boutique, côté artisan', () => {
     expect(html).toContain('Marquer comme vu')
   })
 
+  it('marque « tardif » un signalement fait plus de 3 jours après le dépôt, avec le nombre de jours', () => {
+    const html = rendre({
+      contestations: [
+        {
+          id: 'c1',
+          bon_id: 'bon-42',
+          numero: '42',
+          date_depot: '2026-09-10',
+          message: 'Il manque une bougie dans le carton.',
+          cree_le: '2026-09-19T12:30:00+00:00',
+          vu_le: null,
+        },
+      ],
+      contestations_non_vues: 1,
+    })
+
+    expect(html).toContain('Tardif : signalé 9 jours après le dépôt')
+  })
+
+  it('ne marque pas « tardif » un signalement fait dans les 3 jours', () => {
+    const html = rendre({
+      contestations: [
+        {
+          id: 'c1',
+          bon_id: 'bon-42',
+          numero: '42',
+          date_depot: '2026-09-10',
+          message: 'Il manque une bougie dans le carton.',
+          cree_le: '2026-09-13T08:00:00+00:00',
+          vu_le: null,
+        },
+      ],
+      contestations_non_vues: 1,
+    })
+
+    expect(html).toContain('Il manque une bougie')
+    expect(html).not.toContain('Tardif')
+  })
+
   it('cesse de dire « nouveau » une fois le signalement vu', () => {
     const html = rendre({
       contestations: [

@@ -121,7 +121,20 @@ export function useConfirmerBon() {
 }
 
 /**
- * Demander un réassort : la demande devient une commande ordinaire chez l'artisan, à ses statuts.
+ * Signaler un écart sur un bon (« ce bon ne correspond pas »). Une trace datée pour l'artisan : le bon
+ * ne change pas. Passé 3 jours après le dépôt, la base accepte encore : c'est l'écran de l'artisan qui
+ * marque le signalement « tardif » (lib/contestation.ts). Envoyé deux fois, le même texte ne crée qu'une trace.
+ */
+export function useContesterBon() {
+  return useMutation({
+    mutationFn: async (params: { bonId: string; message: string }) => {
+      reponseGeste(await rpc('boutique_compte_contester_bon', { bon_param: params.bonId, message_param: params.message }))
+    },
+  })
+}
+
+/**
+ * Demander un réassort :la demande devient une commande ordinaire chez l'artisan, à ses statuts.
  * Les lignes portent la clé d'une pièce, jamais un libellé saisi — la résolution est dans la base.
  */
 export function useCommanderReassort() {
