@@ -11,6 +11,7 @@ import {
   lireBons,
   lireEtat,
   lireHistorique,
+  lireResultatDeclaration,
   messageEspace,
   type BonEspace,
   type EtatEspace,
@@ -158,7 +159,32 @@ export function useContesterBon() {
 }
 
 /**
- * Demander un réassort :la demande devient une commande ordinaire chez l'artisan, à ses statuts.
+ * Déclarer ses ventes à un artisan : UN envoi, une ligne datée qui s'ajoute (rien n'est écrasé). Envoyer
+ * deux fois compte deux fois — l'écran verrouille donc le geste après un envoi accepté. Un dépassement
+ * de stock n'est pas refusé : la base le signale (`alerte`) et c'est l'artisan qui tranche.
+ */
+export function useDeclarerVentes() {
+  const rafraichir = useRafraichirEspace()
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: async (params: { partenaireId: string; ventes: { cle: string; ventes: number }[]; note?: string }) => {
+      const brut = await rpc('boutique_compte_declarer', {
+        partenaire_param: params.partenaireId,
+        lignes_param: params.ventes,
+        note_param: params.note ?? null,
+      })
+      reponseGeste(brut)
+      return lireResultatDeclaration(brut)
+    },
+    onSuccess: () => {
+      rafraichir()
+      void client.invalidateQueries({ queryKey: ['espace-historique'] })
+    },
+  })
+}
+
+/**
+ * Demander un réassort : la demande devient une commande ordinaire chez l'artisan, à ses statuts.
  * Les lignes portent la clé d'une pièce, jamais un libellé saisi — la résolution est dans la base.
  */
 export function useCommanderReassort() {

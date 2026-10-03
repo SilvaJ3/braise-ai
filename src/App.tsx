@@ -23,6 +23,7 @@ import ComptesAdmin from './routes/ComptesAdmin'
 import Depot from './routes/Depot'
 import EspaceAbonnement from './routes/EspaceAbonnement'
 import EspaceBoutique from './routes/EspaceBoutique'
+import EspaceDeclarer from './routes/EspaceDeclarer'
 import EspaceFournisseur from './routes/EspaceFournisseur'
 import EspaceHistorique from './routes/EspaceHistorique'
 import EspaceFournisseurReste from './routes/EspaceFournisseurReste'
@@ -71,6 +72,7 @@ export default function App() {
         <Route path="/espace-boutique" element={<EspaceBoutique />} />
         <Route path="/espace-boutique/abonnement" element={<EspaceAbonnement />} />
         <Route path="/espace-boutique/fournisseur/:partenaireId" element={<EspaceFournisseur />} />
+        <Route path="/espace-boutique/fournisseur/:partenaireId/declarer" element={<EspaceDeclarer />} />
         <Route path="/espace-boutique/fournisseur/:partenaireId/historique" element={<EspaceHistorique />} />
         <Route
           path="/espace-boutique/fournisseur/:partenaireId/reste"

@@ -76,6 +76,7 @@ export const MESSAGES_ESPACE: Record<string, string> = {
   // Les refus des deux gestes : confirmer la réception d'un bon, demander un réassort.
   bon_inconnu: "Ce bon n'est pas chez toi : rien n'a été confirmé.",
   aucune_demande: "La demande est vide : rien n'est parti chez l'artisan.",
+  aucune_vente: "Rien à déclarer : aucune vente n'est saisie, ou ces pièces ne viennent pas de cet artisan.",
 }
 
 export function messageEspace(code: string | undefined | null): string {
@@ -276,6 +277,52 @@ export function texteStatutReleve(s: ReleveEspace['statut']): string | null {
     case 'corrigee': return "Écarté par l'artisan : ne compte plus"
     default: return null
   }
+}
+
+/**
+ * Déclarer ses ventes — la couche pure du geste. Une déclaration est UN envoi : toutes les pièces
+ * vendues depuis la dernière fois, en un seul message. La base en fait une ligne datée qui s'AJOUTE
+ * (rien n'est écrasé), donc envoyer deux fois compte deux fois : l'écran verrouille après l'envoi.
+ */
+export type LigneDeclaration = {
+  cle: string
+  designation: string
+  prix: number
+  /** Ce qui reste chez la boutique avant cet envoi (déposé + entré − vendu − repris). */
+  reste: number
+  /** Les pièces vendues depuis la dernière déclaration : ce qu'elle saisit. */
+  ventes: number
+}
+
+/** Une ligne par pièce que la boutique a en stock chez cet artisan, toutes à zéro vente. */
+export function lignesADeclarer(pieces: PieceEspace[]): LigneDeclaration[] {
+  return pieces
+    .filter((p) => p.cle && p.reste > 0)
+    .map((p) => ({ cle: p.cle, designation: p.designation, prix: p.prix, reste: p.reste, ventes: 0 }))
+}
+
+/** Ce qui part à la base : une clé et un nombre entier de pièces vendues ; les zéros sortent de l'envoi. */
+export function ventesEnvoyees(lignes: LigneDeclaration[]): { cle: string; ventes: number }[] {
+  return lignes.filter((l) => l.ventes > 0).map((l) => ({ cle: l.cle, ventes: Math.floor(l.ventes) }))
+}
+
+/** Le total de l'envoi : pièces et montant dû à l'artisan (prix du dernier dépôt de chaque pièce). */
+export function totalDeclare(lignes: LigneDeclaration[]): { pieces: number; montant: number } {
+  return lignes.reduce(
+    (t, l) => ({ pieces: t.pieces + Math.floor(l.ventes), montant: t.montant + Math.floor(l.ventes) * l.prix }),
+    { pieces: 0, montant: 0 },
+  )
+}
+
+/** Les lignes où elle déclare plus de pièces qu'il n'en reste : la base ne refuse pas, elle signale à l'artisan. */
+export function depassements(lignes: LigneDeclaration[]): LigneDeclaration[] {
+  return lignes.filter((l) => l.ventes > l.reste)
+}
+
+/** Ce que la base répond à un envoi accepté : le montant facturable et si un écart a été signalé. */
+export function lireResultatDeclaration(brut: unknown): { facturable: number; alerte: boolean } {
+  const o = (brut ?? {}) as Record<string, unknown>
+  return { facturable: n(o.facturable), alerte: o.alerte === true }
 }
 
 /** Ce que la boutique a reçu de cet artisan, en une phrase : les zéros ne se disent pas. */

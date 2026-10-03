@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  depassements,
   jour,
+  lignesADeclarer,
   lignesDemandees,
+  lireResultatDeclaration,
+  totalDeclare,
+  ventesEnvoyees,
   lireBons,
   lireEtat,
   lireHistorique,
@@ -258,6 +263,44 @@ describe('messageEspace', () => {
     expect(messageEspace('pas_un_compte_boutique')).toBe("Ce compte n'est pas un compte de boutique.")
     expect(messageEspace(undefined)).toBe('Session expirée — reconnecte-toi.')
     expect(messageEspace('bizarre')).toBe('Erreur : bizarre')
+  })
+})
+
+describe('déclarer ses ventes', () => {
+  const piece = (cle: string, reste: number, prix = 10) => ({
+    cle, produit_id: null, designation: `Pièce ${cle}`, prix, depose: reste, vendu: 0, repris: 0, entre: 0, reste, derniere_quantite: 0,
+  })
+
+  it('propose une ligne par pièce en stock, à zéro vente, et ignore ce qui est épuisé', () => {
+    const l = lignesADeclarer([piece('a', 3), piece('b', 0), piece('c', 1, 25)])
+    expect(l.map((x) => x.cle)).toEqual(['a', 'c'])
+    expect(l.every((x) => x.ventes === 0)).toBe(true)
+  })
+
+  it('n’envoie que les pièces vendues, en nombres entiers', () => {
+    const l = lignesADeclarer([piece('a', 5), piece('b', 5), piece('c', 5)]).map((x, i) => ({ ...x, ventes: [2, 0, 1.9][i] }))
+    expect(ventesEnvoyees(l)).toEqual([{ cle: 'a', ventes: 2 }, { cle: 'c', ventes: 1 }])
+  })
+
+  it('le total compte les pièces et ce que la boutique doit à l’artisan', () => {
+    const l = lignesADeclarer([piece('a', 5, 12.5), piece('b', 5, 20)]).map((x, i) => ({ ...x, ventes: [2, 1][i] }))
+    expect(totalDeclare(l)).toEqual({ pieces: 3, montant: 45 })
+    expect(totalDeclare([])).toEqual({ pieces: 0, montant: 0 })
+  })
+
+  it('repère les lignes où elle déclare plus qu’il n’en reste (signalé, jamais refusé)', () => {
+    const l = lignesADeclarer([piece('a', 2), piece('b', 2)]).map((x, i) => ({ ...x, ventes: [3, 2][i] }))
+    expect(depassements(l).map((x) => x.cle)).toEqual(['a'])
+  })
+
+  it('lit le résultat d’un envoi accepté, et dit « pas d’alerte » par défaut', () => {
+    expect(lireResultatDeclaration({ ok: true, facturable: '52.5', alerte: true })).toEqual({ facturable: 52.5, alerte: true })
+    expect(lireResultatDeclaration({ ok: true, facturable: 10 })).toEqual({ facturable: 10, alerte: false })
+    expect(lireResultatDeclaration(null)).toEqual({ facturable: 0, alerte: false })
+  })
+
+  it('« aucune_vente » a une phrase, jamais le code brut', () => {
+    expect(messageEspace('aucune_vente')).toMatch(/Rien à déclarer/)
   })
 })
 

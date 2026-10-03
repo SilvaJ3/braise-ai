@@ -84,6 +84,23 @@ export default function EspaceFournisseur() {
 
       {fournisseur && (
         <Link
+          to={`/espace-boutique/fournisseur/${fournisseur.partenaire_id}/declarer`}
+          className="card"
+          style={{ display: 'block' }}
+        >
+          <div className="row">
+            <strong>Déclarer mes ventes à {nom}</strong>
+            <div className="spacer" />
+            <span className="muted">›</span>
+          </div>
+          <p className="muted" style={{ margin: '6px 0 0' }}>
+            Ce que tu as vendu depuis la dernière fois, en un seul envoi.
+          </p>
+        </Link>
+      )}
+
+      {fournisseur && (
+        <Link
           to={`/espace-boutique/fournisseur/${fournisseur.partenaire_id}/historique`}
           className="card"
           style={{ display: 'block' }}
