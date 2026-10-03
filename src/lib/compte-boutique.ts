@@ -159,7 +159,7 @@ export function useContesterBon() {
 }
 
 /**
- * Déclarer ses ventes à un artisan : UN envoi, une ligne datée qui s'ajoute (rien n'est écrasé). Envoyer
+ * Déclarer ses ventes (et, en dépôt-vente, les reprises de l'artisan) : UN envoi, une ligne datée qui s'ajoute (rien n'est écrasé). Envoyer
  * deux fois compte deux fois — l'écran verrouille donc le geste après un envoi accepté. Un dépassement
  * de stock n'est pas refusé : la base le signale (`alerte`) et c'est l'artisan qui tranche.
  */
@@ -167,10 +167,14 @@ export function useDeclarerVentes() {
   const rafraichir = useRafraichirEspace()
   const client = useQueryClient()
   return useMutation({
-    mutationFn: async (params: { partenaireId: string; ventes: { cle: string; ventes: number }[]; note?: string }) => {
+    mutationFn: async (params: {
+      partenaireId: string
+      mouvements: { cle: string; ventes: number; reprises: number }[]
+      note?: string
+    }) => {
       const brut = await rpc('boutique_compte_declarer', {
         partenaire_param: params.partenaireId,
-        lignes_param: params.ventes,
+        lignes_param: params.mouvements,
         note_param: params.note ?? null,
       })
       reponseGeste(brut)

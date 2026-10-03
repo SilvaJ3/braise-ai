@@ -4,6 +4,7 @@ import { useCommanderReassort, useEspaceBoutique } from '../lib/compte-boutique'
 import {
   lignesDemandees,
   montant,
+  phraseDepose,
   propositionsReassort,
   quantite,
   totalDemande,
@@ -59,10 +60,9 @@ export default function EspaceFournisseurReste() {
             <strong>{quantite(p.reste)}</strong>
           </div>
           <p className="muted" style={{ margin: '6px 0 0', fontSize: '0.9rem' }}>
-            déposé {quantite(p.depose)}
+            {phraseDepose(p)}
             {p.entre !== 0 ? ` · entré ${quantite(p.entre)}` : ''}
             {p.vendu !== 0 ? ` · vendu ${quantite(p.vendu)}` : ''}
-            {p.repris !== 0 ? ` · repris ${quantite(p.repris)}` : ''}
             {p.prix ? ` · ${montant(p.prix)} la pièce` : ''}
           </p>
         </article>

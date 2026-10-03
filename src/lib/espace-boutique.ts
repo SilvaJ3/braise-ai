@@ -292,37 +292,81 @@ export type LigneDeclaration = {
   reste: number
   /** Les pièces vendues depuis la dernière déclaration : ce qu'elle saisit. */
   ventes: number
+  /**
+   * Les pièces que l'artisan a REPRISES (des invendus) : elles sortent du stock mais ne sont pas
+   * facturées (0053). Offert pour un dépôt-vente seulement ; à zéro sinon.
+   */
+  reprises: number
 }
 
 /** Une ligne par pièce que la boutique a en stock chez cet artisan, toutes à zéro vente. */
 export function lignesADeclarer(pieces: PieceEspace[]): LigneDeclaration[] {
   return pieces
     .filter((p) => p.cle && p.reste > 0)
-    .map((p) => ({ cle: p.cle, designation: p.designation, prix: p.prix, reste: p.reste, ventes: 0 }))
+    .map((p) => ({ cle: p.cle, designation: p.designation, prix: p.prix, reste: p.reste, ventes: 0, reprises: 0 }))
 }
 
-/** Ce qui part à la base : une clé et un nombre entier de pièces vendues ; les zéros sortent de l'envoi. */
-export function ventesEnvoyees(lignes: LigneDeclaration[]): { cle: string; ventes: number }[] {
-  return lignes.filter((l) => l.ventes > 0).map((l) => ({ cle: l.cle, ventes: Math.floor(l.ventes) }))
+/**
+ * Ce qui part à la base : une clé et des nombres ENTIERS de pièces vendues et reprises ; une ligne
+ * sans mouvement sort de l'envoi.
+ */
+export function mouvementsEnvoyes(lignes: LigneDeclaration[]): { cle: string; ventes: number; reprises: number }[] {
+  return lignes
+    .filter((l) => l.ventes > 0 || l.reprises > 0)
+    .map((l) => ({ cle: l.cle, ventes: Math.floor(l.ventes), reprises: Math.floor(l.reprises) }))
 }
 
-/** Le total de l'envoi : pièces et montant dû à l'artisan (prix du dernier dépôt de chaque pièce). */
-export function totalDeclare(lignes: LigneDeclaration[]): { pieces: number; montant: number } {
+/**
+ * Le total de l'envoi. Le MONTANT dû à l'artisan ne compte que les ventes (prix du dernier dépôt de
+ * chaque pièce) : une reprise n'est jamais facturée, sa valeur n'est suivie que pour information.
+ */
+export function totalDeclare(lignes: LigneDeclaration[]): {
+  pieces: number
+  montant: number
+  reprises: number
+  valeurReprises: number
+} {
   return lignes.reduce(
-    (t, l) => ({ pieces: t.pieces + Math.floor(l.ventes), montant: t.montant + Math.floor(l.ventes) * l.prix }),
-    { pieces: 0, montant: 0 },
+    (t, l) => ({
+      pieces: t.pieces + Math.floor(l.ventes),
+      montant: t.montant + Math.floor(l.ventes) * l.prix,
+      reprises: t.reprises + Math.floor(l.reprises),
+      valeurReprises: t.valeurReprises + Math.floor(l.reprises) * l.prix,
+    }),
+    { pieces: 0, montant: 0, reprises: 0, valeurReprises: 0 },
   )
 }
 
-/** Les lignes où elle déclare plus de pièces qu'il n'en reste : la base ne refuse pas, elle signale à l'artisan. */
+/**
+ * Les lignes où elle déclare plus de pièces (vendues + reprises) qu'il n'en reste : la base ne refuse
+ * pas, elle signale à l'artisan — c'est le même calcul qu'elle.
+ */
 export function depassements(lignes: LigneDeclaration[]): LigneDeclaration[] {
-  return lignes.filter((l) => l.ventes > l.reste)
+  return lignes.filter((l) => Math.floor(l.ventes) + Math.floor(l.reprises) > l.reste)
 }
 
-/** Ce que la base répond à un envoi accepté : le montant facturable et si un écart a été signalé. */
-export function lireResultatDeclaration(brut: unknown): { facturable: number; alerte: boolean } {
+/**
+ * Une reprise n'a de sens qu'en DÉPÔT-VENTE : les pièces restent à l'artisan, qui les récupère. En
+ * achat ferme elles appartiennent à la boutique, et les rendre est un retour (un avoir), pas une reprise.
+ * Le mode est porté par chaque bon : un seul bon en achat ferme suffit à ne pas l'offrir.
+ */
+export function repriseAutorisee(bons: BonEspace[]): boolean {
+  return !bons.some((b) => b.mode === 'achat_ferme')
+}
+
+/**
+ * Ce que la boutique lit du dépôt d'une pièce. Une reprise ne réécrit pas le bon (qui fait foi) : le
+ * dépôt reste ce qu'il était, et le NET se calcule — « déposé 10, net 7 après 3 reprises ».
+ */
+export function phraseDepose(p: Pick<PieceEspace, 'depose' | 'repris'>): string {
+  if (!(p.repris > 0)) return `déposé ${quantite(p.depose)}`
+  return `déposé ${quantite(p.depose)}, net ${quantite(p.depose - p.repris)} après ${quantite(p.repris)} reprise${p.repris > 1 ? 's' : ''}`
+}
+
+/** Ce que la base répond à un envoi accepté : le montant facturable, la valeur reprise et si un écart a été signalé. */
+export function lireResultatDeclaration(brut: unknown): { facturable: number; valeurReprises: number; alerte: boolean } {
   const o = (brut ?? {}) as Record<string, unknown>
-  return { facturable: n(o.facturable), alerte: o.alerte === true }
+  return { facturable: n(o.facturable), valeurReprises: n(o.valeur_reprises), alerte: o.alerte === true }
 }
 
 /** Ce que la boutique a reçu de cet artisan, en une phrase : les zéros ne se disent pas. */

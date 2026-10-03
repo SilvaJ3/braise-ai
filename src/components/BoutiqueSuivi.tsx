@@ -195,6 +195,7 @@ function Releves({ etat }: { etat: BoutiqueEtat }) {
           <div className="row">
             <strong>{periodeLisible(r.periode)}</strong>
             {r.alerte && <span className="badge">écart signalé</span>}
+            {r.reprises > 0 && r.statut === 'declaree' && <span className="badge">reprises à vérifier</span>}
             <span className="spacer" />
             <span className="badge">{STATUT_RELEVE_LABEL[r.statut]}</span>
           </div>
@@ -212,6 +213,11 @@ function Releves({ etat }: { etat: BoutiqueEtat }) {
           {r.alerte && (
             <p className="muted" style={{ margin: '4px 0 0' }}>
               {TEXTE_ECART}
+            </p>
+          )}
+          {r.reprises > 0 && r.statut === 'declaree' && (
+            <p className="muted" style={{ margin: '4px 0 0' }}>
+              Une reprise sort du stock sans rien à payer : vérifie qu'elle correspond à ce que tu as vraiment récupéré.
             </p>
           )}
           {r.note && (

@@ -1,7 +1,15 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { useDeclarerVentes, useEspaceBoutique } from '../lib/compte-boutique'
-import { depassements, lignesADeclarer, montant, quantite, totalDeclare, ventesEnvoyees } from '../lib/espace-boutique'
+import { useDeclarerVentes, useEspaceBons, useEspaceBoutique } from '../lib/compte-boutique'
+import {
+  depassements,
+  lignesADeclarer,
+  mouvementsEnvoyes,
+  montant,
+  quantite,
+  repriseAutorisee,
+  totalDeclare,
+} from '../lib/espace-boutique'
 import { Pas } from './EspaceFournisseurReste'
 
 // L'espace de la boutique — déclarer ses ventes à un artisan.
@@ -17,10 +25,14 @@ import { Pas } from './EspaceFournisseurReste'
 export default function EspaceDeclarer() {
   const { partenaireId } = useParams<{ partenaireId: string }>()
   const { data, isLoading, error } = useEspaceBoutique()
+  const { data: bons } = useEspaceBons(partenaireId)
   const [saisie, setSaisie] = useState<Record<string, number>>({})
+  const [reprisesSaisies, setReprisesSaisies] = useState<Record<string, number>>({})
   const [note, setNote] = useState('')
   const [recap, setRecap] = useState(false)
   const declarer = useDeclarerVentes()
+  // Dépôt-vente seulement : un bon en achat ferme ferme la porte aux reprises (c'est un retour, pas une reprise).
+  const reprisesOk = repriseAutorisee(bons ?? [])
 
   if (isLoading) return <p className="muted">Chargement…</p>
   if (error) return <p className="muted">{(error as Error).message}</p>
@@ -38,15 +50,20 @@ export default function EspaceDeclarer() {
 
   // Après un envoi accepté, plus rien à saisir : un second envoi compterait les ventes deux fois.
   if (declarer.isSuccess) {
-    const { facturable, alerte } = declarer.data
+    const { facturable, valeurReprises, alerte } = declarer.data
     return (
       <>
         {retour}
-        <h1 style={{ marginTop: 8 }}>Ventes envoyées</h1>
+        <h1 style={{ marginTop: 8 }}>Déclaration envoyée</h1>
         <div className="card" role="status">
           <p style={{ margin: 0 }}>
             C'est parti chez {nom} : <strong>{montant(facturable)}</strong> à lui régler pour cet envoi. Il le vérifie et le valide.
           </p>
+          {valeurReprises > 0 && (
+            <p className="muted" style={{ margin: '8px 0 0' }}>
+              Reprises déclarées : {montant(valeurReprises)} de pièces qu'il a récupérées — non facturé, il vérifie aussi.
+            </p>
+          )}
           {alerte && (
             <p style={{ margin: '10px 0 0' }}>
               <span className="badge">Écart signalé</span> Tu as déclaré plus de pièces qu'il n'en restait d'après les bons : l'artisan
@@ -69,10 +86,14 @@ export default function EspaceDeclarer() {
     )
   }
 
-  const lignes = lignesADeclarer(fournisseur.pieces).map((l) => ({ ...l, ventes: saisie[l.cle] ?? 0 }))
+  const lignes = lignesADeclarer(fournisseur.pieces).map((l) => ({
+    ...l,
+    ventes: saisie[l.cle] ?? 0,
+    reprises: reprisesOk ? (reprisesSaisies[l.cle] ?? 0) : 0,
+  }))
   const total = totalDeclare(lignes)
   const trop = depassements(lignes)
-  const envoyees = ventesEnvoyees(lignes)
+  const mouvements = mouvementsEnvoyes(lignes)
 
   return (
     <>
@@ -80,21 +101,36 @@ export default function EspaceDeclarer() {
       <h1 style={{ marginTop: 8 }}>Déclarer mes ventes</h1>
       <p className="muted" style={{ marginTop: 0 }}>
         Pour chaque pièce, combien en as-tu vendu depuis ta dernière déclaration à {nom} ?
+        {reprisesOk && " Si l'artisan a repris des invendus, dis-le aussi : ce n'est pas facturé."}
       </p>
 
       {lignes.length === 0 && <p className="empty">Rien à déclarer : aucune pièce en stock chez toi pour cet artisan.</p>}
 
       {!recap &&
         lignes.map((l) => (
-          <div className="row card" key={l.cle} style={{ alignItems: 'center' }}>
-            <div>
-              <strong>{l.designation}</strong>
-              <p className="muted" style={{ margin: '2px 0 0', fontSize: '0.9rem' }}>
-                {quantite(l.reste)} en stock · {montant(l.prix)} la pièce
-              </p>
+          <div className="card" key={l.cle}>
+            <strong>{l.designation}</strong>
+            <p className="muted" style={{ margin: '2px 0 8px', fontSize: '0.9rem' }}>
+              {quantite(l.reste)} en stock · {montant(l.prix)} la pièce
+            </p>
+            <div className="row" style={{ alignItems: 'center' }}>
+              <span>Vendues</span>
+              <div className="spacer" />
+              <Pas nom={`Pièces vendues : ${l.designation}`} valeur={l.ventes} onChange={(v) => setSaisie((s) => ({ ...s, [l.cle]: v }))} />
             </div>
-            <div className="spacer" />
-            <Pas nom={`Pièces vendues : ${l.designation}`} valeur={l.ventes} onChange={(v) => setSaisie((s) => ({ ...s, [l.cle]: v }))} />
+            {reprisesOk && (
+              <div className="row" style={{ alignItems: 'center', marginTop: 6 }}>
+                <span>
+                  Reprises par l'artisan <span className="muted">(non facturées)</span>
+                </span>
+                <div className="spacer" />
+                <Pas
+                  nom={`Pièces reprises : ${l.designation}`}
+                  valeur={l.reprises}
+                  onChange={(v) => setReprisesSaisies((s) => ({ ...s, [l.cle]: v }))}
+                />
+              </div>
+            )}
           </div>
         ))}
 
@@ -107,11 +143,18 @@ export default function EspaceDeclarer() {
             onChange={(e) => setNote(e.target.value)}
           />
           <div className="row" style={{ marginTop: 12 }}>
-            <strong>
-              {quantite(total.pieces)} pièce{total.pieces > 1 ? 's' : ''} · {montant(total.montant)}
-            </strong>
+            <div>
+              <strong>
+                {quantite(total.pieces)} pièce{total.pieces > 1 ? 's' : ''} vendue{total.pieces > 1 ? 's' : ''} · {montant(total.montant)}
+              </strong>
+              {total.reprises > 0 && (
+                <p className="muted" style={{ margin: '2px 0 0' }}>
+                  + {quantite(total.reprises)} reprise{total.reprises > 1 ? 's' : ''}, non facturée{total.reprises > 1 ? 's' : ''}
+                </p>
+              )}
+            </div>
             <div className="spacer" />
-            <button className="primary" type="button" disabled={envoyees.length === 0} onClick={() => setRecap(true)}>
+            <button className="primary" type="button" disabled={mouvements.length === 0} onClick={() => setRecap(true)}>
               Vérifier
             </button>
           </div>
@@ -133,10 +176,29 @@ export default function EspaceDeclarer() {
               </div>
             ))}
           <div className="row" style={{ marginTop: 8, borderTop: '1px solid var(--line)', paddingTop: 8 }}>
-            <strong>{quantite(total.pieces)} pièces</strong>
+            <strong>{quantite(total.pieces)} pièces vendues</strong>
             <div className="spacer" />
             <strong>{montant(total.montant)}</strong>
           </div>
+          {lignes.some((l) => l.reprises > 0) && (
+            <>
+              <p style={{ margin: '12px 0 4px' }}>
+                <strong>Reprises par l'artisan</strong> <span className="muted">(non facturées)</span>
+              </p>
+              {lignes
+                .filter((l) => l.reprises > 0)
+                .map((l) => (
+                  <div className="row" key={`r-${l.cle}`} style={{ padding: '4px 0' }}>
+                    <span>{l.designation}</span>
+                    <div className="spacer" />
+                    <span className="muted">{quantite(l.reprises)} reprise{l.reprises > 1 ? 's' : ''}</span>
+                  </div>
+                ))}
+              <p className="muted" style={{ margin: '4px 0 0', fontSize: '0.9rem' }}>
+                Ces pièces sortent de ton stock sans rien à payer. L'artisan vérifie : un mot pour dire quand il est passé l'aide.
+              </p>
+            </>
+          )}
           {trop.length > 0 && (
             <p style={{ margin: '10px 0 0' }}>
               <span className="badge">Attention</span> Pour {trop.map((l) => l.designation).join(', ')}, tu déclares plus de pièces qu'il n'en
@@ -160,7 +222,7 @@ export default function EspaceDeclarer() {
               className="primary"
               type="button"
               disabled={declarer.isPending}
-              onClick={() => declarer.mutate({ partenaireId: fournisseur.partenaire_id, ventes: envoyees, note })}
+              onClick={() => declarer.mutate({ partenaireId: fournisseur.partenaire_id, mouvements, note })}
             >
               {declarer.isPending ? 'Envoi…' : 'Envoyer à ' + nom}
             </button>

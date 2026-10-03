@@ -232,6 +232,31 @@ describe('la fiche d’une boutique, côté artisan', () => {
     expect(html).toContain('>Corriger<')
   })
 
+  it('met les reprises en évidence tant que le relevé n’est pas validé, puis les laisse tranquilles', () => {
+    const releve = (statut: 'declaree' | 'validee', reprises: number) => ({
+      declarations: [
+        {
+          id: 'd1',
+          periode: '2026-09-01',
+          statut,
+          note: null,
+          declare_le: '2026-09-19T12:00:00+00:00',
+          facturable: 36,
+          ventes: 3,
+          reprises,
+          entrees: 0,
+          alerte: false,
+        },
+      ],
+    })
+
+    const aValider = rendre(releve('declaree', 3))
+    expect(aValider).toContain('reprises à vérifier')
+    expect(aValider).toContain("vérifie qu'elle correspond à ce que tu as vraiment récupéré")
+    expect(rendre(releve('validee', 3))).not.toContain('reprises à vérifier')
+    expect(rendre(releve('declaree', 0))).not.toContain('reprises à vérifier')
+  })
+
   it('signale un écart sans le confondre avec une erreur, et dit qui tranche', () => {
     const html = rendre({
       declarations: [

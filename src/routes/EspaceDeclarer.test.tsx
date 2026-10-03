@@ -12,7 +12,7 @@ const piece = (cle: string, designation: string, reste: number, prix: number) =>
 })
 
 const { etat, envoi } = vi.hoisted(() => ({
-  etat: { pieces: [] as unknown[] },
+  etat: { pieces: [] as unknown[], bons: [] as unknown[] },
   envoi: { isSuccess: false, isPending: false, isError: false, error: null as Error | null, data: undefined as unknown, mutate: () => {} },
 }))
 
@@ -27,6 +27,7 @@ vi.mock('../lib/compte-boutique', () => ({
     error: null,
     data: { erreur: null, etat: { fournisseurs: [{ partenaire_id: 'p1', artisan: 'Atelier Lune', pieces: etat.pieces }] } },
   }),
+  useEspaceBons: () => ({ data: etat.bons }),
   useDeclarerVentes: () => envoi,
 }))
 
@@ -42,8 +43,29 @@ describe('EspaceDeclarer', () => {
     expect(html).toContain('Bougie')
     expect(html).toContain('Vase')
     expect(html).not.toContain('Savon')
-    expect(html.match(/data-pas/g)).toHaveLength(2)
+    expect(html.match(/data-pas/g)).toHaveLength(4)
     expect(html).toMatch(/<button[^>]*disabled[^>]*>Vérifier/)
+  })
+
+  it('dépôt-vente : un second pas-à-pas par pièce pour les reprises, dites non facturées', () => {
+    envoi.isSuccess = false
+    etat.pieces = [piece('a', 'Bougie', 3, 15), piece('c', 'Vase', 1, 40)]
+    etat.bons = [{ mode: 'depot_vente' }]
+    const html = rendu()
+    expect(html.match(/data-pas/g)).toHaveLength(4)
+    expect(html).toContain('Reprises par l&#x27;artisan')
+    expect(html).toContain('non facturées')
+  })
+
+  it('achat ferme : aucune reprise offerte, une seule saisie par pièce', () => {
+    envoi.isSuccess = false
+    etat.pieces = [piece('a', 'Bougie', 3, 15), piece('c', 'Vase', 1, 40)]
+    etat.bons = [{ mode: 'depot_vente' }, { mode: 'achat_ferme' }]
+    const html = rendu()
+    expect(html.match(/data-pas/g)).toHaveLength(2)
+    expect(html).not.toContain('Reprises par l&#x27;artisan')
+    expect(html).not.toContain('non facturées')
+    etat.bons = []
   })
 
   it('aucune pièce en stock : phrase simple, pas de bouton', () => {
@@ -56,10 +78,12 @@ describe('EspaceDeclarer', () => {
 
   it('après un envoi accepté : le montant, et plus aucun moyen d’envoyer une seconde fois', () => {
     envoi.isSuccess = true
-    envoi.data = { facturable: 52.5, alerte: false }
+    envoi.data = { facturable: 52.5, valeurReprises: 45, alerte: false }
     etat.pieces = [piece('a', 'Bougie', 3, 15)]
     const html = rendu()
     expect(html).toContain('52,50 €')
+    expect(html).toContain('Reprises déclarées : 45 €')
+    expect(html).toContain('non facturé')
     expect(html).toContain('Voir mes ventes déclarées')
     expect(html).not.toContain('data-pas')
     expect(html).not.toMatch(/<button/)
@@ -68,7 +92,7 @@ describe('EspaceDeclarer', () => {
 
   it('un écart signalé par la base est dit après l’envoi', () => {
     envoi.isSuccess = true
-    envoi.data = { facturable: 30, alerte: true }
+    envoi.data = { facturable: 30, valeurReprises: 0, alerte: true }
     etat.pieces = [piece('a', 'Bougie', 3, 15)]
     expect(rendu()).toContain('Écart signalé')
     envoi.isSuccess = false

@@ -6,7 +6,10 @@ import {
   lignesDemandees,
   lireResultatDeclaration,
   totalDeclare,
-  ventesEnvoyees,
+  mouvementsEnvoyes,
+  phraseDepose,
+  repriseAutorisee,
+  lireBon,
   lireBons,
   lireEtat,
   lireHistorique,
@@ -277,26 +280,59 @@ describe('déclarer ses ventes', () => {
     expect(l.every((x) => x.ventes === 0)).toBe(true)
   })
 
-  it('n’envoie que les pièces vendues, en nombres entiers', () => {
-    const l = lignesADeclarer([piece('a', 5), piece('b', 5), piece('c', 5)]).map((x, i) => ({ ...x, ventes: [2, 0, 1.9][i] }))
-    expect(ventesEnvoyees(l)).toEqual([{ cle: 'a', ventes: 2 }, { cle: 'c', ventes: 1 }])
+  it('n’envoie que les pièces qui ont bougé (vendues ou reprises), en nombres entiers', () => {
+    const l = lignesADeclarer([piece('a', 5), piece('b', 5), piece('c', 5), piece('d', 5)]).map((x, i) => ({
+      ...x,
+      ventes: [2, 0, 1.9, 0][i],
+      reprises: [0, 0, 0, 2.7][i],
+    }))
+    expect(mouvementsEnvoyes(l)).toEqual([
+      { cle: 'a', ventes: 2, reprises: 0 },
+      { cle: 'c', ventes: 1, reprises: 0 },
+      { cle: 'd', ventes: 0, reprises: 2 },
+    ])
   })
 
-  it('le total compte les pièces et ce que la boutique doit à l’artisan', () => {
-    const l = lignesADeclarer([piece('a', 5, 12.5), piece('b', 5, 20)]).map((x, i) => ({ ...x, ventes: [2, 1][i] }))
-    expect(totalDeclare(l)).toEqual({ pieces: 3, montant: 45 })
-    expect(totalDeclare([])).toEqual({ pieces: 0, montant: 0 })
+  it('le total ne facture QUE les ventes : une reprise ne coûte rien à la boutique', () => {
+    const l = lignesADeclarer([piece('a', 5, 12.5), piece('b', 5, 20)]).map((x, i) => ({
+      ...x,
+      ventes: [2, 1][i],
+      reprises: [0, 3][i],
+    }))
+    expect(totalDeclare(l)).toEqual({ pieces: 3, montant: 45, reprises: 3, valeurReprises: 60 })
+    expect(totalDeclare([])).toEqual({ pieces: 0, montant: 0, reprises: 0, valeurReprises: 0 })
   })
 
-  it('repère les lignes où elle déclare plus qu’il n’en reste (signalé, jamais refusé)', () => {
-    const l = lignesADeclarer([piece('a', 2), piece('b', 2)]).map((x, i) => ({ ...x, ventes: [3, 2][i] }))
-    expect(depassements(l).map((x) => x.cle)).toEqual(['a'])
+  it('repère les lignes où ventes + reprises dépassent le stock (signalé, jamais refusé)', () => {
+    const l = lignesADeclarer([piece('a', 2), piece('b', 2), piece('c', 4)]).map((x, i) => ({
+      ...x,
+      ventes: [3, 2, 2][i],
+      reprises: [0, 0, 3][i],
+    }))
+    expect(depassements(l).map((x) => x.cle)).toEqual(['a', 'c'])
   })
 
-  it('lit le résultat d’un envoi accepté, et dit « pas d’alerte » par défaut', () => {
-    expect(lireResultatDeclaration({ ok: true, facturable: '52.5', alerte: true })).toEqual({ facturable: 52.5, alerte: true })
-    expect(lireResultatDeclaration({ ok: true, facturable: 10 })).toEqual({ facturable: 10, alerte: false })
-    expect(lireResultatDeclaration(null)).toEqual({ facturable: 0, alerte: false })
+  it('une reprise ne se propose qu’en dépôt-vente : un bon en achat ferme la ferme', () => {
+    const bon = (mode: string | null) => lireBon({ ...BON_BRUT, mode })
+    expect(repriseAutorisee([])).toBe(true)
+    expect(repriseAutorisee([bon('depot_vente'), bon(null)])).toBe(true)
+    expect(repriseAutorisee([bon('depot_vente'), bon('achat_ferme')])).toBe(false)
+  })
+
+  it('le dépôt de 10 avec 3 reprises se lit « net 7 », sans réécrire le dépôt', () => {
+    expect(phraseDepose({ depose: 10, repris: 0 })).toBe('déposé 10')
+    expect(phraseDepose({ depose: 10, repris: 3 })).toBe('déposé 10, net 7 après 3 reprises')
+    expect(phraseDepose({ depose: 10, repris: 1 })).toBe('déposé 10, net 9 après 1 reprise')
+  })
+
+  it('lit le résultat d’un envoi accepté, avec la valeur reprise, et dit « pas d’alerte » par défaut', () => {
+    expect(lireResultatDeclaration({ ok: true, facturable: '52.5', valeur_reprises: 30, alerte: true })).toEqual({
+      facturable: 52.5,
+      valeurReprises: 30,
+      alerte: true,
+    })
+    expect(lireResultatDeclaration({ ok: true, facturable: 10 })).toEqual({ facturable: 10, valeurReprises: 0, alerte: false })
+    expect(lireResultatDeclaration(null)).toEqual({ facturable: 0, valeurReprises: 0, alerte: false })
   })
 
   it('« aucune_vente » a une phrase, jamais le code brut', () => {
