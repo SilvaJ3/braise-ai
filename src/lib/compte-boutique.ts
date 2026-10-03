@@ -6,7 +6,9 @@
 // la boutique sont retrouvés à partir du compte connecté.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { lireAbonnementBoutique, type LigneAbonnementBoutique } from './abonnement-boutique'
+import type { FrequenceBoutique } from '../../supabase/functions/_shared/stripe-boutique'
+import { lireAbonnementBoutique, paiementBoutiqueOuvert, type LigneAbonnementBoutique } from './abonnement-boutique'
+import { functionErrorMessage } from './push'
 import {
   lireBons,
   lireEtat,
@@ -67,7 +69,38 @@ export function useMonAbonnementBoutique() {
   })
 }
 
-export type ResultatEspace ={ etat: EtatEspace | null; erreur: string | null }
+/** Les boutons « S'abonner » et « Gérer » sont-ils ouverts ? Éteint par défaut : voir `paiementBoutiqueOuvert`. */
+export const usePaiementBoutiqueOuvert = (): boolean => paiementBoutiqueOuvert(import.meta.env.VITE_PAIEMENT_BOUTIQUE)
+
+/**
+ * Ouvrir la page de paiement Stripe pour s'abonner, au mois ou à l'année. La fonction retrouve la boutique
+ * par le compte connecté ; on ne lui envoie que la formule. Rend l'adresse de la page, où l'écran envoie la
+ * personne : la carte ne traverse jamais notre code.
+ */
+export function useOuvrirPaiementBoutique() {
+  return useMutation({
+    mutationFn: async (frequence: FrequenceBoutique): Promise<string> => {
+      const { data, error } = await supabase.functions.invoke('stripe-checkout-boutique', { body: { frequence } })
+      if (error) throw new Error(await functionErrorMessage(error))
+      const url = (data as { url?: string } | null)?.url
+      if (!url) throw new Error('Le paiement n’a pas pu être ouvert.')
+      return url
+    },
+  })
+}
+
+/** Ouvrir le portail Stripe (carte, factures, résiliation). `null` : aucun paiement n'a eu lieu, rien à gérer. */
+export function useOuvrirPortailBoutique() {
+  return useMutation({
+    mutationFn: async (): Promise<string | null> => {
+      const { data, error } = await supabase.functions.invoke('stripe-portal-boutique', { body: {} })
+      if (error) throw new Error(await functionErrorMessage(error))
+      return (data as { url?: string | null } | null)?.url ?? null
+    },
+  })
+}
+
+export type ResultatEspace = { etat: EtatEspace | null; erreur: string | null }
 
 /** Tout ce que la boutique voit : ses artisans, leurs pièces, leurs bons à confirmer. */
 export function useEspaceBoutique() {

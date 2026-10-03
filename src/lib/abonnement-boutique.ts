@@ -8,6 +8,7 @@
 //
 // Aucun prix n'est écrit ici : l'offre vit dans Stripe, la base porte ce qui est réellement prélevé.
 
+import { finEssaiPourAccesOffert } from '../../supabase/functions/_shared/stripe-boutique'
 import { dateLisible } from './abonnement'
 
 export type StatutBoutique = 'aucun' | 'offert' | 'actif' | 'en_retard' | 'resilie'
@@ -41,6 +42,45 @@ export function lireAbonnementBoutique(brut: unknown): LigneAbonnementBoutique |
     fin: typeof o.fin === 'string' ? o.fin : null,
     annule: o.annule === true,
   }
+}
+
+/**
+ * Les boutons « S'abonner » et « Gérer » sont-ils ouverts ? Interrupteur de build (`VITE_PAIEMENT_BOUTIQUE=oui`),
+ * ÉTEINT par défaut : tant que les fonctions de paiement ne sont pas déployées, un bouton qui échouerait
+ * serait un geste annoncé et non livré. On l'allume le jour du déploiement, pas avant.
+ */
+export function paiementBoutiqueOuvert(valeur: unknown): boolean {
+  return valeur === 'oui'
+}
+
+/** Ce que Stripe a laissé dans l'adresse au retour de la page de paiement (`?paiement=…`), ou null. */
+export function messageRetourPaiementBoutique(param: string | null | undefined): { ton: 'ok' | 'info'; texte: string } | null {
+  switch (param) {
+    case 'ok':
+      return { ton: 'ok', texte: 'Paiement reçu. Ton abonnement s’active — ça peut prendre quelques secondes avant de s’afficher ici.' }
+    case 'offert':
+      return {
+        ton: 'ok',
+        texte: 'Abonnement enregistré. Tes jours offerts sont gardés : rien n’est prélevé avant la fin de ton accès offert.',
+      }
+    case 'annule':
+      return { ton: 'info', texte: 'Paiement annulé : rien n’a été prélevé.' }
+    default:
+      return null
+  }
+}
+
+/**
+ * Ce que dit l'écran à une boutique en accès offert qui s'abonne : garde-t-elle ses jours offerts ? Oui si
+ * l'accès dure encore assez longtemps pour que Stripe accepte de reporter le premier prélèvement (48 h) ;
+ * sinon l'abonnement démarre tout de suite, et on le dit AVANT qu'elle ne clique. Rien pour les autres statuts.
+ */
+export function phraseAbonnerPendantOffert(ligne: LigneAbonnementBoutique | null | undefined, maintenant: Date = new Date()): string | null {
+  if (statutBoutique(ligne?.statut) !== 'offert' || !pasPassee(ligne?.acces_offert_jusqu_au, maintenant)) return null
+  const date = dateLisible(ligne?.acces_offert_jusqu_au)
+  return finEssaiPourAccesOffert(ligne?.acces_offert_jusqu_au, maintenant) !== null
+    ? `Si tu t’abonnes maintenant, tu gardes tes jours offerts : le premier prélèvement n’a lieu qu’après le ${date}.`
+    : `Ton accès offert se termine le ${date} : si tu t’abonnes maintenant, l’abonnement démarre tout de suite.`
 }
 
 export type EtatBoutique = {

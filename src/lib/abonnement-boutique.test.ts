@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { etatAbonnementBoutique, lireAbonnementBoutique, statutBoutique } from './abonnement-boutique'
+import {
+  etatAbonnementBoutique,
+  lireAbonnementBoutique,
+  messageRetourPaiementBoutique,
+  paiementBoutiqueOuvert,
+  phraseAbonnerPendantOffert,
+  statutBoutique,
+} from './abonnement-boutique'
 
 const M = new Date('2026-10-20T10:00:00.000Z')
 
@@ -7,6 +14,35 @@ describe('statutBoutique', () => {
   it('garde les cinq statuts, le reste compte pour « aucun »', () => {
     for (const s of ['aucun', 'offert', 'actif', 'en_retard', 'resilie'] as const) expect(statutBoutique(s)).toBe(s)
     for (const v of [undefined, null, '', 'trialing', 42]) expect(statutBoutique(v)).toBe('aucun')
+  })
+})
+
+describe('les boutons de paiement', () => {
+  it('l’interrupteur n’est allumé que par la valeur « oui » : éteint par défaut et en cas de doute', () => {
+    expect(paiementBoutiqueOuvert('oui')).toBe(true)
+    for (const v of [undefined, null, '', 'non', 'true', 'OUI', 1, true]) expect(paiementBoutiqueOuvert(v)).toBe(false)
+  })
+
+  it('dit une phrase au retour de la page de paiement, et rien pour une valeur inconnue', () => {
+    expect(messageRetourPaiementBoutique('ok')?.texte).toMatch(/Paiement reçu/)
+    expect(messageRetourPaiementBoutique('offert')?.texte).toMatch(/jours offerts sont gardés/)
+    expect(messageRetourPaiementBoutique('annule')).toEqual({ ton: 'info', texte: 'Paiement annulé : rien n’a été prélevé.' })
+    for (const v of ['', 'pack', 'x', null, undefined]) expect(messageRetourPaiementBoutique(v)).toBeNull()
+  })
+
+  it('s’abonner pendant l’accès offert : jours gardés si l’accès dure encore, sinon départ immédiat annoncé', () => {
+    const long = phraseAbonnerPendantOffert({ statut: 'offert', acces_offert_jusqu_au: '2027-01-20' }, M)
+    expect(long).toContain('tu gardes tes jours offerts')
+    expect(long).toContain('20 janvier 2027')
+    const court = phraseAbonnerPendantOffert({ statut: 'offert', acces_offert_jusqu_au: '2026-10-21' }, M)
+    expect(court).toContain('démarre tout de suite')
+    expect(court).not.toContain('tu gardes')
+  })
+
+  it('aucune phrase pour un accès déjà terminé ou un autre statut', () => {
+    expect(phraseAbonnerPendantOffert({ statut: 'offert', acces_offert_jusqu_au: '2026-10-01' }, M)).toBeNull()
+    expect(phraseAbonnerPendantOffert({ statut: 'actif', fin: '2027-01-20' }, M)).toBeNull()
+    expect(phraseAbonnerPendantOffert(null, M)).toBeNull()
   })
 })
 
