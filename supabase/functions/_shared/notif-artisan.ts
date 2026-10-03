@@ -11,10 +11,10 @@
 // Le registre suit celui de l'app : « tu » pour l'artisan, qui reçoit le message. Aucun mot genré —
 // le produit parle des artisans, jamais des artisanes (voir BRAISE-POSITIONNEMENT.md).
 
-import { fmtDateCourte, fmtDateLongue, fmtQte } from './depot-doc.ts'
+import { fmtDateCourte, fmtDateLongue, fmtEuro, fmtQte } from './depot-doc.ts'
 import { mailHtml } from './mail-html.ts'
 
-export type TypeNotifArtisan = 'bon_confirme' | 'reassort'
+export type TypeNotifArtisan = 'bon_confirme' | 'reassort' | 'stock_mouvement' | 'releve_emis'
 
 export type Ligne = { designation: string; quantite: number }
 
@@ -182,4 +182,142 @@ export function mailReassort(r: Reassort, args: { lien: string }): Message {
   })
 
   return { subject: `${r.boutique} te demande un réassort`, text: texte.join('\n'), html }
+}
+
+
+// --- Le mouvement de stock ---------------------------------------------------------------------
+//
+// La boutique a déclaré ce qu'elle a vendu : les pièces sortent de chez l'artisan, et son stock
+// n'est plus le même. Ce message-le dit tout de suite, sans attendre qu'il ouvre l'app. Une
+// déclaration peut couvrir plusieurs lignes : on donne le nombre de pièces et le montant qui en
+// découle, pas le détail — il est dans l'app, et le mail de relevé arrive derrière.
+
+export type StockMouvement = {
+  boutique: string
+  /** Le nombre de lignes déclarées (pas de pièces : les quantités sont dans le détail). */
+  nb_lignes: number
+  /** Le montant facturable issu de cette déclaration. */
+  facturable: number
+  /** La période de la déclaration (« 2026-10 »). */
+  periode: string
+}
+
+export function pushStockMouvement(s: StockMouvement): Push {
+  return {
+    title: `${s.boutique} a déclaré des ventes`,
+    body: `${s.nb_lignes} ligne${s.nb_lignes > 1 ? 's' : ''} — ${fmtEuro(s.facturable)} à facturer.`,
+  }
+}
+
+export function mailStockMouvement(s: StockMouvement, args: { lien: string }): Message {
+  const texte = [
+    'Bonjour,',
+    '',
+    `${s.boutique} vient de déclarer ses ventes : ${s.nb_lignes} ligne${s.nb_lignes > 1 ? 's' : ''},`,
+    `pour ${fmtEuro(s.facturable)}.`,
+    '',
+    'Ce sont des pièces qui ne sont plus chez elle. Le détail est dans l\'app, et le relevé',
+    'facturable se génère depuis ton compte quand tu es prêt à facturer.',
+    '',
+    'C\'est cette déclaration qui fait foi : ce que la boutique annonce est ce que tu factures.',
+  ]
+  if (args.lien) {
+    texte.push('', 'Dans Braaise :', args.lien)
+  }
+  texte.push('', 'Pour toute question, réponds simplement à ce mail.')
+
+  const html = mailHtml({
+    expediteur: 'Braaise',
+    titre: `${s.boutique} a déclaré des ventes`,
+    paragraphes: [
+      `${s.nb_lignes} ligne${s.nb_lignes > 1 ? 's' : ''} déclarée${s.nb_lignes > 1 ? 's' : ''}, pour ${fmtEuro(s.facturable)}.`,
+      'Ce sont des pièces qui ne sont plus chez elle. Le relevé facturable se génère depuis ton compte quand tu es prêt à facturer.',
+    ],
+    encadre: {
+      lignes: [
+        ['Boutique', s.boutique],
+        ['Période', s.periode],
+        ['Lignes', String(s.nb_lignes)],
+        ['À facturer', fmtEuro(s.facturable)],
+      ],
+    },
+    ...(args.lien ? { cta: { libelle: 'Ouvrir dans Braaise', url: args.lien } } : {}),
+    pied:
+      'Tu reçois ce message parce que Braaise te prévient dès qu\'une de tes boutiques ' +
+      'déclare des ventes, confirme un bon ou te demande un réassort.',
+    resume: `${s.boutique} a déclaré ${s.nb_lignes} ligne(s), ${fmtEuro(s.facturable)} à facturer.`,
+  })
+
+  return {
+    subject: `${s.boutique} a déclaré des ventes — ${fmtEuro(s.facturable)}`,
+    text: texte.join('\n'),
+    html,
+  }
+}
+
+// --- Le relevé émis ----------------------------------------------------------------------------
+//
+// L'artisan vient d'émettre un relevé facturable : un document existe, pour une période donnée,
+// et la boutique doit le savoir. C'est le message qui dit « on peut facturer, du … au … ».
+
+export type ReleveEmis = {
+  boutique: string
+  numero: string
+  periode_debut: string
+  periode_fin: string
+  total_ventes: number
+  nb_declarations: number
+}
+
+export function pushReleveEmis(r: ReleveEmis): Push {
+  return {
+    title: `${r.boutique} — ton relevé est prêt`,
+    body: `Relevé ${r.numero} : ${fmtEuro(r.total_ventes)} sur la période.`,
+  }
+}
+
+export function mailReleveEmis(r: ReleveEmis, args: { lien: string }): Message {
+  const periode = `du ${fmtDateLongue(r.periode_debut)} au ${fmtDateLongue(r.periode_fin)}`
+  const texte = [
+    'Bonjour,',
+    '',
+    `Ton relevé facturable pour ${r.boutique} est émis : ${periode}.`,
+    '',
+    `Montant : ${fmtEuro(r.total_ventes)}, sur ${r.nb_declarations} déclaration${r.nb_declarations > 1 ? 's' : ''} de ventes.`,
+    '',
+    'Le document est figé : ce qui y figure ne bougera plus, même si une déclaration est',
+    'écartée plus tard. Tu peux facturer sur cette base.',
+  ]
+  if (args.lien) {
+    texte.push('', 'Le relevé, dans Braaise :', args.lien)
+  }
+  texte.push('', 'Pour toute question, réponds simplement à ce mail.')
+
+  const html = mailHtml({
+    expediteur: 'Braaise',
+    titre: `Ton relevé ${r.numero} est prêt`,
+    paragraphes: [
+      `Relevé facturable pour ${r.boutique}, ${periode} : ${fmtEuro(r.total_ventes)}.`,
+      'Le document est figé : ce qui y figure ne bougera plus, même si une déclaration est écartée plus tard.',
+    ],
+    encadre: {
+      lignes: [
+        ['Boutique', r.boutique],
+        ['Relevé', r.numero],
+        ['Du', fmtDateLongue(r.periode_debut)],
+        ['Au', fmtDateLongue(r.periode_fin)],
+        ['Déclarations', String(r.nb_declarations)],
+        ['Montant', fmtEuro(r.total_ventes)],
+      ],
+    },
+    ...(args.lien ? { cta: { libelle: 'Ouvrir le relevé', url: args.lien } } : {}),
+    pied: 'Tu reçois ce message parce que Braaise te prévient quand un relevé facturable est émis.',
+    resume: `Relevé ${r.numero} émis : ${fmtEuro(r.total_ventes)}, ${periode}.`,
+  })
+
+  return {
+    subject: `Ton relevé ${r.numero} est prêt — ${fmtEuro(r.total_ventes)}`,
+    text: texte.join('\n'),
+    html,
+  }
 }

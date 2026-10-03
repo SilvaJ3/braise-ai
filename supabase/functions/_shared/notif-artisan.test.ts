@@ -3,12 +3,18 @@ import {
   detailLigne,
   mailBonConfirme,
   mailReassort,
+  mailReleveEmis,
+  mailStockMouvement,
   nbPieces,
   pushBonConfirme,
   pushReassort,
+  pushReleveEmis,
+  pushStockMouvement,
   resumeLignes,
   type BonConfirme,
   type Reassort,
+  type ReleveEmis,
+  type StockMouvement,
 } from './notif-artisan'
 
 const LIEN = 'https://braise-ai.vercel.app/depots/f0f0f0f0-0000-4000-8000-000000000001'
@@ -137,5 +143,95 @@ describe('le vocabulaire', () => {
       mailReassort(reassort(), { lien: LIEN }).html,
     ].join('\n')
     expect(textes).not.toMatch(/\bartisan(e|es)\b/i)
+  })
+})
+
+
+// --- Le mouvement de stock ---------------------------------------------------------------------
+
+function stock(over: Partial<StockMouvement> = {}): StockMouvement {
+  return {
+    boutique: 'Lära Concept Store',
+    nb_lignes: 3,
+    facturable: 402,
+    periode: '2026-10',
+    ...over,
+  }
+}
+
+describe('pushStockMouvement', () => {
+  it('dit la boutique, le nombre de lignes et le montant', () => {
+    const p = pushStockMouvement(stock())
+    expect(p.title).toBe('Lära Concept Store a déclaré des ventes')
+    expect(p.body).toContain('3 lignes')
+    expect(p.body).toContain('402 €')
+  })
+
+  it('accorde le singulier quand il n’y a qu’une ligne', () => {
+    expect(pushStockMouvement(stock({ nb_lignes: 1 })).body).toContain('1 ligne —')
+  })
+
+  it('n’emploie aucun mot genré', () => {
+    const p = pushStockMouvement(stock())
+    expect(`${p.title} ${p.body}`).not.toMatch(/artisan(e|es)\b/)
+  })
+})
+
+describe('mailStockMouvement', () => {
+  it('porte le montant, la période et le lien', () => {
+    const m = mailStockMouvement(stock(), { lien: LIEN })
+    expect(m.subject).toContain('402 €')
+    expect(m.subject).toContain('Lära Concept Store')
+    expect(m.html).toContain('2026-10')
+    expect(m.text).toContain(LIEN)
+    expect(m.html).toContain('402 €')
+  })
+
+  it('dit que le relevé se génère depuis le compte', () => {
+    expect(mailStockMouvement(stock(), { lien: '' }).text).toContain('relevé')
+  })
+})
+
+// --- Le relevé émis ----------------------------------------------------------------------------
+
+function releve(over: Partial<ReleveEmis> = {}): ReleveEmis {
+  return {
+    boutique: 'Lära Concept Store',
+    numero: 'REL-2026-004',
+    periode_debut: '2026-09-01',
+    periode_fin: '2026-09-30',
+    total_ventes: 402,
+    nb_declarations: 2,
+    ...over,
+  }
+}
+
+describe('pushReleveEmis', () => {
+  it('annonce le relevé et son montant', () => {
+    const p = pushReleveEmis(releve())
+    expect(p.title).toContain('Lära Concept Store')
+    expect(p.title).toContain('relevé')
+    expect(p.body).toContain('REL-2026-004')
+    expect(p.body).toContain('402 €')
+  })
+})
+
+describe('mailReleveEmis', () => {
+  it('donne la période en clair, du … au …', () => {
+    const m = mailReleveEmis(releve(), { lien: LIEN })
+    expect(m.text).toContain('1 septembre 2026')
+    expect(m.text).toContain('30 septembre 2026')
+    expect(m.subject).toContain('REL-2026-004')
+    expect(m.subject).toContain('402 €')
+    expect(m.html).toContain(LIEN)
+  })
+
+  it('rappelle que le document est figé', () => {
+    expect(mailReleveEmis(releve(), { lien: '' }).text).toContain('figé')
+  })
+
+  it('accorde le pluriel des déclarations', () => {
+    expect(mailReleveEmis(releve({ nb_declarations: 1 }), { lien: '' }).text).toContain('1 déclaration')
+    expect(mailReleveEmis(releve({ nb_declarations: 3 }), { lien: '' }).text).toContain('3 déclarations')
   })
 })
