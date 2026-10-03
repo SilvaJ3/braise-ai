@@ -7,7 +7,7 @@ import {
   mouvementsEnvoyes,
   montant,
   quantite,
-  repriseAutorisee,
+  estDepotVente,
   totalDeclare,
 } from '../lib/espace-boutique'
 import { Pas } from './EspaceFournisseurReste'
@@ -31,8 +31,8 @@ export default function EspaceDeclarer() {
   const [note, setNote] = useState('')
   const [recap, setRecap] = useState(false)
   const declarer = useDeclarerVentes()
-  // Dépôt-vente seulement : un bon en achat ferme ferme la porte aux reprises (c'est un retour, pas une reprise).
-  const reprisesOk = repriseAutorisee(bons ?? [])
+  // Dépôt-vente seulement : un bon en achat ferme ferme la porte à tout l'écran (les pièces sont à la boutique).
+  const depotVente = estDepotVente(bons ?? [])
 
   if (isLoading) return <p className="muted">Chargement…</p>
   if (error) return <p className="muted">{(error as Error).message}</p>
@@ -47,6 +47,20 @@ export default function EspaceDeclarer() {
       <Link to={`/espace-boutique/fournisseur/${fournisseur.partenaire_id}`}>‹ {nom}</Link>
     </p>
   )
+
+  // En achat ferme les pièces appartiennent à la boutique : rien à déclarer à l'artisan, ni vente ni reprise.
+  // (Le lien est masqué sur l'écran de l'artisan ; ceci couvre une adresse tapée à la main.)
+  if (!depotVente && !declarer.isSuccess) {
+    return (
+      <>
+        {retour}
+        <h1 style={{ marginTop: 8 }}>Rien à déclarer</h1>
+        <p className="empty">
+          Tu achètes ces pièces à {nom} : elles sont à toi, il n'y a ni vente à lui déclarer ni reprise.
+        </p>
+      </>
+    )
+  }
 
   // Après un envoi accepté, plus rien à saisir : un second envoi compterait les ventes deux fois.
   if (declarer.isSuccess) {
@@ -89,7 +103,7 @@ export default function EspaceDeclarer() {
   const lignes = lignesADeclarer(fournisseur.pieces).map((l) => ({
     ...l,
     ventes: saisie[l.cle] ?? 0,
-    reprises: reprisesOk ? (reprisesSaisies[l.cle] ?? 0) : 0,
+    reprises: reprisesSaisies[l.cle] ?? 0,
   }))
   const total = totalDeclare(lignes)
   const trop = depassements(lignes)
@@ -101,7 +115,7 @@ export default function EspaceDeclarer() {
       <h1 style={{ marginTop: 8 }}>Déclarer mes ventes</h1>
       <p className="muted" style={{ marginTop: 0 }}>
         Pour chaque pièce, combien en as-tu vendu depuis ta dernière déclaration à {nom} ?
-        {reprisesOk && " Si l'artisan a repris des invendus, dis-le aussi : ce n'est pas facturé."}
+        {" Si l'artisan a repris des invendus, dis-le aussi : ce n'est pas facturé."}
       </p>
 
       {lignes.length === 0 && <p className="empty">Rien à déclarer : aucune pièce en stock chez toi pour cet artisan.</p>}
@@ -118,19 +132,17 @@ export default function EspaceDeclarer() {
               <div className="spacer" />
               <Pas nom={`Pièces vendues : ${l.designation}`} valeur={l.ventes} onChange={(v) => setSaisie((s) => ({ ...s, [l.cle]: v }))} />
             </div>
-            {reprisesOk && (
-              <div className="row" style={{ alignItems: 'center', marginTop: 6 }}>
-                <span>
-                  Reprises par l'artisan <span className="muted">(non facturées)</span>
-                </span>
-                <div className="spacer" />
-                <Pas
-                  nom={`Pièces reprises : ${l.designation}`}
-                  valeur={l.reprises}
-                  onChange={(v) => setReprisesSaisies((s) => ({ ...s, [l.cle]: v }))}
-                />
-              </div>
-            )}
+            <div className="row" style={{ alignItems: 'center', marginTop: 6 }}>
+              <span>
+                Reprises par l'artisan <span className="muted">(non facturées)</span>
+              </span>
+              <div className="spacer" />
+              <Pas
+                nom={`Pièces reprises : ${l.designation}`}
+                valeur={l.reprises}
+                onChange={(v) => setReprisesSaisies((s) => ({ ...s, [l.cle]: v }))}
+              />
+            </div>
           </div>
         ))}
 

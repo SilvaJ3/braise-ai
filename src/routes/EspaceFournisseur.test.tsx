@@ -44,6 +44,17 @@ describe('EspaceFournisseur — signaler un écart', () => {
     expect(html).toContain('Signaler un écart')
   })
 
+  it('dépôt-vente : on propose de déclarer ses ventes ; achat ferme : on ne le propose pas', () => {
+    bons.data = [bon({ mode: 'depot_vente' })]
+    expect(rendu()).toContain('Déclarer mes ventes')
+    bons.data = [bon({ mode: 'depot_vente' }), bon({ bon_id: 'b2', mode: 'achat_ferme' })]
+    const html = rendu()
+    expect(html).not.toContain('Déclarer mes ventes')
+    // Le reste de l'écran ne bouge pas : historique et restant restent consultables.
+    expect(html).toContain('Mes ventes déclarées à')
+    expect(html).toContain('Ce qui te reste')
+  })
+
   it('le formulaire reste fermé tant qu’on ne l’ouvre pas : pas de champ de texte, pas de délai affiché', () => {
     bons.data = [bon({})]
     const html = rendu()

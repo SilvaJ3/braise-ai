@@ -8,7 +8,7 @@ import {
   totalDeclare,
   mouvementsEnvoyes,
   phraseDepose,
-  repriseAutorisee,
+  estDepotVente,
   lireBon,
   lireBons,
   lireEtat,
@@ -312,11 +312,11 @@ describe('déclarer ses ventes', () => {
     expect(depassements(l).map((x) => x.cle)).toEqual(['a', 'c'])
   })
 
-  it('une reprise ne se propose qu’en dépôt-vente : un bon en achat ferme la ferme', () => {
+  it('seul le dépôt-vente se déclare : un bon en achat ferme ferme la porte, l’absence de bon non', () => {
     const bon = (mode: string | null) => lireBon({ ...BON_BRUT, mode })
-    expect(repriseAutorisee([])).toBe(true)
-    expect(repriseAutorisee([bon('depot_vente'), bon(null)])).toBe(true)
-    expect(repriseAutorisee([bon('depot_vente'), bon('achat_ferme')])).toBe(false)
+    expect(estDepotVente([])).toBe(true)
+    expect(estDepotVente([bon('depot_vente'), bon(null)])).toBe(true)
+    expect(estDepotVente([bon('depot_vente'), bon('achat_ferme')])).toBe(false)
   })
 
   it('le dépôt de 10 avec 3 reprises se lit « net 7 », sans réécrire le dépôt', () => {

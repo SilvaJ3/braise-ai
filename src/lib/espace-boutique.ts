@@ -346,11 +346,13 @@ export function depassements(lignes: LigneDeclaration[]): LigneDeclaration[] {
 }
 
 /**
- * Une reprise n'a de sens qu'en DÉPÔT-VENTE : les pièces restent à l'artisan, qui les récupère. En
- * achat ferme elles appartiennent à la boutique, et les rendre est un retour (un avoir), pas une reprise.
- * Le mode est porté par chaque bon : un seul bon en achat ferme suffit à ne pas l'offrir.
+ * Cet artisan dépose-t-il en DÉPÔT-VENTE ? Seul ce mode se déclare : les pièces restent à l'artisan, la
+ * boutique lui dit ce qu'elle a vendu, et il les reprend s'il le faut. En achat ferme elles appartiennent
+ * à la boutique : il n'y a ni vente à déclarer à l'artisan, ni reprise (rendre une pièce est un retour,
+ * donc un avoir). Le mode est porté par chaque bon : un seul bon en achat ferme suffit à fermer la porte.
+ * Sans bon connu (chargement, aucun dépôt) on ne ferme rien : c'est l'absence de preuve, pas une preuve.
  */
-export function repriseAutorisee(bons: BonEspace[]): boolean {
+export function estDepotVente(bons: BonEspace[]): boolean {
   return !bons.some((b) => b.mode === 'achat_ferme')
 }
 

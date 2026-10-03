@@ -57,14 +57,16 @@ describe('EspaceDeclarer', () => {
     expect(html).toContain('non facturées')
   })
 
-  it('achat ferme : aucune reprise offerte, une seule saisie par pièce', () => {
+  it('achat ferme : rien à déclarer, ni vente ni reprise, même en tapant l’adresse à la main', () => {
     envoi.isSuccess = false
     etat.pieces = [piece('a', 'Bougie', 3, 15), piece('c', 'Vase', 1, 40)]
     etat.bons = [{ mode: 'depot_vente' }, { mode: 'achat_ferme' }]
     const html = rendu()
-    expect(html.match(/data-pas/g)).toHaveLength(2)
-    expect(html).not.toContain('Reprises par l&#x27;artisan')
-    expect(html).not.toContain('non facturées')
+    expect(html).toContain('Rien à déclarer')
+    expect(html).toContain('elles sont à toi')
+    expect(html).not.toContain('data-pas')
+    expect(html).not.toMatch(/<button/)
+    expect(html).not.toContain('Bougie')
     etat.bons = []
   })
 

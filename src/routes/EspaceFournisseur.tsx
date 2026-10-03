@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useConfirmerBon, useContesterBon, useEspaceBons, useEspaceBoutique } from '../lib/compte-boutique'
 import { phraseDelai } from '../lib/contestation'
-import { jour, montant, quantite, statutBon, totalRestant } from '../lib/espace-boutique'
+import { estDepotVente, jour, montant, quantite, statutBon, totalRestant } from '../lib/espace-boutique'
 
 // L'espace de la boutique — écran 3 : les dépôts d'un artisan, un par un.
 //
@@ -82,7 +82,8 @@ export default function EspaceFournisseur() {
         )
       })}
 
-      {fournisseur && (
+      {/* En achat ferme les pièces sont à la boutique : rien à déclarer à l'artisan. */}
+      {fournisseur && estDepotVente(bons ?? []) && (
         <Link
           to={`/espace-boutique/fournisseur/${fournisseur.partenaire_id}/declarer`}
           className="card"
