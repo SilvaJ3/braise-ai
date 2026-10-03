@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   CIBLE_BOUTIQUE,
+  boutiqueDejaAbonnee,
   boutiquePrendLAbonnement,
   champsBoutiqueDepuisAbonnement,
   cibleDuWebhook,
   finEssaiPourAccesOffert,
+  frequenceBoutiqueValide,
   lienDepuisMetadonnees,
   metadonneesBoutique,
+  prixBoutiquePour,
 } from './stripe-boutique'
 
 const LIEN = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d'
@@ -71,6 +74,15 @@ describe('un abonnement Stripe traduit pour la boutique', () => {
     })
   })
 
+  it('la fréquence se lit sur le prix : l’annuel seulement si l’identifiant est celui de l’annuel', () => {
+    const annuel = sub({ items: { data: [{ current_period_end: fin, price: { id: 'price_an', unit_amount: 49000 } }] } })
+    expect(champsBoutiqueDepuisAbonnement(annuel, { prixAnnuel: 'price_an' }).abonnement_frequence).toBe('annuel')
+    expect(champsBoutiqueDepuisAbonnement(annuel, { prixAnnuel: 'autre' }).abonnement_frequence).toBe('mensuel')
+    // sans repère configuré on ne devine pas l'annuel
+    expect(champsBoutiqueDepuisAbonnement(annuel).abonnement_frequence).toBe('mensuel')
+    expect(champsBoutiqueDepuisAbonnement(annuel, { prixAnnuel: null }).abonnement_frequence).toBe('mensuel')
+  })
+
   it('un abonnement en essai (accès offert respecté) compte pour actif, avec la date du premier prélèvement', () => {
     const c = champsBoutiqueDepuisAbonnement(sub({ status: 'trialing', trial_end: fin }))
     expect(c.statut).toBe('actif')
@@ -100,6 +112,27 @@ describe('un abonnement Stripe traduit pour la boutique', () => {
     expect(boutiquePrendLAbonnement({ id: 's', status: 'incomplete' }, 'autre')).toBe(false)
     expect(boutiquePrendLAbonnement({ id: 's', status: 'incomplete' }, 's')).toBe(true)
     expect(boutiquePrendLAbonnement({ id: 's', status: 'active' }, null)).toBe(true)
+  })
+})
+
+describe('la formule demandée, au mois ou à l’année', () => {
+  const ids = { prixMensuel: 'price_m', prixAnnuel: 'price_a' }
+
+  it('seul « annuel » donne l’année ; tout le reste retombe sur le mois', () => {
+    expect(frequenceBoutiqueValide('annuel')).toBe('annuel')
+    for (const v of ['mensuel', 'an', 'ANNUEL', '', null, undefined, 12]) expect(frequenceBoutiqueValide(v)).toBe('mensuel')
+  })
+
+  it('l’identifiant du prix suit la formule ; un prix non configuré n’est pas inventé', () => {
+    expect(prixBoutiquePour('mensuel', ids)).toBe('price_m')
+    expect(prixBoutiquePour('annuel', ids)).toBe('price_a')
+    expect(prixBoutiquePour('annuel', { prixMensuel: 'price_m', prixAnnuel: null })).toBeNull()
+  })
+
+  it('une boutique qui paie déjà n’ouvre pas un second abonnement, une boutique en accès offert le peut', () => {
+    expect(boutiqueDejaAbonnee('actif')).toBe(true)
+    expect(boutiqueDejaAbonnee('en_retard')).toBe(true)
+    for (const s of ['offert', 'aucun', 'resilie', null, undefined]) expect(boutiqueDejaAbonnee(s)).toBe(false)
   })
 })
 

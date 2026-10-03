@@ -15,6 +15,11 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@17'
 import { champsDepuisAbonnement, prendLeCompte } from '../_shared/stripe.ts'
 import { clefCredit, creditDepuisSession } from '../_shared/packs.ts'
+import {
+  boutiquePrendLAbonnement,
+  champsBoutiqueDepuisAbonnement,
+  cibleDuWebhook,
+} from '../_shared/stripe-boutique.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -24,9 +29,70 @@ const admin = createClient(SUPABASE_URL, SERVICE_KEY)
 /** L'identifiant du prix annuel : il sert à écrire la fréquence réelle de l'abonnement (0077). */
 const PRIX_ANNUEL = Deno.env.get('STRIPE_PRIX_ANNUEL')?.trim() ?? null
 
+/** L'identifiant du prix annuel de la BOUTIQUE : il sert à écrire la fréquence réelle de son abonnement. */
+const PRIX_BOUTIQUE_ANNUEL = Deno.env.get('STRIPE_PRIX_BOUTIQUE_ANNUEL')?.trim() ?? null
+
+/**
+ * Écrit l'état d'un abonnement de BOUTIQUE dans `boutique_abonnements` (0082) — et nulle part ailleurs.
+ *
+ * Trois protections, parce que le webhook sert aussi les artisans :
+ *   · on n'écrit que ce qui a été payé ou déjà suivi (`boutiquePrendLAbonnement`) : une carte refusée
+ *     n'efface pas un abonnement en cours ;
+ *   · un statut illisible (`aucun`) n'écrase RIEN : il ferait perdre un accès offert encore valable ;
+ *   · le client Stripe doit être celui déjà rattaché au lien : un abonnement qui porterait le marquage
+ *     d'une autre boutique ne peut pas écrire chez elle.
+ * Une valeur absente (fin de période) n'efface pas celle qu'on a déjà : on ne remplace pas une information par du vide.
+ */
+async function majBoutiqueDepuisAbonnement(sub: Stripe.Subscription, lienId: string) {
+  const champs = champsBoutiqueDepuisAbonnement(
+    sub as unknown as Parameters<typeof champsBoutiqueDepuisAbonnement>[0],
+    { prixAnnuel: PRIX_BOUTIQUE_ANNUEL },
+  )
+  const clientId = typeof sub.customer === 'string' ? sub.customer : sub.customer?.id
+
+  const { data: ligne } = await admin
+    .from('boutique_abonnements')
+    .select('stripe_subscription_id, stripe_customer_id')
+    .eq('lien_id', lienId)
+    .maybeSingle()
+
+  const clientConnu = (ligne?.stripe_customer_id as string | null | undefined) ?? null
+  if (clientConnu && clientId && clientConnu !== clientId) {
+    console.error('[stripe-webhook] boutique : client différent de celui du lien', lienId, sub.id)
+    return
+  }
+  if (!boutiquePrendLAbonnement(sub as unknown as Parameters<typeof boutiquePrendLAbonnement>[0], ligne?.stripe_subscription_id as string | null | undefined)) {
+    console.log('[stripe-webhook] boutique : écarté', sub.id, sub.status)
+    return
+  }
+  if (champs.statut === 'aucun') {
+    console.log('[stripe-webhook] boutique : statut inconnu, rien d’écrit', sub.id, sub.status)
+    return
+  }
+
+  const ecriture: Record<string, unknown> = { lien_id: lienId, ...champs }
+  if (!champs.abonnement_fin) delete ecriture.abonnement_fin
+  if (clientId) ecriture.stripe_customer_id = clientId
+
+  const { error } = await admin.from('boutique_abonnements').upsert(ecriture, { onConflict: 'lien_id' })
+  if (error) console.error('[stripe-webhook] boutique : écriture', lienId, error)
+  else console.log('[stripe-webhook] boutique', sub.id, champs.statut, champs.abonnement_frequence, champs.abonnement_annule ? 'résiliation programmée' : '')
+}
+
 /** Écrit l'état de l'abonnement sur le compte, retrouvé par son client Stripe. */
 async function majDepuisAbonnement(stripe: Stripe, abonnementId: string, userIdConnu?: string | null) {
   const sub = await stripe.subscriptions.retrieve(abonnementId, { expand: ['discount'] })
+
+  // Le même webhook sert les artisans ET les boutiques : le marquage posé à la création de la session
+  // (et recopié par Stripe sur l'abonnement) dit à qui appartient celui-ci. Un abonnement de boutique ne
+  // touche JAMAIS `assistant_profil` ; un marquage illisible n'écrit nulle part au lieu de glisser vers l'artisan.
+  const cible = cibleDuWebhook(sub.metadata)
+  if (cible.cible === 'boutique') return majBoutiqueDepuisAbonnement(sub, cible.lienId)
+  if (cible.cible === 'inconnu') {
+    console.error('[stripe-webhook] marquage boutique illisible, rien d’écrit', sub.id)
+    return
+  }
+
   const champs = champsDepuisAbonnement(
     sub as unknown as Parameters<typeof champsDepuisAbonnement>[0],
     { prixAnnuel: PRIX_ANNUEL },

@@ -63,6 +63,33 @@ export function cibleDuWebhook(
   return marque ? { cible: 'inconnu' } : { cible: 'artisan' }
 }
 
+/**
+ * La formule demandée : au mois, ou à l'année (engagement annuel, ouvert le 04/10 par JSB). Ce sont les
+ * valeurs de la colonne `abonnement_frequence` (0082). Une valeur inconnue retombe sur le mois : on ne
+ * prélève jamais l'année par accident.
+ */
+export type FrequenceBoutique = 'mensuel' | 'annuel'
+
+export function frequenceBoutiqueValide(v: unknown): FrequenceBoutique {
+  return v === 'annuel' ? 'annuel' : 'mensuel'
+}
+
+/** Les deux prix Stripe de l'abonnement de boutique, lus en secrets — jamais écrits en dur. */
+export type IdentifiantsBoutique = { prixMensuel: string; prixAnnuel: string | null }
+
+/** L'identifiant du prix demandé, ou `null` s'il n'est pas configuré (on refuse alors, on ne devine pas). */
+export function prixBoutiquePour(f: FrequenceBoutique, ids: IdentifiantsBoutique): string | null {
+  return f === 'annuel' ? ids.prixAnnuel : ids.prixMensuel
+}
+
+/**
+ * Une boutique qui paie déjà n'ouvre pas un second abonnement : un clic de trop la ferait prélever deux
+ * fois. Un accès OFFERT ne compte pas : elle peut s'abonner pendant (voir `finEssaiPourAccesOffert`).
+ */
+export function boutiqueDejaAbonnee(statut: unknown): boolean {
+  return statut === 'actif' || statut === 'en_retard'
+}
+
 /** Ce qu'on écrit dans `boutique_abonnements` à partir d'un abonnement Stripe. */
 export type ChampsAbonnementBoutique = {
   stripe_subscription_id: string | null
@@ -71,25 +98,29 @@ export type ChampsAbonnementBoutique = {
   abonnement_fin: string | null
   abonnement_prix_centimes: number | null
   abonnement_annule: boolean
-  /** Seule la formule mensuelle existe pour une boutique (décision 6, 04/10 : pas d'annuel). */
-  abonnement_frequence: 'mensuel'
+  abonnement_frequence: FrequenceBoutique
 }
 
 /**
  * Traduit un abonnement Stripe pour une boutique. On réutilise la traduction de l'artisan (statut, fin de
  * période à deux emplacements, résiliation programmée par le portail, prix net de remise) : une seule
- * lecture de Stripe, pour ne pas la faire diverger. Deux différences seulement : la fin de période
- * s'écrit en `date`, et la fréquence est toujours « mensuel ».
+ * lecture de Stripe, pour ne pas la faire diverger. Deux différences : la fin de période s'écrit en
+ * `date`, et la fréquence se lit sur l'identifiant du prix (celui de l'annuel, sinon le mois).
  */
-export function champsBoutiqueDepuisAbonnement(sub: AbonnementStripe): ChampsAbonnementBoutique {
+export function champsBoutiqueDepuisAbonnement(
+  sub: AbonnementStripe,
+  repere?: { prixAnnuel?: string | null },
+): ChampsAbonnementBoutique {
   const c = champsDepuisAbonnement(sub)
+  const prixId = sub.items?.data?.[0]?.price?.id ?? null
+  const annuel = repere?.prixAnnuel ?? null
   return {
     stripe_subscription_id: c.stripe_subscription_id,
     statut: c.abonnement_statut,
     abonnement_fin: c.abonnement_fin ? c.abonnement_fin.slice(0, 10) : null,
     abonnement_prix_centimes: c.abonnement_prix_centimes,
     abonnement_annule: c.abonnement_annule,
-    abonnement_frequence: 'mensuel',
+    abonnement_frequence: prixId && annuel && prixId === annuel ? 'annuel' : 'mensuel',
   }
 }
 
