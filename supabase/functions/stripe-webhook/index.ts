@@ -77,10 +77,21 @@ async function majDepuisAbonnement(stripe: Stripe, abonnementId: string, userIdC
 
   const { error } = await admin
     .from('assistant_profil')
-    .update({ ...champs, stripe_customer_id: clientId ?? undefined })
+    // `ecriture` et non `champs` : c'est la version corrigée (essai_fin préservé quand il n'y a plus
+    // d'essai, porte rouverte et relances remises à zéro après un paiement revenu). Écrire `champs`
+    // ici annulait les deux règles juste au-dessus — et un `essai_fin: null` écrasait la date de
+    // l'essai à chaque événement Stripe.
+    .update({ ...ecriture, stripe_customer_id: clientId ?? undefined })
     .eq('user_id', userId)
   if (error) console.error('[stripe-webhook] écriture du compte', error)
-  else console.log('[stripe-webhook]', sub.id, champs.abonnement_statut, champs.abonnement_prix_centimes)
+  else
+    console.log(
+      '[stripe-webhook]',
+      sub.id,
+      champs.abonnement_statut,
+      champs.abonnement_prix_centimes,
+      champs.abonnement_annule ? 'résiliation programmée' : '',
+    )
 }
 
 /**
