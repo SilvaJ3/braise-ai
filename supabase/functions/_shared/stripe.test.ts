@@ -104,6 +104,38 @@ describe('ce que le compte paie réellement', () => {
 })
 
 describe('ce qu’on écrit sur le compte depuis un abonnement', () => {
+  // Réponse Stripe réelle (03/10/2026, sub_1UHM56HJnfqhoXjC7ZTIugFZ) : `current_period_end` n'est
+  // PLUS au niveau de l'abonnement, il est descendu sur l'item. Ne lire que l'ancien emplacement
+  // rendait `null`, et `stripe-webhook` supprimait alors le champ de son écriture — la date en base
+  // restait figée sur un événement antérieur au lieu de suivre la période réelle.
+  it('lit la fin de période sur l’item, là où Stripe la met maintenant', () => {
+    const champs = champsDepuisAbonnement({
+      id: 'sub_123',
+      status: 'active',
+      items: { data: [{ current_period_end: 1_800_000_000, price: { unit_amount: 3900 } }] },
+      discount: { coupon: { amount_off: 1000 } },
+    })
+    expect(champs.abonnement_fin).toBe(new Date(1_800_000_000 * 1000).toISOString())
+    expect(champs.abonnement_prix_centimes).toBe(2900)
+  })
+
+  it('garde l’ancien emplacement quand il est là — et préfère l’item s’il y en a un', () => {
+    const ancien = champsDepuisAbonnement({
+      id: 'sub_1',
+      status: 'active',
+      current_period_end: 1_700_000_000,
+    })
+    expect(ancien.abonnement_fin).toBe(new Date(1_700_000_000 * 1000).toISOString())
+
+    const lesDeux = champsDepuisAbonnement({
+      id: 'sub_1',
+      status: 'active',
+      current_period_end: 1_700_000_000,
+      items: { data: [{ current_period_end: 1_800_000_000 }] },
+    })
+    expect(lesDeux.abonnement_fin).toBe(new Date(1_800_000_000 * 1000).toISOString())
+  })
+
   it('reprend l’identifiant, le statut, la fin de période et le montant effectif', () => {
     const champs = champsDepuisAbonnement({
       id: 'sub_123',
@@ -116,6 +148,51 @@ describe('ce qu’on écrit sur le compte depuis un abonnement', () => {
     expect(champs.abonnement_statut).toBe('actif')
     expect(champs.abonnement_fin).toBe(new Date(1_800_000_000 * 1000).toISOString())
     expect(champs.abonnement_prix_centimes).toBe(2900)
+  })
+
+  // Le défaut constaté le 03/10/2026. Le portail Stripe ne pose PAS `cancel_at_period_end` : il
+  // pose un `cancel_at` (l'horodatage exact de l'arrêt). Le booléen restait donc à `false`, et
+  // l'écran annonçait un prochain prélèvement à quelqu'un qui venait de résilier.
+  it('voit la résiliation posée par le portail, qui passe par `cancel_at`', () => {
+    const champs = champsDepuisAbonnement({
+      id: 'sub_1',
+      status: 'past_due',
+      cancel_at: 1_793_012_720,
+      cancel_at_period_end: false,
+      items: { data: [{ current_period_end: 1_793_012_720 }] },
+    })
+    expect(champs.abonnement_annule).toBe(true)
+  })
+
+  it('voit aussi la résiliation classique `cancel_at_period_end`', () => {
+    const champs = champsDepuisAbonnement({
+      id: 'sub_1',
+      status: 'active',
+      cancel_at_period_end: true,
+      items: { data: [{ current_period_end: 1_800_000_000 }] },
+    })
+    expect(champs.abonnement_annule).toBe(true)
+  })
+
+  it('un `cancel_at` posé sur un abonnement déjà terminé ne compte pas pour une résiliation à venir', () => {
+    const champs = champsDepuisAbonnement({
+      id: 'sub_1',
+      status: 'canceled',
+      cancel_at: 1_793_012_720,
+      items: { data: [{ current_period_end: 1_793_012_720 }] },
+    })
+    expect(champs.abonnement_annule).toBe(false)
+  })
+
+  it('sans drapeau ni date d’arrêt, ce n’est pas une résiliation', () => {
+    const champs = champsDepuisAbonnement({
+      id: 'sub_1',
+      status: 'active',
+      cancel_at: null,
+      cancel_at_period_end: false,
+      items: { data: [{ current_period_end: 1_800_000_000 }] },
+    })
+    expect(champs.abonnement_annule).toBe(false)
   })
 
   it('rend null plutôt qu’une date inventée quand la période n’est pas connue', () => {

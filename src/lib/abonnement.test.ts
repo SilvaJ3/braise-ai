@@ -127,6 +127,70 @@ describe('etatAbonnement', () => {
     expect(e.phrase).toBe('Abonnement en cours.')
     expect(e.fin).toBeNull()
   })
+
+  // Constaté le 03/10/2026 en exerçant le portail Stripe pour de vrai : une résiliation programmée
+  // en fin de période laisse le statut Stripe à `active` (ou `past_due`) — donc l'écran continuait
+  // d'annoncer « prochain prélèvement le 26 octobre » à quelqu'un qui venait de résilier. Le
+  // drapeau `abonnement_annule` existe pour ça : quand il est vrai, l'écran dit la résiliation.
+  it('actif mais résilié en fin de période : le dit au lieu d’annoncer un prélèvement', () => {
+    const e = etatAbonnement('actif', {
+      fin: '2026-10-26T11:05:20.000Z',
+      annule: true,
+      maintenant: MAINTENANT,
+    })
+    expect(e.annule).toBe(true)
+    expect(e.badge).toBe('Résiliation programmée')
+    expect(e.phrase).toContain('26 octobre 2026')
+    expect(e.phrase).toContain('plus rien ne sera prélevé')
+    expect(e.peutGerer).toBe(true)
+    expect(e.peutSouscrire).toBe(false)
+  })
+
+  it('en retard et résilié : dit la résiliation, pas « mets ta carte à jour »', () => {
+    const e = etatAbonnement('en_retard', {
+      fin: '2026-10-26T11:05:20.000Z',
+      annule: true,
+      maintenant: MAINTENANT,
+    })
+    expect(e.annule).toBe(true)
+    expect(e.badge).toBe('Résiliation programmée')
+    expect(e.phrase).toContain('26 octobre 2026')
+    expect(e.phrase).not.toContain('Un prélèvement a échoué')
+  })
+
+  it('résilié en fin de période sans date connue : ne promet aucune date', () => {
+    const e = etatAbonnement('actif', { annule: true, maintenant: MAINTENANT })
+    expect(e.annule).toBe(true)
+    expect(e.phrase).toContain('plus rien ne sera prélevé')
+    expect(e.phrase).not.toMatch(/jusqu’au|le \d/)
+  })
+
+  it('une résiliation programmée sur une période déjà finie ne dit pas « jusqu’au »', () => {
+    const e = etatAbonnement('actif', {
+      fin: '2026-09-01T09:00:00.000Z',
+      annule: true,
+      maintenant: MAINTENANT,
+    })
+    expect(e.annule).toBe(true)
+    expect(e.phrase).toContain('terminé')
+    expect(e.phrase).not.toContain('jusqu’au')
+  })
+
+  it('sans le drapeau, l’écran ne change rien : une absence de valeur n’est pas une résiliation', () => {
+    const e = etatAbonnement('actif', {
+      fin: '2026-10-26T11:05:20.000Z',
+      annule: false,
+      maintenant: MAINTENANT,
+    })
+    expect(e.annule).toBe(false)
+    expect(e.badge).toBe('Actif')
+    expect(e.phrase).toBe('Abonnement en cours. Prochain prélèvement le 26 octobre 2026.')
+  })
+
+  it('drapeau inconnu (colonne non lue) : l’écran se tait plutôt que d’inventer', () => {
+    const e = etatAbonnement('actif', { fin: '2026-10-26T11:05:20.000Z', maintenant: MAINTENANT })
+    expect(e.annule).toBe(false)
+  })
 })
 
 describe('messagePaiement', () => {

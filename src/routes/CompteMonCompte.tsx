@@ -175,6 +175,7 @@ export default function CompteMonCompte() {
         plan={data.plan}
         statut={data.abonnement_statut}
         fin={data.abonnement_fin}
+        annule={data.abonnement_annule}
         prixCentimes={data.abonnement_prix_centimes}
         paiement={paiement}
         portail={portail}
@@ -355,6 +356,7 @@ function Abonnement({
   plan,
   statut,
   fin,
+  annule,
   prixCentimes,
   paiement,
   portail,
@@ -363,12 +365,13 @@ function Abonnement({
   plan: Plan
   statut: unknown
   fin: string | null
+  annule: boolean | null | undefined
   prixCentimes: number | null
   paiement: ReturnType<typeof useOuvrirPaiement>
   portail: ReturnType<typeof useOuvrirPortail>
   retour: ReturnType<typeof messagePaiement>
 }) {
-  const etat = etatAbonnement(statut, { fin })
+  const etat = etatAbonnement(statut, { fin, annule })
   const facture = formuleFacturee(prixCentimes)
   const alerte = alerteTarif(plan, prixCentimes)
   const note = etat.peutSouscrire ? noteFondateur(plan) : null

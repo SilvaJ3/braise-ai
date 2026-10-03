@@ -148,3 +148,36 @@ describe('Mon compte — l’essai de sept jours', () => {
     expect(rendre()).not.toContain('essai')
   })
 })
+
+// La résiliation programmée (0078) : le portail Stripe résilie en fin de période sans toucher au
+// statut de l'abonnement. L'écran doit le dire, sinon il annonce un prélèvement qui n'aura pas lieu.
+describe('Mon compte — la résiliation programmée', () => {
+  const dans = (jours: number) => new Date(Date.now() + jours * 86_400_000).toISOString()
+
+  beforeEach(() => {
+    etat.isLoading = false
+    etat.isError = false
+  })
+
+  it('dit la résiliation à la place du prochain prélèvement', () => {
+    etat.data = compte({
+      plan: 'fondateur',
+      abonnement_statut: 'en_retard',
+      abonnement_fin: dans(23),
+      abonnement_annule: true,
+      abonnement_prix_centimes: 2900,
+    })
+    const html = rendre()
+    expect(html).toContain('Résiliation programmée')
+    expect(html).toContain('plus rien ne sera prélevé')
+    // Le texte de l'impayé ne doit plus apparaître : la personne a résilié, la carte n'est plus le sujet.
+    expect(html).not.toContain('Un prélèvement a échoué')
+  })
+
+  it('ne dit rien d’une résiliation quand la colonne est absente', () => {
+    etat.data = compte({ abonnement_statut: 'actif', abonnement_fin: dans(23), abonnement_annule: undefined })
+    const html = rendre()
+    expect(html).not.toContain('Résiliation programmée')
+    expect(html).toContain('Prochain prélèvement')
+  })
+})

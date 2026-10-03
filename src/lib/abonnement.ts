@@ -82,6 +82,8 @@ export type EtatAbonnement = {
   phrase: string
   /** La fin de période écrite pour un artisan, ou null. */
   fin: string | null
+  /** L'abonnement s'arrête à la fin de la période : plus rien ne sera prélevé. */
+  annule: boolean
   /** L'écran propose-t-il de souscrire ? */
   peutSouscrire: boolean
   /** L'écran propose-t-il d'ouvrir le portail Stripe (carte, factures, résiliation) ? */
@@ -92,15 +94,39 @@ export type EtatAbonnement = {
  * L'état complet de l'abonnement tel qu'il doit s'afficher. Rien n'est inventé sur ce qui n'est pas
  * mesurable : on ne sait pas si l'accès est coupé un jour de retard de prélèvement (il ne l'est
  * pas), donc l'écran parle de la carte, pas de l'accès.
+ *
+ * La résiliation programmée passe AVANT le statut de paiement. Constaté le 03/10/2026 en exerçant
+ * le portail Stripe pour de vrai : « Annuler l'abonnement » ne change pas le statut de
+ * l'abonnement, qui reste `active` (ou `past_due` s'il y avait un impayé) jusqu'à la fin de la
+ * période. Sans ce drapeau, l'écran annonçait « prochain prélèvement le 26 octobre » à quelqu'un
+ * qui venait de résilier — le seul moment où le taire coûte de l'argent à cette personne.
  */
 export function etatAbonnement(
   statutBrut: unknown,
-  options: { fin?: string | null; maintenant?: Date } = {},
+  options: { fin?: string | null; annule?: boolean | null; maintenant?: Date } = {},
 ): EtatAbonnement {
   const statut = statutAbonnement(statutBrut)
   const maintenant = options.maintenant ?? new Date()
   const fin = dateLisible(options.fin)
   const finDevant = dansLeFutur(options.fin, maintenant)
+  const annule = options.annule === true
+
+  // Résiliation programmée : le badge remplace celui du paiement, et la phrase dit la date. Une
+  // résiliation sur une période déjà écoulée est un abonnement terminé — on ne promet pas une date
+  // qui n'ouvre plus rien.
+  if (annule && statut !== 'aucun') {
+    return {
+      statut,
+      badge: 'Résiliation programmée',
+      phrase: finDevant
+        ? `Tu as résilié : ton abonnement reste actif jusqu’au ${fin}, puis plus rien ne sera prélevé.`
+        : 'Ton abonnement est terminé : plus rien ne sera prélevé.',
+      fin,
+      annule: true,
+      peutSouscrire: !finDevant,
+      peutGerer: true,
+    }
+  }
 
   switch (statut) {
     case 'actif':
@@ -111,6 +137,7 @@ export function etatAbonnement(
           ? `Abonnement en cours. Prochain prélèvement le ${fin}.`
           : 'Abonnement en cours.',
         fin,
+        annule: false,
         peutSouscrire: false,
         peutGerer: true,
       }
@@ -121,6 +148,7 @@ export function etatAbonnement(
         phrase:
           'Un prélèvement a échoué. Stripe relance tout seul pendant quelques jours ; mets ta carte à jour si le problème vient d’elle.',
         fin,
+        annule: false,
         peutSouscrire: false,
         peutGerer: true,
       }
@@ -132,6 +160,7 @@ export function etatAbonnement(
           ? `Abonnement résilié : il reste actif jusqu’au ${fin}.`
           : 'Abonnement terminé : plus rien n’est prélevé.',
         fin,
+        annule: false,
         peutSouscrire: true,
         peutGerer: true,
       }
@@ -141,6 +170,7 @@ export function etatAbonnement(
         badge: 'Aucun',
         phrase: 'Aucun abonnement en cours : rien n’est prélevé.',
         fin: null,
+        annule: false,
         peutSouscrire: true,
         peutGerer: false,
       }

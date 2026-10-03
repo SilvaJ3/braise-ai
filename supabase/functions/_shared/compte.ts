@@ -135,6 +135,13 @@ export type UsageMois = {
   acces_ferme_le?: string | null
   /** Fréquence réelle de l'abonnement, lue sur l'identifiant du prix Stripe (0077). */
   abonnement_frequence?: 'mois' | 'an' | null
+  /**
+   * L'abonnement s'arrête à la fin de la période (0077). Lu à part du statut, parce que Stripe ne
+   * change PAS le statut quand on résilie en fin de période : il reste `active` (ou `past_due`)
+   * jusqu'au dernier jour. Le seul endroit où la résiliation est écrite, c'est ce drapeau — sans
+   * lui, l'écran continuait d'annoncer un prochain prélèvement à quelqu'un qui avait résilié.
+   */
+  abonnement_annule?: boolean
 }
 
 /** Une ligne du détail mensuel : quel usage, quelle quantité. */
