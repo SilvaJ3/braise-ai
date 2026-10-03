@@ -199,13 +199,35 @@ Deno.serve(async (req) => {
     }
   }
 
+  // Réglages posés dans Checkout Studio (02/10/2026) : ils valent pour les deux achats.
+  // Ils passent **hors typage** pour deux raisons mesurées à l'API, pas supposées :
+  //   · `ui_mode` — les types de `stripe@17` ne connaissent que `'embedded' | 'hosted'`, alors que
+  //     l'API refuse désormais `hosted` : « The ui_mode value `hosted` is no longer supported.
+  //     Use `hosted_page` instead. » (400). C'est donc `hosted_page` qu'on envoie.
+  //   · `integration_identifier` et `origin_context` — acceptés par l'API (200), absents des types
+  //     du SDK. Un objet hors typage évite d'épingler une version d'API ou de SDK.
+  const reglagesStudio = {
+    ui_mode: 'hosted_page',
+    billing_address_collection: 'auto',
+    phone_number_collection: { enabled: false },
+    automatic_tax: { enabled: true },
+    submit_type: 'auto',
+    // La carte est proposée à l'enregistrement pendant le paiement : le suivant se fait en un clic.
+    saved_payment_method_options: { payment_method_save: 'enabled' },
+    integration_identifier: 'hosted_web_0001',
+    origin_context: 'web',
+  } as unknown as Stripe.Checkout.SessionCreateParams
+
   try {
     const session = pack
       ? await stripe.checkout.sessions.create({
+          ...reglagesStudio,
           mode: 'payment',
           customer: client,
           line_items: [{ price: prixPack(pack, idsPacks!), quantity: 1 }],
           ...fiscalite,
+          // Le pack ne porte pas de remise automatique : la page peut donc accepter un code.
+          allow_promotion_codes: true,
           adaptive_pricing: { enabled: false },
           client_reference_id: utilisateur.id,
           // L'identifiant du compte et le pack voyagent avec la session ET avec le paiement :
@@ -217,6 +239,7 @@ Deno.serve(async (req) => {
           cancel_url: `${url}/compte/mon-compte?paiement=annule`,
         })
       : await stripe.checkout.sessions.create({
+          ...reglagesStudio,
           mode: 'subscription',
           customer: client,
           line_items: [{ price: prixPour(frequence, ids!), quantity: 1 }],
@@ -230,8 +253,13 @@ Deno.serve(async (req) => {
           // pour un prix de 3 900 cents, alors que la base écrivait bien 2 900 (constat du 20/09/2026).
           // Ce qu'on vérifie n'est pas la ligne de code mais la session relue en mode test.
           adaptive_pricing: { enabled: false },
-          // Le tarif fondateur est appliqué tout seul : il n'y a pas de code à saisir.
-          discounts: fondateur ? [{ coupon: ids!.couponFondateur }] : undefined,
+          // Un compte fondateur garde sa remise automatique — c'est le prix qu'on lui a annoncé ;
+          // les autres peuvent saisir un code. Les deux ensemble sont refusés par l'API :
+          // « You may only specify one of these parameters: allow_promotion_codes, discounts »
+          // (400, mesuré le 02/10/2026), d'où le choix exclusif plutôt que deux champs côte à côte.
+          ...(fondateur
+            ? { discounts: [{ coupon: ids!.couponFondateur }] }
+            : { allow_promotion_codes: true }),
           client_reference_id: utilisateur.id,
           subscription_data: {
             metadata: { user_id: utilisateur.id },

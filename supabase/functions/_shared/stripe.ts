@@ -68,15 +68,47 @@ export function statutDepuisStripe(statutStripe: unknown): 'actif' | 'en_retard'
 export type AbonnementStripe = {
   id?: string | null
   status?: string | null
+  /**
+   * Fin de la période en cours. **Stripe ne la met plus à ce niveau** depuis la version d'API 2025
+   * (constaté le 03/10/2026 : `null` ici, la valeur est sur l'item). Gardé pour l'ancien
+   * emplacement, qui reste lu en second recours.
+   */
   current_period_end?: number | null
   /** Fin de l'essai, quand l'abonnement est en essai : `null` sur un abonnement payé. */
   trial_end?: number | null
   /** L'abonnement s'arrête à la fin de la période : personne ne sera prélevé une fois de plus. */
   cancel_at_period_end?: boolean | null
+  /**
+   * L'horodatage exact de l'arrêt, quand la résiliation est programmée à une date précise. C'est
+   * ce que pose le portail Stripe quand on clique « Annuler l'abonnement » — et il laisse
+   * `cancel_at_period_end` à `false`. Ne lire que le booléen, c'est ne pas voir la résiliation.
+   */
+  cancel_at?: number | null
   items?: {
-    data?: Array<{ price?: { id?: string | null; unit_amount?: number | null } | null }> | null
+    data?: Array<{
+      /** Là où Stripe met aujourd'hui la fin de période (version d'API 2025+). */
+      current_period_end?: number | null
+      price?: { id?: string | null; unit_amount?: number | null } | null
+    }> | null
   } | null
   discount?: { coupon?: { amount_off?: number | null; percent_off?: number | null } | null } | null
+}
+
+/**
+ * La fin de la période en cours, en secondes Unix, ou `null`.
+ *
+ * Deux emplacements, et l'ordre compte : `items.data[0].current_period_end` est celui qu'utilise
+ * Stripe aujourd'hui, l'ancien n'est lu que s'il n'y a rien sur l'item. Constaté le 03/10/2026 sur
+ * un abonnement réel : la valeur au niveau de l'abonnement était `null` alors que l'item portait la
+ * date. Ne lire que l'ancien emplacement faisait écrire `null`, et `stripe-webhook` retirait alors
+ * le champ de son écriture — la date en base restait figée sur un événement antérieur, et l'écran
+ * annonçait une échéance périmée comme si elle était à jour.
+ */
+export function finDePeriode(sub: AbonnementStripe): number | null {
+  const surItem = sub.items?.data?.[0]?.current_period_end
+  if (typeof surItem === 'number') return surItem
+  if (typeof sub.current_period_end === 'number') return sub.current_period_end
+  return null
 }
 
 /** Ce qu'un compte paie réellement : le prix du mois, moins la remise en cours. */
@@ -98,6 +130,15 @@ export function montantEffectif(
 /**
  * Ce qu'on écrit sur le compte à partir d'un abonnement Stripe. Un abonnement sans fin de période
  * connue n'écrase pas une date déjà enregistrée : on ne remplace pas une information par du vide.
+ *
+ * `abonnement_annule` dit que l'abonnement s'arrête à la fin de la période. Deux écritures à lire,
+ * parce que Stripe en utilise deux selon le chemin : le booléen `cancel_at_period_end` (résiliation
+ * « à la fin de la période ») et `cancel_at` (arrêt à une date précise), que le **portail Stripe**
+ * pose quand on clique « Annuler l'abonnement » — il laisse alors le booléen à `false`. Constaté le
+ * 03/10/2026 : ne lire que le booléen, c'est ignorer toute résiliation passée par le portail.
+ *
+ * Un `cancel_at` sur un abonnement déjà terminé ne compte pas : ce n'est pas une résiliation à
+ * venir, c'est une date passée — et l'écran annoncerait un arrêt qui a déjà eu lieu.
  */
 export function champsDepuisAbonnement(
   sub: AbonnementStripe,
@@ -113,17 +154,17 @@ export function champsDepuisAbonnement(
 } {
   const prix = sub.items?.data?.[0]?.price ?? null
   const annuel = repere?.prixAnnuel ?? null
+  const statut = statutDepuisStripe(sub.status)
+  const fin = finDePeriode(sub)
   return {
     stripe_subscription_id: sub.id ?? null,
-    abonnement_statut: statutDepuisStripe(sub.status),
-    abonnement_fin:
-      typeof sub.current_period_end === 'number'
-        ? new Date(sub.current_period_end * 1000).toISOString()
-        : null,
+    abonnement_statut: statut,
+    abonnement_fin: typeof fin === 'number' ? new Date(fin * 1000).toISOString() : null,
     abonnement_prix_centimes: montantEffectif(prix?.unit_amount ?? null, sub.discount?.coupon ?? null),
     essai_fin:
       typeof sub.trial_end === 'number' ? new Date(sub.trial_end * 1000).toISOString() : null,
-    abonnement_annule: sub.cancel_at_period_end === true,
+    abonnement_annule:
+      statut !== 'resilie' && (sub.cancel_at_period_end === true || typeof sub.cancel_at === 'number'),
     abonnement_frequence: prix?.id && annuel ? (prix.id === annuel ? 'an' : 'mois') : null,
   }
 }
