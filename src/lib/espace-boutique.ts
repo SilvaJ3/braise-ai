@@ -221,6 +221,63 @@ export function lireBons(brut: unknown): { bons: BonEspace[]; erreur: string | n
   return { bons, erreur: null }
 }
 
+/**
+ * Une ligne de l'historique de ses ventes : ce que la boutique a déclaré à cet artisan, et ce que
+ * l'artisan en a fait. `boutique_historique` ne rend que des TOTAUX (ventes, reprises, montant
+ * facturable) et les 12 dernières déclarations — jamais le détail pièce par pièce.
+ */
+export type ReleveEspace = {
+  /** La date de la déclaration (ISO), pour le mois et le jour. */
+  declaration: string | null
+  ventes: number
+  reprises: number
+  /** Le montant que la boutique doit à l'artisan pour cette déclaration, en euros. */
+  facturable: number
+  /** `declaree` (pas encore regardée), `validee`, `corrigee` (écartée) ; `null` si la base ne le dit pas. */
+  statut: 'declaree' | 'validee' | 'corrigee' | null
+}
+
+/** L'historique rendu par `boutique_compte_historique()`, du plus récent au plus ancien (tel que la base le trie). */
+export function lireHistorique(brut: unknown): { releves: ReleveEspace[]; erreur: string | null } {
+  const o = (brut ?? {}) as Record<string, unknown>
+  if (o.erreur) return { releves: [], erreur: String(o.erreur) }
+  const liste = Array.isArray(o.historique) ? o.historique : []
+  const releves = liste.map((l): ReleveEspace => {
+    const h = (l ?? {}) as Record<string, unknown>
+    const s = h.statut
+    return {
+      declaration: h.declaration ? String(h.declaration) : null,
+      ventes: n(h.ventes),
+      reprises: n(h.reprises),
+      facturable: n(h.facturable),
+      statut: s === 'declaree' || s === 'validee' || s === 'corrigee' ? s : null,
+    }
+  })
+  return { releves, erreur: null }
+}
+
+/** « septembre 2026 » depuis une date ISO ; « — » si elle est illisible. */
+export function moisLisible(v: string | null | undefined): string {
+  const m = /^(\d{4})-(\d{2})/.exec(String(v ?? ''))
+  if (!m) return '—'
+  const mois = Number(m[2])
+  const noms = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre']
+  return mois >= 1 && mois <= 12 ? `${noms[mois - 1]} ${m[1]}` : '—'
+}
+
+/**
+ * Ce que la boutique lit du sort de chaque déclaration. Un relevé écarté ne compte plus dans le stock :
+ * on le dit, la trace reste. Un statut que la base ne donne pas ne s'invente pas (null = rien à dire).
+ */
+export function texteStatutReleve(s: ReleveEspace['statut']): string | null {
+  switch (s) {
+    case 'declaree': return "Envoyé à l'artisan, pas encore regardé"
+    case 'validee': return "Validé par l'artisan"
+    case 'corrigee': return "Écarté par l'artisan : ne compte plus"
+    default: return null
+  }
+}
+
 /** Ce que la boutique a reçu de cet artisan, en une phrase : les zéros ne se disent pas. */
 export function resumeFournisseur(bons: BonEspace[], pieces: PieceEspace[]): string {
   const recus = bons.filter((b) => b.confirme_le)

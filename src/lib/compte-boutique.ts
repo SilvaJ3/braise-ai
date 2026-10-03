@@ -7,7 +7,15 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { lireAbonnementBoutique, type LigneAbonnementBoutique } from './abonnement-boutique'
-import { lireBons, lireEtat, messageEspace, type BonEspace, type EtatEspace } from './espace-boutique'
+import {
+  lireBons,
+  lireEtat,
+  lireHistorique,
+  messageEspace,
+  type BonEspace,
+  type EtatEspace,
+  type ReleveEspace,
+} from './espace-boutique'
 import { supabase } from './supabase'
 
 export type CompteBoutique =
@@ -78,6 +86,22 @@ export function useEspaceBons(partenaireId: string | undefined) {
       const { bons, erreur } = lireBons(reponse)
       if (erreur) throw new Error(erreur)
       return bons
+    },
+  })
+}
+
+/**
+ * Ses ventes déclarées à un artisan : les 12 dernières déclarations, en totaux. Lecture seule — l'envoi
+ * d'une déclaration est un autre geste. Le détail pièce par pièce n'existe pas dans cette réponse.
+ */
+export function useEspaceHistorique(partenaireId: string | undefined) {
+  return useQuery({
+    queryKey: ['espace-historique', partenaireId],
+    enabled: Boolean(partenaireId),
+    queryFn: async (): Promise<ReleveEspace[]> => {
+      const { releves, erreur } = lireHistorique(await rpc('boutique_compte_historique', { partenaire_param: partenaireId }))
+      if (erreur) throw new Error(messageEspace(erreur))
+      return releves
     },
   })
 }

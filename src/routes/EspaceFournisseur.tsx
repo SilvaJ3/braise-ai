@@ -84,6 +84,23 @@ export default function EspaceFournisseur() {
 
       {fournisseur && (
         <Link
+          to={`/espace-boutique/fournisseur/${fournisseur.partenaire_id}/historique`}
+          className="card"
+          style={{ display: 'block' }}
+        >
+          <div className="row">
+            <strong>Mes ventes déclarées à {nom}</strong>
+            <div className="spacer" />
+            <span className="muted">›</span>
+          </div>
+          <p className="muted" style={{ margin: '6px 0 0' }}>
+            Mois par mois, ce que tu as déclaré et ce que l'artisan en a fait.
+          </p>
+        </Link>
+      )}
+
+      {fournisseur && (
+        <Link
           to={`/espace-boutique/fournisseur/${fournisseur.partenaire_id}/reste`}
           className="card"
           style={{ display: 'block' }}

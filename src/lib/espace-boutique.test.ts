@@ -4,13 +4,16 @@ import {
   lignesDemandees,
   lireBons,
   lireEtat,
+  lireHistorique,
   messageEspace,
+  moisLisible,
   montant,
   periodeLisible,
   propositionsReassort,
   quantite,
   resumeFournisseur,
   statutBon,
+  texteStatutReleve,
   totalDemande,
   totalRestant,
   type BonEspace,
@@ -255,5 +258,46 @@ describe('messageEspace', () => {
     expect(messageEspace('pas_un_compte_boutique')).toBe("Ce compte n'est pas un compte de boutique.")
     expect(messageEspace(undefined)).toBe('Session expirée — reconnecte-toi.')
     expect(messageEspace('bizarre')).toBe('Erreur : bizarre')
+  })
+})
+
+describe('l’historique de ses ventes déclarées', () => {
+  it('lit les totaux de chaque déclaration, dans l’ordre rendu par la base', () => {
+    const { releves, erreur } = lireHistorique({
+      historique: [
+        { declaration: '2026-09-28', ventes: 4, reprises: 1, facturable: 52.5, statut: 'validee' },
+        { declaration: '2026-08-30', ventes: '3', reprises: 0, facturable: '30' },
+      ],
+    })
+    expect(erreur).toBeNull()
+    expect(releves).toEqual([
+      { declaration: '2026-09-28', ventes: 4, reprises: 1, facturable: 52.5, statut: 'validee' },
+      { declaration: '2026-08-30', ventes: 3, reprises: 0, facturable: 30, statut: null },
+    ])
+  })
+
+  it('un refus de la base remonte son code, une réponse vide donne une liste vide', () => {
+    expect(lireHistorique({ erreur: 'partenaire_inconnu' })).toEqual({ releves: [], erreur: 'partenaire_inconnu' })
+    expect(lireHistorique({ historique: [] }).releves).toEqual([])
+    expect(lireHistorique(null).releves).toEqual([])
+  })
+
+  it('un statut inconnu devient « rien à dire », jamais un texte inventé', () => {
+    const { releves } = lireHistorique({ historique: [{ declaration: '2026-09-28', statut: 'bizarre' }] })
+    expect(releves[0].statut).toBeNull()
+    expect(texteStatutReleve(releves[0].statut)).toBeNull()
+  })
+
+  it('dit le sort de chaque statut, dont celui d’un relevé écarté', () => {
+    expect(texteStatutReleve('declaree')).toMatch(/pas encore regardé/)
+    expect(texteStatutReleve('validee')).toMatch(/Validé/)
+    expect(texteStatutReleve('corrigee')).toMatch(/ne compte plus/)
+  })
+
+  it('écrit le mois en toutes lettres, et « — » quand la date est illisible', () => {
+    expect(moisLisible('2026-09-28')).toBe('septembre 2026')
+    expect(moisLisible('2026-12-01T10:00:00Z')).toBe('décembre 2026')
+    expect(moisLisible(null)).toBe('—')
+    expect(moisLisible('2026-13-01')).toBe('—')
   })
 })
