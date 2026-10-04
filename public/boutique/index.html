@@ -138,7 +138,15 @@ const mois = (iso) => {
 }
 
 if (!jeton) {
-  contenu.innerHTML = '<p class="message ko">Ce lien est incomplet. Demandez à l\'artisan de vous le renvoyer.</p>'
+  // Pas de jeton dans l'adresse : ce n'est pas une erreur, c'est quelqu'un qui arrive sur le site. Deux portes :
+  // son compte (l'espace complet vit dans l'application) ou le lien reçu d'un artisan (cette page-ci).
+  $('titre').textContent = 'Bienvenue'
+  $('sous-titre').textContent = 'Retrouve tes dépôts-ventes avec les artisans.'
+  contenu.innerHTML =
+    '<p>Tu as un compte Braaise pour ta boutique ?</p>' +
+    '<a class="principal" style="display:block;text-align:center;text-decoration:none" href="https://artisan.braaise.io/login">Me connecter à mon espace boutique</a>' +
+    '<h2>Tu as reçu un lien d\'un artisan ?</h2>' +
+    '<p class="aide">Ouvre-le directement : il te montre tes pièces en dépôt et ce qu\'il te reste, sans compte à créer.</p>'
 } else {
   demarrer()
 }
