@@ -2,6 +2,16 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
+      "source": "/boutique/:jeton",
+      "destination": "/boutique/index.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "redirects": [
+    {
       "source": "/",
       "has": [
         {
@@ -9,15 +19,8 @@
           "value": "boutique.braaise.io"
         }
       ],
-      "destination": "/boutique/index.html"
-    },
-    {
-      "source": "/boutique/:jeton",
-      "destination": "/boutique/index.html"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "destination": "/boutique/",
+      "permanent": false
     }
   ]
 }
