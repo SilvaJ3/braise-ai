@@ -26,13 +26,19 @@ import { envoyerMail } from '../_shared/mailer.ts'
 import {
   mailBonConfirme,
   mailReassort,
+  mailReleveEmis,
+  mailStockMouvement,
   pushBonConfirme,
   pushReassort,
+  pushReleveEmis,
+  pushStockMouvement,
   type BonConfirme,
   type Ligne,
   type Message,
   type Push,
   type Reassort,
+  type ReleveEmis,
+  type StockMouvement,
   type TypeNotifArtisan,
 } from '../_shared/notif-artisan.ts'
 
@@ -180,6 +186,48 @@ async function contenuReassort(ref: Record<string, unknown>, appUrl: string): Pr
   }
 }
 
+async function contenuStockMouvement(ref: Record<string, unknown>, appUrl: string): Promise<Contenu> {
+  const boutiqueId = String(ref.boutique_id ?? '')
+  if (!boutiqueId) return { abandon: 'boutique absente de la notification' }
+
+  const { data: b } = await admin.from('boutiques').select('nom').eq('id', boutiqueId).maybeSingle()
+  const boutique = String(b?.nom ?? '').trim() || 'Une boutique'
+
+  const doc: StockMouvement = {
+    boutique,
+    nb_lignes: Number(ref.nb_lignes ?? 0),
+    facturable: Number(ref.facturable ?? 0),
+    periode: String(ref.periode ?? '').slice(0, 7),
+  }
+
+  return {
+    push: pushStockMouvement(doc),
+    mail: mailStockMouvement(doc, { lien: appUrl ? `${appUrl}/ventes` : '' }),
+  }
+}
+
+async function contenuReleveEmis(ref: Record<string, unknown>, appUrl: string): Promise<Contenu> {
+  const boutiqueId = String(ref.boutique_id ?? '')
+  if (!boutiqueId) return { abandon: 'boutique absente de la notification' }
+
+  const { data: b } = await admin.from('boutiques').select('nom').eq('id', boutiqueId).maybeSingle()
+  const boutique = String(b?.nom ?? '').trim() || 'Une boutique'
+
+  const doc: ReleveEmis = {
+    boutique,
+    numero: String(ref.numero ?? ''),
+    periode_debut: String(ref.periode_debut ?? ''),
+    periode_fin: String(ref.periode_fin ?? ''),
+    total_ventes: Number(ref.total_ventes ?? 0),
+    nb_declarations: Number(ref.nb_declarations ?? 0),
+  }
+
+  return {
+    push: pushReleveEmis(doc),
+    mail: mailReleveEmis(doc, { lien: appUrl ? `${appUrl}/releves` : '' }),
+  }
+}
+
 /**
  * Le push passe par la fonction `push` (celle des rappels de planning) : la clé VAPID, l'envoi et
  * le ménage des abonnements expirés vivent là-bas, et une seule implémentation vaut mieux que deux.
@@ -223,7 +271,13 @@ async function traiterUne(
   const contenu =
     row.type === 'bon_confirme'
       ? await contenuBonConfirme(ref, opts.appUrl)
-      : await contenuReassort(ref, opts.appUrl)
+      : row.type === 'reassort'
+        ? await contenuReassort(ref, opts.appUrl)
+        : row.type === 'stock_mouvement'
+          ? await contenuStockMouvement(ref, opts.appUrl)
+          : row.type === 'releve_emis'
+            ? await contenuReleveEmis(ref, opts.appUrl)
+            : { abandon: `type inconnu : ${row.type}` }
 
   if ('abandon' in contenu) {
     const erreur = contenu.abandon
