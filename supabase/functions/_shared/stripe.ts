@@ -11,6 +11,9 @@ export type IdentifiantsStripe = {
   prixMensuel: string
   prixAnnuel: string
   couponFondateur: string
+  /** Les prix des comptes boutique (49 € / 490 € HTVA) : absents, la boutique ne peut pas s'abonner. */
+  boutiqueMensuel?: string
+  boutiqueAnnuel?: string
 }
 
 /** Une fréquence inconnue retombe sur le mois : on ne prélève jamais l'annuel par accident. */
@@ -18,8 +21,11 @@ export function frequenceValide(v: unknown): Frequence {
   return v === 'an' ? 'an' : 'mois'
 }
 
-export function prixPour(f: Frequence, ids: IdentifiantsStripe): string {
-  return f === 'an' ? ids.prixAnnuel : ids.prixMensuel
+export function prixPour(f: Frequence, ids: IdentifiantsStripe, boutique = false): string | null {
+  const [mensuel, annuel] = boutique
+    ? [ids.boutiqueMensuel, ids.boutiqueAnnuel]
+    : [ids.prixMensuel, ids.prixAnnuel]
+  return (f === 'an' ? annuel : mensuel) ?? null
 }
 
 /**
@@ -142,7 +148,7 @@ export function montantEffectif(
  */
 export function champsDepuisAbonnement(
   sub: AbonnementStripe,
-  repere?: { prixAnnuel?: string | null },
+  repere?: { prixAnnuel?: string | null | readonly (string | null | undefined)[] },
 ): {
   stripe_subscription_id: string | null
   abonnement_statut: 'actif' | 'en_retard' | 'resilie' | 'aucun'
@@ -153,7 +159,7 @@ export function champsDepuisAbonnement(
   abonnement_frequence: 'mois' | 'an' | null
 } {
   const prix = sub.items?.data?.[0]?.price ?? null
-  const annuel = repere?.prixAnnuel ?? null
+  const annuels = [repere?.prixAnnuel].flat().filter(Boolean)
   const statut = statutDepuisStripe(sub.status)
   const fin = finDePeriode(sub)
   return {
@@ -165,7 +171,7 @@ export function champsDepuisAbonnement(
       typeof sub.trial_end === 'number' ? new Date(sub.trial_end * 1000).toISOString() : null,
     abonnement_annule:
       statut !== 'resilie' && (sub.cancel_at_period_end === true || typeof sub.cancel_at === 'number'),
-    abonnement_frequence: prix?.id && annuel ? (prix.id === annuel ? 'an' : 'mois') : null,
+    abonnement_frequence: prix?.id && annuels.length ? (annuels.includes(prix.id) ? 'an' : 'mois') : null,
   }
 }
 

@@ -23,7 +23,8 @@
 // retrouver le compte.
 //
 // Secrets attendus : STRIPE_SECRET_KEY, STRIPE_PRIX_MENSUEL, STRIPE_PRIX_ANNUEL,
-// STRIPE_COUPON_FONDATEUR, STRIPE_PRIX_PACK_30, STRIPE_PRIX_PACK_50.
+// STRIPE_COUPON_FONDATEUR, STRIPE_PRIX_PACK_30, STRIPE_PRIX_PACK_50,
+// STRIPE_PRIX_BOUTIQUE_MENSUEL, STRIPE_PRIX_BOUTIQUE_ANNUEL (comptes boutique, 49 / 490 € HTVA).
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import Stripe from 'npm:stripe@17'
@@ -62,7 +63,13 @@ function identifiants(): IdentifiantsStripe | null {
   const prixAnnuel = Deno.env.get('STRIPE_PRIX_ANNUEL')?.trim()
   const couponFondateur = Deno.env.get('STRIPE_COUPON_FONDATEUR')?.trim()
   if (!prixMensuel || !prixAnnuel || !couponFondateur) return null
-  return { prixMensuel, prixAnnuel, couponFondateur }
+  return {
+    prixMensuel,
+    prixAnnuel,
+    couponFondateur,
+    boutiqueMensuel: Deno.env.get('STRIPE_PRIX_BOUTIQUE_MENSUEL')?.trim() || undefined,
+    boutiqueAnnuel: Deno.env.get('STRIPE_PRIX_BOUTIQUE_ANNUEL')?.trim() || undefined,
+  }
 }
 
 /**
@@ -128,6 +135,25 @@ Deno.serve(async (req) => {
     .eq('user_id', utilisateur.id)
     .maybeSingle()
 
+  // Un compte boutique (migration 0067 : `boutique_liens.compte_id`) paie le tarif boutique et n'a
+  // jamais le tarif fondateur. Son état d'abonnement vit dans `assistant_profil` comme celui d'un
+  // artisan : la ligne est créée si elle manque (les écritures plus bas ne toucheraient rien).
+  const { data: lienBoutique } = await admin
+    .from('boutique_liens')
+    .select('id')
+    .eq('compte_id', utilisateur.id)
+    .eq('actif', true)
+    .maybeSingle()
+  const boutique = Boolean(lienBoutique)
+  const prix = pack ? null : prixPour(frequence, ids!, boutique)
+  if (!pack && !prix) {
+    console.error('[stripe-checkout] prix manquant pour', boutique ? 'boutique' : 'artisan', frequence)
+    return json({ erreur: 'Le paiement n’est pas disponible pour le moment.' }, 503)
+  }
+  if (boutique && !profil) {
+    await admin.from('assistant_profil').upsert({ user_id: utilisateur.id }, { onConflict: 'user_id', ignoreDuplicates: true })
+  }
+
   // Un compte déjà en abonnement (ou en essai) n'en ouvre pas un second : il gère le sien depuis
   // « Mon compte ». Sans cette garde, un clic de trop créait deux abonnements chez Stripe, et la
   // personne était prélevée deux fois.
@@ -148,7 +174,9 @@ Deno.serve(async (req) => {
   const renonce = corps?.renonce_retractation === true
   if (!pack && !renonce) return json({ erreur: RENONCIATION_REQUISE, renonciation: true }, 400)
 
-  const stripe = new Stripe(cle)
+  // `ui_mode: 'hosted_page'` (Checkout Studio) n'existe qu'à partir de cette version d'API ; les
+  // types de stripe@17 ne la connaissent pas, d'où le cast.
+  const stripe = new Stripe(cle, { apiVersion: '2026-03-25.dahlia' as never })
   const url = await adresseApp()
 
   // Un client Stripe par compte, créé à la première demande puis réutilisé.
@@ -170,7 +198,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  const fondateur = appliqueCouponFondateur(profil?.plan, frequence)
+  const fondateur = !boutique && appliqueCouponFondateur(profil?.plan, frequence)
 
   // La TVA est ACTIVE depuis le 02/10/2026 (BCE 1043.060.596 immatriculé, assujetti au régime
   // normal) : les prix se lisent HTVA et 21 % s'ajoutent, c'est Stripe Tax qui les calcule. Deux
@@ -242,7 +270,7 @@ Deno.serve(async (req) => {
           ...reglagesStudio,
           mode: 'subscription',
           customer: client,
-          line_items: [{ price: prixPour(frequence, ids!), quantity: 1 }],
+          line_items: [{ price: prix!, quantity: 1 }],
           ...fiscalite,
           // La carte est exigée MÊME pendant l'essai : c'est elle qui fait du 8e jour un prélèvement
           // et non une décision à prendre. Un essai sans carte laissait l'artisan s'installer dans

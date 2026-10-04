@@ -35,6 +35,21 @@ describe('la fréquence choisie', () => {
     expect(prixPour('mois', IDS)).toBe('price_mensuel')
     expect(prixPour('an', IDS)).toBe('price_annuel')
   })
+
+  it('donne le prix boutique à une boutique, et rien tant qu’il n’est pas configuré', () => {
+    expect(prixPour('mois', IDS, true)).toBeNull()
+    const ids = { ...IDS, boutiqueMensuel: 'price_b_mois', boutiqueAnnuel: 'price_b_an' }
+    expect(prixPour('mois', ids, true)).toBe('price_b_mois')
+    expect(prixPour('an', ids, true)).toBe('price_b_an')
+    expect(prixPour('an', ids)).toBe('price_annuel')
+  })
+
+  it('reconnaît l’annuel d’une boutique dans le webhook', () => {
+    const sub = { id: 'sub_1', status: 'active', items: { data: [{ price: { id: 'price_b_an' } }] } }
+    const repere = { prixAnnuel: ['price_annuel', 'price_b_an'] }
+    expect(champsDepuisAbonnement(sub, repere).abonnement_frequence).toBe('an')
+    expect(champsDepuisAbonnement(sub, { prixAnnuel: 'price_annuel' }).abonnement_frequence).toBe('mois')
+  })
 })
 
 describe('le tarif fondateur', () => {

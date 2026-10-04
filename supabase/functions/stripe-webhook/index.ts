@@ -23,13 +23,14 @@ const admin = createClient(SUPABASE_URL, SERVICE_KEY)
 
 /** L'identifiant du prix annuel : il sert à écrire la fréquence réelle de l'abonnement (0077). */
 const PRIX_ANNUEL = Deno.env.get('STRIPE_PRIX_ANNUEL')?.trim() ?? null
+const PRIX_BOUTIQUE_ANNUEL = Deno.env.get('STRIPE_PRIX_BOUTIQUE_ANNUEL')?.trim() ?? null
 
 /** Écrit l'état de l'abonnement sur le compte, retrouvé par son client Stripe. */
 async function majDepuisAbonnement(stripe: Stripe, abonnementId: string, userIdConnu?: string | null) {
   const sub = await stripe.subscriptions.retrieve(abonnementId, { expand: ['discount'] })
   const champs = champsDepuisAbonnement(
     sub as unknown as Parameters<typeof champsDepuisAbonnement>[0],
-    { prixAnnuel: PRIX_ANNUEL },
+    { prixAnnuel: [PRIX_ANNUEL, PRIX_BOUTIQUE_ANNUEL] },
   )
 
   // `essai_fin` ne s'écrit que quand Stripe dit qu'il y a un essai : un abonnement payé n'en a plus,
