@@ -24,6 +24,7 @@ import { construireMailBon } from '../_shared/mail-bon.ts'
 import { envoyerMail } from '../_shared/mailer.ts'
 import { construirePresentation, fautPresenter } from '../_shared/presentation-boutique.ts'
 import { accesDuCompte } from '../_shared/essai-rpc.ts'
+import { destinatairesDeCompte } from '../_shared/demo.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -234,7 +235,7 @@ async function lienDeLaBoutique(userId: string, boutiqueId: string | null): Prom
  * parti et reste acquis), et ce n'est pas une deuxième présentation — un envoi réussi ferme la
  * porte pour de bon.
  */
-async function presenterLaBoutique(lien: LienBoutique, doc: DepotDoc): Promise<void> {
+async function presenterLaBoutique(lien: LienBoutique, doc: DepotDoc, redirection: string | null = null): Promise<void> {
   // Sans clé d'envoi il n'y a pas de présentation possible — et surtout pas d'échec à remonter :
   // le bon, lui, est déjà parti.
   if (!lien.email || !RESEND_API_KEY) return
@@ -262,8 +263,9 @@ async function presenterLaBoutique(lien: LienBoutique, doc: DepotDoc): Promise<v
     {
       fromName: doc.emetteur.nom || 'Suivi des dépôts',
       replyTo: doc.emetteur.email || undefined,
-      // L'adresse du lien, pas celles du bon : c'est la boutique qui a reçu le lien qui le reçoit.
-      to: [lien.email],
+      // L'adresse du lien, pas celles du bon : c'est la boutique qui a reçu le lien qui le reçoit —
+      // sauf compte de démonstration, où rien ne doit sortir (l'adresse du compte est passée ici).
+      to: [redirection || lien.email],
       subject: mail.subject,
       text: mail.text,
       html: mail.html,
@@ -317,7 +319,7 @@ async function handleApercu(userId: string, body: Record<string, unknown>): Prom
   }
 }
 
-async function handleEnvoyer(userId: string, body: Record<string, unknown>): Promise<Response> {
+async function handleEnvoyer(userId: string, body: Record<string, unknown>, demo = false): Promise<Response> {
   if (!RESEND_API_KEY) {
     return json({ error: "Le service d'envoi de mail n'est pas configuré (secret RESEND_API_KEY)." }, 500)
   }
@@ -357,6 +359,11 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>): Pro
     )
   }
 
+  // Compte de démonstration : les destinataires sont remplacés par l'adresse du compte, et le mail
+  // le dit (`_shared/demo.ts`). Le contrôle ci-dessus, lui, a porté sur les adresses VISÉES : c'est
+  // bien la boutique qu'on voulait joindre qui a été vérifiée, pas celle à qui l'on écrit.
+  const envoi = destinatairesDeCompte(demo, doc.emetteur.email, to, cc)
+
   if (!doc.numero) doc.numero = await attribuerNumero(userId, doc.date_depot)
 
   let pdf: Uint8Array
@@ -386,8 +393,8 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>): Pro
       photo_image: doc.photo_image,
       signed_at: row.signed_at ?? new Date().toISOString(),
       pdf_path: upErr ? null : path,
-      email_to: to,
-      email_cc: cc,
+      email_to: envoi.to,
+      email_cc: envoi.cc,
       send_error: null,
     })
     .eq('id', row.id)
@@ -399,15 +406,18 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>): Pro
     lien = await lienDeLaBoutique(userId, row.boutique_id)
     // Version brute ET version mise en page (voir `_shared/mail-bon.ts`) : sans la seconde, le lien
     // de la boutique partait en texte mort, et le client de messagerie n'en faisait pas un lien.
-    const mail = construireMailBon(doc, lien.url ? { lien: lien.url } : undefined)
+    const mail = construireMailBon(doc, {
+      ...(lien.url ? { lien: lien.url } : {}),
+      ...(envoi.redirige.length ? { demo: envoi.redirige } : {}),
+    })
     await envoyerMail(
       { apiKey: RESEND_API_KEY, domain: MAIL_DOMAIN },
       {
         fromName: doc.emetteur.nom,
         // Les réponses des boutiques arrivent directement dans la boîte de l'utilisateur.
         replyTo: doc.emetteur.email || undefined,
-        to,
-        cc,
+        to: envoi.to,
+        cc: envoi.cc,
         subject: mail.subject,
         text: mail.text,
         html: mail.html,
@@ -431,12 +441,12 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>): Pro
   // introduction (décision du 20/09/2026). En échec, on le dit dans le journal et le bon suivant
   // réessaiera : la présentation n'a jamais le droit de faire échouer l'envoi du bon.
   try {
-    await presenterLaBoutique(lien, doc)
+    await presenterLaBoutique(lien, doc, envoi.redirige.length ? doc.emetteur.email : null)
   } catch (e) {
     console.error('présenter la boutique', String((e as Error).message ?? e).slice(0, 300))
   }
 
-  return json({ numero: doc.numero, sent_to: [...to, ...cc], pdf_path: upErr ? null : path })
+  return json({ numero: doc.numero, sent_to: [...envoi.to, ...envoi.cc], pdf_path: upErr ? null : path })
 }
 
 /**
@@ -449,7 +459,7 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>): Pro
  * **mêmes adresses** (celles figées à l'envoi — jamais un destinataire neuf), et l'objet comme la
  * première phrase annoncent la correction.
  */
-async function handleRenvoyer(userId: string, body: Record<string, unknown>): Promise<Response> {
+async function handleRenvoyer(userId: string, body: Record<string, unknown>, demo = false): Promise<Response> {
   if (!RESEND_API_KEY) {
     return json({ error: "Le service d'envoi de mail n'est pas configuré (secret RESEND_API_KEY)." }, 500)
   }
@@ -470,6 +480,9 @@ async function handleRenvoyer(userId: string, body: Record<string, unknown>): Pr
   if (refuses.length) {
     return json({ error: `Destinataire non autorisé : ${refuses.join(', ')}.` }, 403)
   }
+
+  // Même règle qu'à l'envoi : un compte de démonstration ne fait sortir personne de chez lui.
+  const envoi = destinatairesDeCompte(demo, doc.emetteur.email, to, cc)
 
   // Le PDF déjà archivé est le document que la boutique a reçu : on le renvoie tel quel. S'il a
   // disparu du stockage, on le régénère depuis le bon — jamais de renvoi sans pièce jointe.
@@ -492,6 +505,7 @@ async function handleRenvoyer(userId: string, body: Record<string, unknown>): Pr
   const mail = construireMailBon(doc, {
     ...(lien.url ? { lien: lien.url } : {}),
     correction: true,
+    ...(envoi.redirige.length ? { demo: envoi.redirige } : {}),
   })
   try {
     await envoyerMail(
@@ -499,8 +513,8 @@ async function handleRenvoyer(userId: string, body: Record<string, unknown>): Pr
       {
         fromName: doc.emetteur.nom,
         replyTo: doc.emetteur.email || undefined,
-        to,
-        ...(cc.length ? { cc } : {}),
+        to: envoi.to,
+        ...(envoi.cc.length ? { cc: envoi.cc } : {}),
         subject: mail.subject,
         text: mail.text,
         html: mail.html,
@@ -520,7 +534,7 @@ async function handleRenvoyer(userId: string, body: Record<string, unknown>): Pr
     .update({ sent_at: envoyeLe, send_error: null })
     .eq('id', row.id)
 
-  return json({ numero: doc.numero, renvoye_a: [...to, ...cc], sent_at: envoyeLe, correction: true })
+  return json({ numero: doc.numero, renvoye_a: [...envoi.to, ...envoi.cc], sent_at: envoyeLe, correction: true })
 }
 
 Deno.serve(async (req) => {
@@ -543,8 +557,8 @@ Deno.serve(async (req) => {
     const body = ((await req.json().catch(() => null)) ?? {}) as Record<string, unknown>
     const mode = body.mode ?? 'apercu'
     if (mode === 'apercu') return await handleApercu(userData.user.id, body)
-    if (mode === 'envoyer') return await handleEnvoyer(userData.user.id, body)
-    if (mode === 'renvoyer') return await handleRenvoyer(userData.user.id, body)
+    if (mode === 'envoyer') return await handleEnvoyer(userData.user.id, body, acces.demo)
+    if (mode === 'renvoyer') return await handleRenvoyer(userData.user.id, body, acces.demo)
     return json({ error: `mode inconnu: ${mode}` }, 400)
   } catch (e) {
     console.error(e)

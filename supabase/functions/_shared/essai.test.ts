@@ -76,6 +76,16 @@ describe('accesAutorise', () => {
     ).toBe(true)
   })
 
+  it('un compte de démonstration passe aussi, et il est distinct du compte de test (02/10)', () => {
+    expect(
+      accesAutorise({ essai_fin: finDans(-30), abonnement_statut: 'aucun', demo: true }, MAINTENANT),
+    ).toBe(true)
+    // Le drapeau ne se devine pas : une valeur approchante ne l'ouvre pas.
+    expect(
+      accesAutorise({ essai_fin: finDans(-30), abonnement_statut: 'aucun', demo: false }, MAINTENANT),
+    ).toBe(false)
+  })
+
   it('un accès offert ouvre la porte, même essai fini (0076)', () => {
     expect(
       accesAutorise({ essai_fin: finDans(-30), abonnement_statut: 'aucun', acces_gratuit: true }, MAINTENANT),

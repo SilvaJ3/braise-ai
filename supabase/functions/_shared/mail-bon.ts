@@ -22,6 +22,7 @@ import {
   type DepotDoc,
 } from './depot-doc.ts'
 import { mailHtml } from './mail-html.ts'
+import { mentionDemo } from './demo.ts'
 
 export type MailBon = { subject: string; text: string; html: string }
 
@@ -38,15 +39,21 @@ export const PHRASE_CORRECTION =
  *
  * `correction: true` = c'est un **renvoi** : même bon, même lien, mais l'objet et la première
  * phrase annoncent qu'il corrige le précédent (constat du 27/09/2026 sur le bon 2026-009).
+ *
+ * `demo` = les adresses réellement visées, écartées parce que le compte est une démonstration
+ * (voir `demo.ts`). Elles sont annoncées dans le message : sans ça, le propriétaire du compte
+ * croirait que le bon est parti à la boutique qu'il vient de montrer.
  */
 export function construireMailBon(
   doc: DepotDoc,
-  options?: { lien?: string; correction?: boolean },
+  options?: { lien?: string; correction?: boolean; demo?: string[] },
 ): MailBon {
   const lien = String(options?.lien ?? '').trim()
   const correction = options?.correction === true
+  const demo = options?.demo ?? []
   // La phrase de correction passe devant, dans les deux versions : c'est la première chose à lire.
   const texte = [
+    ...(demo.length ? [mentionDemo(demo), ''] : []),
     ...(correction ? [PHRASE_CORRECTION, ''] : []),
     emailBody(doc, lien ? { lien } : undefined),
   ].join('\n')
@@ -58,6 +65,7 @@ export function construireMailBon(
   const contact = [doc.emetteur.nom, doc.emetteur.telephone, doc.emetteur.email].filter(Boolean)
 
   const paragraphes = [
+    ...(demo.length ? [mentionDemo(demo)] : []),
     ...(correction ? [PHRASE_CORRECTION] : []),
     `Voici ${reference.toLowerCase()} du ${fmtDateLongue(doc.date_depot)} pour ${doc.boutique_nom}, signé, en pièce jointe.`,
     `Articles ${doc.mode === 'achat_ferme' ? 'livrés' : 'déposés'} : ${articles || '—'}`,
@@ -72,8 +80,9 @@ export function construireMailBon(
   }
 
   const objet = emailSubject(doc)
+  const prefixe = [...(demo.length ? ['[démo]'] : []), ...(correction ? ['Correction'] : [])]
   return {
-    subject: correction ? `Correction — ${objet}` : objet,
+    subject: prefixe.length ? `${prefixe.join(' — ')} — ${objet}` : objet,
     text: texte,
     html: mailHtml({
       expediteur: doc.emetteur.nom,

@@ -8,7 +8,7 @@ import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2'
 import { accesAutorise, messageAccesRefuse, type EtatAcces } from './essai.ts'
 
 /** Ce que la fonction appelante doit faire : laisser passer, ou refuser avec la phrase. */
-export type DecisionAcces = { autorise: true } | { autorise: false; message: string }
+export type DecisionAcces = { autorise: true; demo: boolean } | { autorise: false; message: string }
 
 /**
  * Lit l'état d'accès du compte et tranche.
@@ -21,15 +21,18 @@ export type DecisionAcces = { autorise: true } | { autorise: false; message: str
 export async function accesDuCompte(admin: SupabaseClient, userId: string): Promise<DecisionAcces> {
   const { data, error } = await admin
     .from('assistant_profil')
-    .select('essai_fin, abonnement_statut, est_test, acces_gratuit, acces_ferme_le')
+    .select('essai_fin, abonnement_statut, est_test, demo, acces_gratuit, acces_ferme_le')
     .eq('user_id', userId)
     .maybeSingle()
   if (error) {
     console.error('[essai] accès illisible — laissé passer', error)
-    return { autorise: true }
+    return { autorise: true, demo: false }
   }
   const etat = (data ?? null) as EtatAcces | null
-  if (accesAutorise(etat)) return { autorise: true }
+  // `demo` accompagne le passage : c'est lui qui décide si les envois partent à une boutique ou
+  // reviennent au propriétaire du compte (`demo.ts`). Rendu par la même lecture que l'accès — deux
+  // requêtes sur la même ligne finiraient par lire deux états.
+  if (accesAutorise(etat)) return { autorise: true, demo: etat?.demo === true }
   // La phrase dépend de la CAUSE de la fermeture (jamais commencé, essai fini, impayé) : une seule
   // phrase pour trois situations ferait dire à l'app quelque chose de faux dans deux cas sur trois.
   console.log('[essai] accès refusé pour ce compte', userId)

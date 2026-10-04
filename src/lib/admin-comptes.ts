@@ -1,10 +1,11 @@
 // Qui utilise Braaise gratuitement (0076) : ce que l'écran d'administration montre, décidé sans
 // réseau. Module PUR, donc testable — la table de vérité des accès se lit ici, pas dans un JSX.
 //
-// Ce que l'écran doit rendre évident : **pourquoi** un compte a accès. Quatre raisons existent et
+// Ce que l'écran doit rendre évident : **pourquoi** un compte a accès. Cinq raisons existent et
 // elles ne se confondent pas — l'accès offert (décision nominative, la seule que l'écran change),
-// le compte de test, l'abonnement qui paie, l'essai en cours. Un compte fermé le dit aussi, sans
-// détour : c'est la liste de ceux à qui l'outil ne répond plus.
+// le compte de démonstration (voir 0078), le compte de test (un testeur, futur utilisateur),
+// l'abonnement qui paie, l'essai en cours. Un compte fermé le dit aussi, sans détour : c'est la
+// liste de ceux à qui l'outil ne répond plus.
 
 import { accesDuCompteAffiche } from './abonnement'
 import {
@@ -24,6 +25,8 @@ export type CompteAdmin = {
   acces_gratuit: boolean
   acces_gratuit_depuis: string | null
   est_test: boolean
+  /** Compte de démonstration (0078) : accès ouvert, et aucun envoi vers un tiers. */
+  demo: boolean
   ouvert_le: string | null
 }
 
@@ -36,7 +39,7 @@ export type EtatCompteAffiche = {
   phrase: string
   /** Ce compte est-il déjà offert ? (ce que le bouton propose de retirer) */
   offert: boolean
-  /** Le bouton a-t-il un sens ? Un compte de test est ouvert de toute façon. */
+  /** Le bouton a-t-il un sens ? Un compte de test ou de démonstration est ouvert de toute façon. */
   basculable: boolean
 }
 
@@ -68,11 +71,23 @@ export function etatCompte(c: CompteAdmin, maintenant: Date = new Date()): EtatC
     }
   }
 
+  if (c.demo) {
+    return {
+      ouvert: true,
+      badge: 'Démonstration',
+      phrase:
+        'Compte de démonstration : l’accès reste ouvert, et aucune de ses actions n’écrit à une boutique — tout ce qu’il enverrait lui revient, pour qu’il voie ce qui serait parti.',
+      offert: false,
+      basculable: false,
+    }
+  }
+
   if (c.est_test) {
     return {
       ouvert: true,
       badge: 'Compte de test',
-      phrase: 'Compte de démonstration : il garde l’accès quoi qu’il arrive, et rien n’est facturé.',
+      phrase:
+        'Compte de test (testeur) : accès ouvert et gratuit, et il deviendra un compte utilisateur. Ses mails, eux, partent normalement.',
       offert: false,
       basculable: false,
     }
