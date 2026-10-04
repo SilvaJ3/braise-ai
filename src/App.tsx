@@ -32,6 +32,7 @@ import Login from './routes/Login'
 import Marche from './routes/Marche'
 import Notifications from './routes/Notifications'
 import NotificationsCategorie from './routes/NotificationsCategorie'
+import NouveauMotDePasse from './routes/NouveauMotDePasse'
 import Onboarding from './routes/Onboarding'
 import PageLegale from './routes/PageLegale'
 import Planning from './routes/Planning'
@@ -50,6 +51,9 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/inscription" element={<Inscription />} />
+        {/* Le lien de réinitialisation doit rendre le formulaire AVANT toute décision de tunnel :
+            la session qu'il ouvre ne doit pas nous faire rediriger ailleurs. */}
+        <Route path="/nouveau-mot-de-passe" element={<NouveauMotDePasse />} />
         {/* Lisibles sans compte : on ne fait pas accepter des conditions qu'on ne peut pas ouvrir
             avant d'avoir un compte. */}
         <Route path="/conditions" element={<PageLegale document="conditions" />} />
@@ -78,6 +82,7 @@ export default function App() {
           path="/espace-boutique/fournisseur/:partenaireId/reste"
           element={<EspaceFournisseurReste />}
         />
+        <Route path="/nouveau-mot-de-passe" element={<NouveauMotDePasse />} />
         <Route path="*" element={<Navigate to="/espace-boutique" replace />} />
       </Routes>
     )
@@ -95,6 +100,10 @@ export default function App() {
     return (
       <Routes>
         <Route path="/onboarding" element={<Onboarding />} />
+        {/* Un compte neuf, encore dans l'onboarding, doit pouvoir changer son mot de passe depuis
+            le lien reçu : sans cette route ici, la session de récupération tomberait sur la
+            redirection vers /onboarding. C'est le piège que ce chantier ferme. */}
+        <Route path="/nouveau-mot-de-passe" element={<NouveauMotDePasse />} />
         <Route path="*" element={<Navigate to="/onboarding" replace />} />
       </Routes>
     )
@@ -128,6 +137,7 @@ export default function App() {
         <Route path="/compte/telephone" element={<CompteTelephone />} />
         <Route path="/compte/premiers-pas" element={<PremiersPas />} />
         <Route path="/compte/mot-de-passe" element={<CompteMotDePasse />} />
+        <Route path="/nouveau-mot-de-passe" element={<NouveauMotDePasse />} />
         <Route path="/conditions" element={<PageLegale document="conditions" />} />
         <Route path="/confidentialite" element={<PageLegale document="confidentialite" />} />
         {/* Réservé à l'administration : la garde est dans l'écran, et le serveur refuse de toute

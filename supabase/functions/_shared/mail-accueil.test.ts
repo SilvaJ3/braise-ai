@@ -30,7 +30,8 @@ describe('mail d’accueil', () => {
     const mensuel = construireMailAccueil({ appUrl: APP, plan: 'mensuel' }).text
     const nEssai = questionsIndicatives(enveloppeJetons('essai'))
     const nMensuel = questionsIndicatives(enveloppeJetons('mensuel'))
-    expect(nEssai).not.toBe(nMensuel)
+    // Depuis le 02/10 (essai avec carte) l'essai a la même enveloppe que le mensuel : on ne les exige plus différentes,
+    // seulement que chaque mail annonce le chiffre de SON plan, lu dans `enveloppe.ts`.
     expect(essai).toContain(`${nEssai} questions`)
     expect(mensuel).toContain(`${nMensuel} questions`)
     expect(essai).toContain('essai')
