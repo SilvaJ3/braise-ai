@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useEspaceBons, useEspaceBoutique } from '../lib/compte-boutique'
+import { etatAbonnementBoutique } from '../lib/abonnement-boutique'
+import { useEspaceBons, useEspaceBoutique, useMonAbonnementBoutique } from '../lib/compte-boutique'
 import { resumeFournisseur, type FournisseurEspace } from '../lib/espace-boutique'
 import { supabase } from '../lib/supabase'
 
@@ -44,6 +45,8 @@ export default function EspaceBoutique() {
         <CarteFournisseur key={f.partenaire_id} fournisseur={f} />
       ))}
 
+      <LienAbonnement />
+
       <p className="muted" style={{ marginTop: 20, fontSize: '0.85rem' }}>
         Dépôt-vente — les pièces restent la propriété de l'artisan tant qu'elles ne sont pas vendues.
       </p>
@@ -79,6 +82,28 @@ function CarteFournisseur({ fournisseur }: { fournisseur: FournisseurEspace }) {
           </span>
         </p>
       )}
+    </Link>
+  )
+}
+
+/**
+ * Le chemin vers « Mon abonnement » — seulement quand il y a quelque chose à y voir. Une boutique
+ * sans abonnement ni accès offert (ou une base où la fonction n'existe pas encore) ne voit rien :
+ * on n'annonce pas un écran vide.
+ */
+function LienAbonnement() {
+  const { data } = useMonAbonnementBoutique()
+  if (!data) return null
+  const etat = etatAbonnementBoutique(data)
+  if (etat.statut === 'aucun') return null
+  return (
+    <Link to="/espace-boutique/abonnement" className="card" style={{ display: 'block' }}>
+      <div className="row">
+        <strong>Mon abonnement</strong>
+        <span className="badge">{etat.badge}</span>
+        <div className="spacer" />
+        <span className="muted">›</span>
+      </div>
     </Link>
   )
 }

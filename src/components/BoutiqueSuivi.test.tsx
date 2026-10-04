@@ -232,6 +232,31 @@ describe('la fiche d’une boutique, côté artisan', () => {
     expect(html).toContain('>Corriger<')
   })
 
+  it('met les reprises en évidence tant que le relevé n’est pas validé, puis les laisse tranquilles', () => {
+    const releve = (statut: 'declaree' | 'validee', reprises: number) => ({
+      declarations: [
+        {
+          id: 'd1',
+          periode: '2026-09-01',
+          statut,
+          note: null,
+          declare_le: '2026-09-19T12:00:00+00:00',
+          facturable: 36,
+          ventes: 3,
+          reprises,
+          entrees: 0,
+          alerte: false,
+        },
+      ],
+    })
+
+    const aValider = rendre(releve('declaree', 3))
+    expect(aValider).toContain('reprises à vérifier')
+    expect(aValider).toContain("vérifie qu'elle correspond à ce que tu as vraiment récupéré")
+    expect(rendre(releve('validee', 3))).not.toContain('reprises à vérifier')
+    expect(rendre(releve('declaree', 0))).not.toContain('reprises à vérifier')
+  })
+
   it('signale un écart sans le confondre avec une erreur, et dit qui tranche', () => {
     const html = rendre({
       declarations: [
@@ -346,6 +371,45 @@ describe('la fiche d’une boutique, côté artisan', () => {
     expect(html).toContain('nouveau')
     expect(html).toContain("Le bon n'a pas été modifié")
     expect(html).toContain('Marquer comme vu')
+  })
+
+  it('marque « tardif » un signalement fait plus de 3 jours après le dépôt, avec le nombre de jours', () => {
+    const html = rendre({
+      contestations: [
+        {
+          id: 'c1',
+          bon_id: 'bon-42',
+          numero: '42',
+          date_depot: '2026-09-10',
+          message: 'Il manque une bougie dans le carton.',
+          cree_le: '2026-09-19T12:30:00+00:00',
+          vu_le: null,
+        },
+      ],
+      contestations_non_vues: 1,
+    })
+
+    expect(html).toContain('Tardif : signalé 9 jours après le dépôt')
+  })
+
+  it('ne marque pas « tardif » un signalement fait dans les 3 jours', () => {
+    const html = rendre({
+      contestations: [
+        {
+          id: 'c1',
+          bon_id: 'bon-42',
+          numero: '42',
+          date_depot: '2026-09-10',
+          message: 'Il manque une bougie dans le carton.',
+          cree_le: '2026-09-13T08:00:00+00:00',
+          vu_le: null,
+        },
+      ],
+      contestations_non_vues: 1,
+    })
+
+    expect(html).toContain('Il manque une bougie')
+    expect(html).not.toContain('Tardif')
   })
 
   it('cesse de dire « nouveau » une fois le signalement vu', () => {

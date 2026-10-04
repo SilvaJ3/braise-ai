@@ -76,6 +76,7 @@ export const MESSAGES_ESPACE: Record<string, string> = {
   // Les refus des deux gestes : confirmer la réception d'un bon, demander un réassort.
   bon_inconnu: "Ce bon n'est pas chez toi : rien n'a été confirmé.",
   aucune_demande: "La demande est vide : rien n'est parti chez l'artisan.",
+  aucune_vente: "Rien à déclarer : aucune vente n'est saisie, ou ces pièces ne viennent pas de cet artisan.",
 }
 
 export function messageEspace(code: string | undefined | null): string {
@@ -219,6 +220,155 @@ export function lireBons(brut: unknown): { bons: BonEspace[]; erreur: string | n
   if (o.erreur) return { bons: [], erreur: String(o.erreur) }
   const bons = Array.isArray(o.bons) ? o.bons.map(lireBon) : []
   return { bons, erreur: null }
+}
+
+/**
+ * Une ligne de l'historique de ses ventes : ce que la boutique a déclaré à cet artisan, et ce que
+ * l'artisan en a fait. `boutique_historique` ne rend que des TOTAUX (ventes, reprises, montant
+ * facturable) et les 12 dernières déclarations — jamais le détail pièce par pièce.
+ */
+export type ReleveEspace = {
+  /** La date de la déclaration (ISO), pour le mois et le jour. */
+  declaration: string | null
+  ventes: number
+  reprises: number
+  /** Le montant que la boutique doit à l'artisan pour cette déclaration, en euros. */
+  facturable: number
+  /** `declaree` (pas encore regardée), `validee`, `corrigee` (écartée) ; `null` si la base ne le dit pas. */
+  statut: 'declaree' | 'validee' | 'corrigee' | null
+}
+
+/** L'historique rendu par `boutique_compte_historique()`, du plus récent au plus ancien (tel que la base le trie). */
+export function lireHistorique(brut: unknown): { releves: ReleveEspace[]; erreur: string | null } {
+  const o = (brut ?? {}) as Record<string, unknown>
+  if (o.erreur) return { releves: [], erreur: String(o.erreur) }
+  const liste = Array.isArray(o.historique) ? o.historique : []
+  const releves = liste.map((l): ReleveEspace => {
+    const h = (l ?? {}) as Record<string, unknown>
+    const s = h.statut
+    return {
+      declaration: h.declaration ? String(h.declaration) : null,
+      ventes: n(h.ventes),
+      reprises: n(h.reprises),
+      facturable: n(h.facturable),
+      statut: s === 'declaree' || s === 'validee' || s === 'corrigee' ? s : null,
+    }
+  })
+  return { releves, erreur: null }
+}
+
+/** « septembre 2026 » depuis une date ISO ; « — » si elle est illisible. */
+export function moisLisible(v: string | null | undefined): string {
+  const m = /^(\d{4})-(\d{2})/.exec(String(v ?? ''))
+  if (!m) return '—'
+  const mois = Number(m[2])
+  const noms = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre']
+  return mois >= 1 && mois <= 12 ? `${noms[mois - 1]} ${m[1]}` : '—'
+}
+
+/**
+ * Ce que la boutique lit du sort de chaque déclaration. Un relevé écarté ne compte plus dans le stock :
+ * on le dit, la trace reste. Un statut que la base ne donne pas ne s'invente pas (null = rien à dire).
+ */
+export function texteStatutReleve(s: ReleveEspace['statut']): string | null {
+  switch (s) {
+    case 'declaree': return "Envoyé à l'artisan, pas encore regardé"
+    case 'validee': return "Validé par l'artisan"
+    case 'corrigee': return "Écarté par l'artisan : ne compte plus"
+    default: return null
+  }
+}
+
+/**
+ * Déclarer ses ventes — la couche pure du geste. Une déclaration est UN envoi : toutes les pièces
+ * vendues depuis la dernière fois, en un seul message. La base en fait une ligne datée qui s'AJOUTE
+ * (rien n'est écrasé), donc envoyer deux fois compte deux fois : l'écran verrouille après l'envoi.
+ */
+export type LigneDeclaration = {
+  cle: string
+  designation: string
+  prix: number
+  /** Ce qui reste chez la boutique avant cet envoi (déposé + entré − vendu − repris). */
+  reste: number
+  /** Les pièces vendues depuis la dernière déclaration : ce qu'elle saisit. */
+  ventes: number
+  /**
+   * Les pièces que l'artisan a REPRISES (des invendus) : elles sortent du stock mais ne sont pas
+   * facturées (0053). Offert pour un dépôt-vente seulement ; à zéro sinon.
+   */
+  reprises: number
+}
+
+/** Une ligne par pièce que la boutique a en stock chez cet artisan, toutes à zéro vente. */
+export function lignesADeclarer(pieces: PieceEspace[]): LigneDeclaration[] {
+  return pieces
+    .filter((p) => p.cle && p.reste > 0)
+    .map((p) => ({ cle: p.cle, designation: p.designation, prix: p.prix, reste: p.reste, ventes: 0, reprises: 0 }))
+}
+
+/**
+ * Ce qui part à la base : une clé et des nombres ENTIERS de pièces vendues et reprises ; une ligne
+ * sans mouvement sort de l'envoi.
+ */
+export function mouvementsEnvoyes(lignes: LigneDeclaration[]): { cle: string; ventes: number; reprises: number }[] {
+  return lignes
+    .filter((l) => l.ventes > 0 || l.reprises > 0)
+    .map((l) => ({ cle: l.cle, ventes: Math.floor(l.ventes), reprises: Math.floor(l.reprises) }))
+}
+
+/**
+ * Le total de l'envoi. Le MONTANT dû à l'artisan ne compte que les ventes (prix du dernier dépôt de
+ * chaque pièce) : une reprise n'est jamais facturée, sa valeur n'est suivie que pour information.
+ */
+export function totalDeclare(lignes: LigneDeclaration[]): {
+  pieces: number
+  montant: number
+  reprises: number
+  valeurReprises: number
+} {
+  return lignes.reduce(
+    (t, l) => ({
+      pieces: t.pieces + Math.floor(l.ventes),
+      montant: t.montant + Math.floor(l.ventes) * l.prix,
+      reprises: t.reprises + Math.floor(l.reprises),
+      valeurReprises: t.valeurReprises + Math.floor(l.reprises) * l.prix,
+    }),
+    { pieces: 0, montant: 0, reprises: 0, valeurReprises: 0 },
+  )
+}
+
+/**
+ * Les lignes où elle déclare plus de pièces (vendues + reprises) qu'il n'en reste : la base ne refuse
+ * pas, elle signale à l'artisan — c'est le même calcul qu'elle.
+ */
+export function depassements(lignes: LigneDeclaration[]): LigneDeclaration[] {
+  return lignes.filter((l) => Math.floor(l.ventes) + Math.floor(l.reprises) > l.reste)
+}
+
+/**
+ * Cet artisan dépose-t-il en DÉPÔT-VENTE ? Seul ce mode se déclare : les pièces restent à l'artisan, la
+ * boutique lui dit ce qu'elle a vendu, et il les reprend s'il le faut. En achat ferme elles appartiennent
+ * à la boutique : il n'y a ni vente à déclarer à l'artisan, ni reprise (rendre une pièce est un retour,
+ * donc un avoir). Le mode est porté par chaque bon : un seul bon en achat ferme suffit à fermer la porte.
+ * Sans bon connu (chargement, aucun dépôt) on ne ferme rien : c'est l'absence de preuve, pas une preuve.
+ */
+export function estDepotVente(bons: BonEspace[]): boolean {
+  return !bons.some((b) => b.mode === 'achat_ferme')
+}
+
+/**
+ * Ce que la boutique lit du dépôt d'une pièce. Une reprise ne réécrit pas le bon (qui fait foi) : le
+ * dépôt reste ce qu'il était, et le NET se calcule — « déposé 10, net 7 après 3 reprises ».
+ */
+export function phraseDepose(p: Pick<PieceEspace, 'depose' | 'repris'>): string {
+  if (!(p.repris > 0)) return `déposé ${quantite(p.depose)}`
+  return `déposé ${quantite(p.depose)}, net ${quantite(p.depose - p.repris)} après ${quantite(p.repris)} reprise${p.repris > 1 ? 's' : ''}`
+}
+
+/** Ce que la base répond à un envoi accepté : le montant facturable, la valeur reprise et si un écart a été signalé. */
+export function lireResultatDeclaration(brut: unknown): { facturable: number; valeurReprises: number; alerte: boolean } {
+  const o = (brut ?? {}) as Record<string, unknown>
+  return { facturable: n(o.facturable), valeurReprises: n(o.valeur_reprises), alerte: o.alerte === true }
 }
 
 /** Ce que la boutique a reçu de cet artisan, en une phrase : les zéros ne se disent pas. */

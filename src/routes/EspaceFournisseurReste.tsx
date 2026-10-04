@@ -4,6 +4,7 @@ import { useCommanderReassort, useEspaceBoutique } from '../lib/compte-boutique'
 import {
   lignesDemandees,
   montant,
+  phraseDepose,
   propositionsReassort,
   quantite,
   totalDemande,
@@ -59,10 +60,9 @@ export default function EspaceFournisseurReste() {
             <strong>{quantite(p.reste)}</strong>
           </div>
           <p className="muted" style={{ margin: '6px 0 0', fontSize: '0.9rem' }}>
-            déposé {quantite(p.depose)}
+            {phraseDepose(p)}
             {p.entre !== 0 ? ` · entré ${quantite(p.entre)}` : ''}
             {p.vendu !== 0 ? ` · vendu ${quantite(p.vendu)}` : ''}
-            {p.repris !== 0 ? ` · repris ${quantite(p.repris)}` : ''}
             {p.prix ? ` · ${montant(p.prix)} la pièce` : ''}
           </p>
         </article>
@@ -209,7 +209,16 @@ function Reassort({ partenaireId, pieces }: { partenaireId: string; pieces: Piec
  * elles, qui **reste saisissable au clavier** — compter quinze pièces à coups de « + » serait une
  * punition. Le champ est à 16 px : en dessous, iOS zoome tout seul au focus.
  */
-function Pas({ valeur, onChange }: { valeur: number; onChange: (v: number) => void }) {
+export function Pas({
+  valeur,
+  onChange,
+  nom = 'Quantité demandée',
+}: {
+  valeur: number
+  onChange: (v: number) => void
+  /** Ce que le champ dit à un lecteur d'écran : « Quantité demandée » pour un réassort, autre chose pour des ventes. */
+  nom?: string
+}) {
   const bouton: CSSProperties = {
     width: 36,
     height: 36,
@@ -233,7 +242,7 @@ function Pas({ valeur, onChange }: { valeur: number; onChange: (v: number) => vo
         inputMode="numeric"
         min={0}
         value={valeur}
-        aria-label="Quantité demandée"
+        aria-label={nom}
         style={{ width: 56, textAlign: 'center', fontSize: 16 }}
         onChange={(e) => {
           const v = Number(e.target.value)

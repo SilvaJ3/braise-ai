@@ -6,7 +6,19 @@
 // la boutique sont retrouvés à partir du compte connecté.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { lireBons, lireEtat, messageEspace, type BonEspace, type EtatEspace } from './espace-boutique'
+import type { FrequenceBoutique } from '../../supabase/functions/_shared/stripe-boutique'
+import { lireAbonnementBoutique, paiementBoutiqueOuvert, type LigneAbonnementBoutique } from './abonnement-boutique'
+import { functionErrorMessage } from './push'
+import {
+  lireBons,
+  lireEtat,
+  lireHistorique,
+  lireResultatDeclaration,
+  messageEspace,
+  type BonEspace,
+  type EtatEspace,
+  type ReleveEspace,
+} from './espace-boutique'
 import { supabase } from './supabase'
 
 export type CompteBoutique =
@@ -40,6 +52,54 @@ export function useMonCompteBoutique(actif = true) {
   })
 }
 
+/**
+ * L'abonnement de la boutique connectée (migration 0082), ou null s'il n'y a rien à montrer. Une
+ * erreur — notamment la fonction pas encore en base — vaut « rien à montrer » : l'espace ne doit
+ * jamais casser, ni laisser voir un lien vers un écran vide, pour une fonction qui n'existe pas encore.
+ */
+export function useMonAbonnementBoutique() {
+  return useQuery({
+    queryKey: ['abonnement-boutique'],
+    retry: false,
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<LigneAbonnementBoutique | null> => {
+      const { data, error } = await supabase.rpc('mon_abonnement_boutique')
+      return error ? null : lireAbonnementBoutique(data)
+    },
+  })
+}
+
+/** Les boutons « S'abonner » et « Gérer » sont-ils ouverts ? Éteint par défaut : voir `paiementBoutiqueOuvert`. */
+export const usePaiementBoutiqueOuvert = (): boolean => paiementBoutiqueOuvert(import.meta.env.VITE_PAIEMENT_BOUTIQUE)
+
+/**
+ * Ouvrir la page de paiement Stripe pour s'abonner, au mois ou à l'année. La fonction retrouve la boutique
+ * par le compte connecté ; on ne lui envoie que la formule. Rend l'adresse de la page, où l'écran envoie la
+ * personne : la carte ne traverse jamais notre code.
+ */
+export function useOuvrirPaiementBoutique() {
+  return useMutation({
+    mutationFn: async (frequence: FrequenceBoutique): Promise<string> => {
+      const { data, error } = await supabase.functions.invoke('stripe-checkout-boutique', { body: { frequence } })
+      if (error) throw new Error(await functionErrorMessage(error))
+      const url = (data as { url?: string } | null)?.url
+      if (!url) throw new Error('Le paiement n’a pas pu être ouvert.')
+      return url
+    },
+  })
+}
+
+/** Ouvrir le portail Stripe (carte, factures, résiliation). `null` : aucun paiement n'a eu lieu, rien à gérer. */
+export function useOuvrirPortailBoutique() {
+  return useMutation({
+    mutationFn: async (): Promise<string | null> => {
+      const { data, error } = await supabase.functions.invoke('stripe-portal-boutique', { body: {} })
+      if (error) throw new Error(await functionErrorMessage(error))
+      return (data as { url?: string | null } | null)?.url ?? null
+    },
+  })
+}
+
 export type ResultatEspace = { etat: EtatEspace | null; erreur: string | null }
 
 /** Tout ce que la boutique voit : ses artisans, leurs pièces, leurs bons à confirmer. */
@@ -60,6 +120,22 @@ export function useEspaceBons(partenaireId: string | undefined) {
       const { bons, erreur } = lireBons(reponse)
       if (erreur) throw new Error(erreur)
       return bons
+    },
+  })
+}
+
+/**
+ * Ses ventes déclarées à un artisan : les 12 dernières déclarations, en totaux. Lecture seule — l'envoi
+ * d'une déclaration est un autre geste. Le détail pièce par pièce n'existe pas dans cette réponse.
+ */
+export function useEspaceHistorique(partenaireId: string | undefined) {
+  return useQuery({
+    queryKey: ['espace-historique', partenaireId],
+    enabled: Boolean(partenaireId),
+    queryFn: async (): Promise<ReleveEspace[]> => {
+      const { releves, erreur } = lireHistorique(await rpc('boutique_compte_historique', { partenaire_param: partenaireId }))
+      if (erreur) throw new Error(messageEspace(erreur))
+      return releves
     },
   })
 }
@@ -99,6 +175,48 @@ export function useConfirmerBon() {
       reponseGeste(await rpc('boutique_compte_confirmer_bon', { bon_param: bonId }))
     },
     onSuccess: rafraichir,
+  })
+}
+
+/**
+ * Signaler un écart sur un bon (« ce bon ne correspond pas »). Une trace datée pour l'artisan : le bon
+ * ne change pas. Passé 3 jours après le dépôt, la base accepte encore : c'est l'écran de l'artisan qui
+ * marque le signalement « tardif » (lib/contestation.ts). Envoyé deux fois, le même texte ne crée qu'une trace.
+ */
+export function useContesterBon() {
+  return useMutation({
+    mutationFn: async (params: { bonId: string; message: string }) => {
+      reponseGeste(await rpc('boutique_compte_contester_bon', { bon_param: params.bonId, message_param: params.message }))
+    },
+  })
+}
+
+/**
+ * Déclarer ses ventes (et, en dépôt-vente, les reprises de l'artisan) : UN envoi, une ligne datée qui s'ajoute (rien n'est écrasé). Envoyer
+ * deux fois compte deux fois — l'écran verrouille donc le geste après un envoi accepté. Un dépassement
+ * de stock n'est pas refusé : la base le signale (`alerte`) et c'est l'artisan qui tranche.
+ */
+export function useDeclarerVentes() {
+  const rafraichir = useRafraichirEspace()
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: async (params: {
+      partenaireId: string
+      mouvements: { cle: string; ventes: number; reprises: number }[]
+      note?: string
+    }) => {
+      const brut = await rpc('boutique_compte_declarer', {
+        partenaire_param: params.partenaireId,
+        lignes_param: params.mouvements,
+        note_param: params.note ?? null,
+      })
+      reponseGeste(brut)
+      return lireResultatDeclaration(brut)
+    },
+    onSuccess: () => {
+      rafraichir()
+      void client.invalidateQueries({ queryKey: ['espace-historique'] })
+    },
   })
 }
 

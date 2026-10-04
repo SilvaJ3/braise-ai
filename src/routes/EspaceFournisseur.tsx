@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { useConfirmerBon, useEspaceBons, useEspaceBoutique } from '../lib/compte-boutique'
-import { jour, montant, quantite, statutBon, totalRestant } from '../lib/espace-boutique'
+import { useConfirmerBon, useContesterBon, useEspaceBons, useEspaceBoutique } from '../lib/compte-boutique'
+import { phraseDelai } from '../lib/contestation'
+import { estDepotVente, jour, montant, quantite, statutBon, totalRestant } from '../lib/espace-boutique'
 
 // L'espace de la boutique — écran 3 : les dépôts d'un artisan, un par un.
 //
@@ -75,9 +76,46 @@ export default function EspaceFournisseur() {
               <strong>{montant(b.valeur)}</strong>
             </div>
             {!st.recu && <ConfirmerBon bonId={b.bon_id} />}
+            <SignalerEcart bonId={b.bon_id} dateDepot={b.date} />
+
           </article>
         )
       })}
+
+      {/* En achat ferme les pièces sont à la boutique : rien à déclarer à l'artisan. */}
+      {fournisseur && estDepotVente(bons ?? []) && (
+        <Link
+          to={`/espace-boutique/fournisseur/${fournisseur.partenaire_id}/declarer`}
+          className="card"
+          style={{ display: 'block' }}
+        >
+          <div className="row">
+            <strong>Déclarer mes ventes à {nom}</strong>
+            <div className="spacer" />
+            <span className="muted">›</span>
+          </div>
+          <p className="muted" style={{ margin: '6px 0 0' }}>
+            Ce que tu as vendu depuis la dernière fois, en un seul envoi.
+          </p>
+        </Link>
+      )}
+
+      {fournisseur && (
+        <Link
+          to={`/espace-boutique/fournisseur/${fournisseur.partenaire_id}/historique`}
+          className="card"
+          style={{ display: 'block' }}
+        >
+          <div className="row">
+            <strong>Mes ventes déclarées à {nom}</strong>
+            <div className="spacer" />
+            <span className="muted">›</span>
+          </div>
+          <p className="muted" style={{ margin: '6px 0 0' }}>
+            Mois par mois, ce que tu as déclaré et ce que l'artisan en a fait.
+          </p>
+        </Link>
+      )}
 
       {fournisseur && (
         <Link
@@ -96,6 +134,77 @@ export default function EspaceFournisseur() {
         </Link>
       )}
     </>
+  )
+}
+
+/**
+ * Signaler un écart : « ce bon ne correspond pas ». Possible à tout moment, avant ou après la
+ * confirmation — la boutique compte parfois après avoir confirmé. La phrase du délai (3 jours après
+ * le dépôt) se lit AVANT d'écrire ; passé ce délai le signalement part quand même, marqué « tardif »
+ * chez l'artisan. Le bon, lui, ne change pas : le message est une trace.
+ */
+function SignalerEcart({ bonId, dateDepot }: { bonId: string; dateDepot: string | null }) {
+  const [ouvert, setOuvert] = useState(false)
+  const [message, setMessage] = useState('')
+  const contester = useContesterBon()
+
+  if (contester.isSuccess) {
+    return (
+      <p className="muted" style={{ margin: '10px 0 0' }} role="status">
+        Signalement envoyé à l'artisan. Le bon n'a pas changé : c'est lui qui tranche.
+      </p>
+    )
+  }
+
+  if (!ouvert) {
+    return (
+      <div className="row" style={{ marginTop: 6 }}>
+        <div className="spacer" />
+        <button className="link" type="button" onClick={() => setOuvert(true)}>
+          Signaler un écart
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <form
+      style={{ marginTop: 10, borderTop: '1px solid var(--line)', paddingTop: 10 }}
+      onSubmit={(e) => {
+        e.preventDefault()
+        contester.mutate({ bonId, message: message.trim() })
+      }}
+    >
+      <p className="muted" style={{ margin: '0 0 8px' }}>
+        {phraseDelai(dateDepot)}
+      </p>
+      <label>
+        Ce qui ne correspond pas
+        <textarea
+          rows={3}
+          maxLength={2000}
+          required
+          minLength={3}
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="Ex. il manque une pièce, ou il y en a une qui n'est pas sur le bon"
+        />
+      </label>
+      {contester.isError && (
+        <p className="muted" style={{ margin: '8px 0 0' }}>
+          {(contester.error as Error).message}
+        </p>
+      )}
+      <div className="row" style={{ marginTop: 8 }}>
+        <div className="spacer" />
+        <button className="link" type="button" disabled={contester.isPending} onClick={() => setOuvert(false)}>
+          Annuler
+        </button>
+        <button className="primary" type="submit" disabled={contester.isPending || message.trim().length < 3}>
+          {contester.isPending ? 'Envoi…' : 'Envoyer à l’artisan'}
+        </button>
+      </div>
+    </form>
   )
 }
 
