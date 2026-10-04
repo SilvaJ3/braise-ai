@@ -83,13 +83,18 @@ button.primary {
   border-color: var(--accent);
   font-weight: 500;
 }
-button.link {
+button.link,
+a.link {
   border: none;
   background: none;
   color: var(--accent);
   min-height: 36px;
   padding: 4px 2px;
   font-weight: 500;
+  text-decoration: none;
+}
+a.link {
+  display: inline-block;
 }
 
 input,
