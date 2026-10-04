@@ -113,6 +113,33 @@ pas l'abonnement de fonctionner.
 Sans ces deux réglages, **Stripe Tax calcule 0 €** : le siège de l'entreprise, et l'enregistrement du
 numéro de TVA belge. C'est indépendant de ce changement de code.
 
+### TVA et facturation belge — réponse d'Accountable (04/10/2026)
+
+Pas un avis fiscal : les points marqués « à valider » le restent. N° de TVA BE1043060596, début d'activité 26/09/2026.
+
+**Appliqué dans le code**
+- `billing_address_collection: 'required'` (`stripe-checkout`, `stripe-checkout-boutique`) : adresse collectée dès
+  Checkout, pour que la première vraie facture soit correcte (l'essai de 7 jours ne produit qu'une facture à 0 €).
+- Déjà en place : `automatic_tax`, `tax_id_collection`, essai via `trial_end`.
+
+**Règles retenues**
+- Belgique : 21 % pour tous les clients. 49 € HT = 59,29 € TTC ; afficher 49 € TTC exige un prix inclusif (40,50 € HT + 8,50 € TVA).
+- B2B UE avec n° de TVA valide (VIES, garder la preuve) : 0 % + « Autoliquidation ». N° invalide : traité comme un particulier.
+- B2C UE : TVA belge sous 10 000 €/an de ventes dans les autres pays UE, puis TVA du pays du client via l'OSS.
+- Hors UE : B2B hors champ (garder la preuve de la qualité pro) ; B2C hors UE à ne pas ouvrir au départ.
+- Remise sur la 1re facture : TVA sur le montant après remise (49 − 10 = 39 € HT, 8,19 € de TVA, 47,19 € TTC).
+- Note de crédit pour tout remboursement/annulation : référence la facture d'origine, même taux de TVA. Pas de règle de prorata connue.
+- Numérotation continue sans trou ; conservation 10 ans.
+
+**À faire / à valider avant la mise en production**
+- [ ] Décider prix HT ou TTC (`tax_behavior`) côté Stripe, puis aligner les textes de l'app.
+- [ ] Code fiscal du produit : `txcd_10103001` (SaaS professionnel), non confirmé par Accountable.
+- [ ] Peppol (obligatoire depuis le 01/01/2026 pour le B2B belge) : les factures Stripe suffisent-elles ? Sinon un outil Peppol en plus.
+- [ ] Limiter les pays de Checkout pour ne pas ouvrir le B2C hors UE par accident.
+- [ ] Flux contestation/remboursement : l'aligner sur la note de crédit.
+- [ ] Mentions légales exactes (autoliquidation, « hors champ »), grilles de déclaration TVA, listing intracommunautaire.
+- [ ] Structure juridique : indépendant complémentaire ou société (guichet d'entreprises / comptable).
+
 ### Structure des fichiers
 
 - [`supabase/functions/stripe-checkout/index.ts`](supabase/functions/stripe-checkout/index.ts) — modifié, seul fichier touché.

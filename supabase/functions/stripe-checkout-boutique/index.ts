@@ -145,7 +145,7 @@ Deno.serve(async (req) => {
   // deux identifiants passent hors typage : l'API les accepte, les types de `stripe@17` ne les connaissent pas.
   const reglagesStudio = {
     ui_mode: 'hosted_page',
-    billing_address_collection: 'auto',
+    billing_address_collection: 'required',
     phone_number_collection: { enabled: false },
     automatic_tax: { enabled: true },
     submit_type: 'auto',

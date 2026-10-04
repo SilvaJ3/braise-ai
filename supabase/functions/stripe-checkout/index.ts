@@ -236,7 +236,7 @@ Deno.serve(async (req) => {
   //     du SDK. Un objet hors typage évite d'épingler une version d'API ou de SDK.
   const reglagesStudio = {
     ui_mode: 'hosted_page',
-    billing_address_collection: 'auto',
+    billing_address_collection: 'required',
     phone_number_collection: { enabled: false },
     automatic_tax: { enabled: true },
     submit_type: 'auto',
