@@ -18,6 +18,9 @@ import {
   normaliserCode,
   normaliserEmail,
 } from '../_shared/inscription.ts'
+import { accueilArme, construireMailAccueil, NOM_MODELE } from '../_shared/mail-accueil.ts'
+import { MODELE_IMPORT_B64 } from '../_shared/modele-import.ts'
+import { envoyerMail } from '../_shared/mailer.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -33,8 +36,60 @@ const MAX_TENTATIVES_PAR_HEURE = 12
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')?.trim()
+const MAIL_DOMAIN = Deno.env.get('MAIL_DOMAIN')?.trim() || 'braaise.io'
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY)
+
+// Même déclaration que l'assistant : les fonctions edge exposent `EdgeRuntime`, qui garde une
+// promesse en vie après le retour de la réponse.
+declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void }
+
+/**
+ * Le mail d'accueil — ÉTEINT tant que le réglage `mail_accueil_actif` ne vaut pas « oui ».
+ *
+ * Il part à l'ouverture du compte, avec le modèle d'import en pièce jointe : c'est le moment où
+ * l'artisan a le plus besoin de savoir par où commencer. Il ne bloque JAMAIS l'inscription — un
+ * compte est déjà créé, un service de mail en panne ne doit pas faire échouer la création ; on
+ * journalise et on continue.
+ */
+async function envoyerAccueil(email: string, plan: string | null): Promise<void> {
+  try {
+    const { data, error } = await admin
+      .from('reglages_produit')
+      .select('cle, valeur')
+      .in('cle', ['mail_accueil_actif', 'app_url'])
+    if (error) {
+      console.error('[inscription] réglages accueil', error)
+      return
+    }
+    const lus = new Map<string, string>(
+      (data ?? []).map((r: { cle: string; valeur: string }) => [r.cle, r.valeur] as [string, string]),
+    )
+    if (!accueilArme(lus.get('mail_accueil_actif'))) return
+    if (!RESEND_API_KEY) {
+      console.error('[inscription] mail d’accueil armé mais RESEND_API_KEY absente')
+      return
+    }
+    const appUrl = (lus.get('app_url') || 'https://braaise.io').replace(/\/+$/, '')
+    const mail = construireMailAccueil({ appUrl, plan })
+    const { id } = await envoyerMail(
+      { apiKey: RESEND_API_KEY, domain: MAIL_DOMAIN },
+      {
+        fromName: 'Braaise',
+        replyTo: 'contact@braaise.io',
+        to: [email],
+        subject: mail.subject,
+        text: mail.text,
+        html: mail.html,
+        attachments: [{ filename: NOM_MODELE, base64: MODELE_IMPORT_B64 }],
+      },
+    )
+    console.log('[inscription] mail d’accueil envoyé', id)
+  } catch (e) {
+    console.error('[inscription] mail d’accueil', e)
+  }
+}
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -193,5 +248,12 @@ Deno.serve(async (req) => {
   if (errProfil) console.error('[inscription] ligne de profil', errProfil)
 
   await journaliser(email, ip, 'ok')
+
+  // 4. Le mail d'accueil, avec le modèle d'import. Éteint par défaut (réglage en base) ; il ne
+  //    peut pas faire échouer l'inscription, qui est déjà acquise à cette ligne. Détaché du
+  //    retour (`waitUntil`, comme le chat de l'assistant) : un service de mail lent ne fait pas
+  //    attendre quelqu'un qui vient de valider son mot de passe.
+  EdgeRuntime.waitUntil(envoyerAccueil(email, invitation.plan ?? null))
+
   return json({ ok: true, email, plan: invitation.plan })
 })

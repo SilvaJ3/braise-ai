@@ -88,7 +88,7 @@ async function reglages(): Promise<{
     // Les réponses à nos mails doivent arriver à une seule adresse : la première.
     replyTo: adminEmails[0],
     // L'app (le lien d'inscription) et le site (la page de validation) ne sont pas au même endroit.
-    appUrl: (APP_URL_ENV || lus.get('app_url') || 'https://braise-ai.vercel.app').replace(/\/+$/, ''),
+    appUrl: (APP_URL_ENV || lus.get('app_url') || 'https://artisan.braaise.io').replace(/\/+$/, ''),
     siteUrl: (SITE_URL_ENV || lus.get('site_url') || 'https://www.braaise.io').replace(/\/+$/, ''),
   }
 }

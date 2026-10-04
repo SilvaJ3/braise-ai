@@ -125,6 +125,14 @@ export default function ImportWizard({ initialEntity }: { initialEntity?: Import
             ))}
           </select>
           <p className="muted" style={{ margin: '4px 0 0' }}>{ENTITIES[entity].hint}</p>
+          <p className="muted" style={{ margin: '8px 0 0' }}>
+            Pas de fichier sous la main ? Le modèle du produit — une feuille par type, les colonnes
+            que l’app reconnaît :{' '}
+            <a href="/modele-import-braaise.xlsx" download>
+              télécharger le modèle (.xlsx)
+            </a>
+            . Un fichier rempli avec lui consomme moins de calcul qu’une photo de liste.
+          </p>
 
           <label htmlFor="imp-file" style={{ marginTop: 8 }}>
             Fichier
