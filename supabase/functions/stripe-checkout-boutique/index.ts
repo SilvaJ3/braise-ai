@@ -113,7 +113,9 @@ Deno.serve(async (req) => {
     return json({ erreur: 'Ton abonnement est déjà en cours : gère-le depuis « Mon abonnement ».' }, 409)
   }
 
-  const stripe = new Stripe(cle)
+  // La version d'API est fixée comme dans `stripe-checkout` : `ui_mode: 'hosted_page'` n'existe qu'à partir de 2026-03-25.dahlia, et
+  // sans elle Stripe refuse la session (« Invalid ui_mode »). Constaté le 04/10/2026 sur la fonction déployée.
+  const stripe = new Stripe(cle, { apiVersion: '2026-03-25.dahlia' as never })
   const url = await adresseApp()
   const meta = metadonneesBoutique(lienId)
 
