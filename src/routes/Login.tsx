@@ -129,12 +129,12 @@ export default function Login() {
             Tu as reçu un lien d'un artisan ? Ouvre-le directement : il fonctionne sans compte.
           </p>
           <p style={{ margin: '10px 0 0' }}>
-            Pas encore de compte pour ta boutique ? <a href="mailto:contact@braaise.io">Écris-nous</a>.
+            Pas encore de compte pour ta boutique ? <a href="mailto:contact@braaise.io" className="link" style={{ minHeight: 0, padding: 0, display: 'inline' }}>Écris-nous</a>.
           </p>
         </div>
       ) : (
         <p className="muted" style={{ marginTop: 20, fontSize: '0.9rem' }}>
-          <Link to="/inscription">J'ai un code d'invitation</Link>
+          <Link to="/inscription" className="link" style={{ minHeight: 0, padding: 0, display: 'inline' }}>J'ai un code d'invitation</Link>
         </p>
       )}
       <FooterLegal />
