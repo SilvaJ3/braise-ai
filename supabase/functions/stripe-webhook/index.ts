@@ -28,7 +28,6 @@ const admin = createClient(SUPABASE_URL, SERVICE_KEY)
 
 /** L'identifiant du prix annuel : il sert à écrire la fréquence réelle de l'abonnement (0077). */
 const PRIX_ANNUEL = Deno.env.get('STRIPE_PRIX_ANNUEL')?.trim() ?? null
-const PRIX_BOUTIQUE_ANNUEL = Deno.env.get('STRIPE_PRIX_BOUTIQUE_ANNUEL')?.trim() ?? null
 
 /** L'identifiant du prix annuel de la BOUTIQUE : il sert à écrire la fréquence réelle de son abonnement. */
 const PRIX_BOUTIQUE_ANNUEL = Deno.env.get('STRIPE_PRIX_BOUTIQUE_ANNUEL')?.trim() ?? null
