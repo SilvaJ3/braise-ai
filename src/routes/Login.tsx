@@ -1,10 +1,14 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import FooterLegal from '../components/FooterLegal'
+import { estEspaceBoutique } from '../lib/espace'
 import { MESSAGE_NEUTRE, urlRetourReinitialisation } from '../lib/mot-de-passe-oublie'
 import { supabase } from '../lib/supabase'
 
 export default function Login() {
+  // Même page, deux entrées : sur le domaine de la boutique, le texte parle à une boutique et l'inscription par code d'invitation
+  // (réservée aux artisans) ne s'y propose pas — un compte boutique est ouvert par Braaise, jamais en libre-service.
+  const boutique = estEspaceBoutique(window.location.hostname, window.location.search)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -40,7 +44,19 @@ export default function Login() {
   return (
     <>
       <form className="stack" onSubmit={submit}>
-        <h1>Braaise</h1>
+        {boutique ? (
+          <>
+            <p className="muted" style={{ margin: 0, fontWeight: 500 }}>
+              Braaise
+            </p>
+            <h1>Espace boutique</h1>
+            <p className="muted" style={{ margin: '0 0 12px' }}>
+              Connecte-toi pour retrouver tes artisans, leurs bons de dépôt et tes ventes.
+            </p>
+          </>
+        ) : (
+          <h1>Braaise</h1>
+        )}
         <label htmlFor="email">Email</label>
         <input
           id="email"
@@ -107,9 +123,20 @@ export default function Login() {
         </form>
       )}
 
-      <p className="muted" style={{ marginTop: 20, fontSize: '0.9rem' }}>
-        <Link to="/inscription">J'ai un code d'invitation</Link>
-      </p>
+      {boutique ? (
+        <div className="muted" style={{ marginTop: 20, fontSize: '0.9rem' }}>
+          <p style={{ margin: 0 }}>
+            Tu as reçu un lien d'un artisan ? Ouvre-le directement : il fonctionne sans compte.
+          </p>
+          <p style={{ margin: '10px 0 0' }}>
+            Pas encore de compte pour ta boutique ? <a href="mailto:contact@braaise.io">Écris-nous</a>.
+          </p>
+        </div>
+      ) : (
+        <p className="muted" style={{ marginTop: 20, fontSize: '0.9rem' }}>
+          <Link to="/inscription">J'ai un code d'invitation</Link>
+        </p>
+      )}
       <FooterLegal />
     </>
   )

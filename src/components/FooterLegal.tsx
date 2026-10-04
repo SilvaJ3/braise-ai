@@ -8,11 +8,11 @@ import { Link } from 'react-router-dom'
 export default function FooterLegal() {
   return (
     <p className="muted" style={{ marginTop: 24, fontSize: '0.8rem', textAlign: 'center' }}>
-      <Link to="/conditions">Conditions générales</Link>
+      <Link to="/conditions" className="link">Conditions générales</Link>
       {' · '}
-      <Link to="/confidentialite">Confidentialité</Link>
+      <Link to="/confidentialite" className="link">Confidentialité</Link>
       {' · '}
-      <a href="mailto:contact@braaise.io">contact@braaise.io</a>
+      <a href="mailto:contact@braaise.io" className="link">contact@braaise.io</a>
     </p>
   )
 }
