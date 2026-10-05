@@ -25,6 +25,8 @@ function readEntries(buf: Uint8Array): ZipEntry[] {
   }
   if (eocd < 0) throw new Error('zip: EOCD introuvable')
   const count = dv.getUint16(eocd + 10, true)
+  // Un classeur réel compte quelques dizaines d'entrées : 65 535 déclarées, c'est un fichier fabriqué.
+  if (count > MAX_ENTREES) throw new Error('xlsx: trop d’entrées dans le zip')
   let p = dv.getUint32(eocd + 16, true)
   const entries: ZipEntry[] = []
   for (let i = 0; i < count; i++) {
@@ -43,31 +45,56 @@ function readEntries(buf: Uint8Array): ZipEntry[] {
   return entries
 }
 
-async function inflate(data: Uint8Array): Promise<Uint8Array> {
-  const ds = new DecompressionStream('deflate-raw')
-  const stream = new Blob([data as BlobPart]).stream().pipeThrough(ds)
-  return new Uint8Array(await new Response(stream).arrayBuffer())
+const MAX_XML_BYTES = 16 * 1024 * 1024 // garde-fou zip bomb : 500 lignes de tableur tiennent dans quelques Mo
+const MAX_ENTREES = 2_000
+
+/**
+ * Décompresse en comptant les octets RÉELLEMENT produits et abandonne au-delà de `max`. La taille
+ * déclarée dans le zip (`usize`) est écrite par l'expéditeur du fichier : elle ne prouve rien.
+ */
+async function inflate(data: Uint8Array, max: number): Promise<Uint8Array> {
+  const lecteur = new Blob([data as BlobPart]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader()
+  const morceaux: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await lecteur.read()
+    if (done) break
+    total += value.length
+    if (total > max) {
+      await lecteur.cancel()
+      throw new Error('xlsx: feuille trop volumineuse')
+    }
+    morceaux.push(value)
+  }
+  const out = new Uint8Array(total)
+  let o = 0
+  for (const m of morceaux) {
+    out.set(m, o)
+    o += m.length
+  }
+  return out
 }
 
-async function readFile(buf: Uint8Array, e: ZipEntry): Promise<Uint8Array> {
+async function readFile(buf: Uint8Array, e: ZipEntry, max: number): Promise<Uint8Array> {
   const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength)
   if (dv.getUint32(e.offset, true) !== SIG_LOCAL) throw new Error('zip: en-tête local corrompu')
   const nameLen = dv.getUint16(e.offset + 26, true)
   const extraLen = dv.getUint16(e.offset + 28, true)
   const start = e.offset + 30 + nameLen + extraLen
   const raw = buf.subarray(start, start + e.csize)
-  if (e.method === 0) return raw
-  if (e.method === 8) return await inflate(raw)
+  if (e.method === 0) {
+    if (raw.length > max) throw new Error('xlsx: feuille trop volumineuse')
+    return raw
+  }
+  if (e.method === 8) return await inflate(raw, max)
   throw new Error(`zip: compression ${e.method} non gérée`)
 }
-
-const MAX_XML_BYTES = 40 * 1024 * 1024 // garde-fou zip bomb
 
 async function readText(buf: Uint8Array, entries: ZipEntry[], name: string): Promise<string | null> {
   const e = entries.find((x) => x.name === name)
   if (!e) return null
-  if (e.usize > MAX_XML_BYTES) throw new Error('xlsx: feuille trop volumineuse')
-  return new TextDecoder().decode(await readFile(buf, e))
+  if (e.usize > MAX_XML_BYTES) throw new Error('xlsx: feuille trop volumineuse') // refus rapide ; le vrai contrôle est dans inflate
+  return new TextDecoder().decode(await readFile(buf, e, MAX_XML_BYTES))
 }
 
 // --- XML helpers (regex : suffisant pour OOXML généré par Excel / LibreOffice / Google) ---
@@ -88,21 +115,50 @@ const attr = (tag: string, name: string): string | null => {
   return m ? unescapeXml(m[1]) : null
 }
 
+/**
+ * Les blocs `<tag …>…</tag>` d'un XML (un `<tag …/>` rend un bloc vide), en UNE passe avec indexOf.
+ * Jamais de regex paresseuse ici : sur un XML sans balise fermante, une regex `<x>([\s\S]*?)</x>`
+ * relit tout le reste du fichier à CHAQUE ouverture — quadratique, donc un fichier de quelques Mo
+ * suffit à bloquer la fonction. Sans fermeture trouvée, on s'arrête.
+ */
+function* blocs(xml: string, tag: string): Generator<{ attrs: string; inner: string }> {
+  const ouvre = `<${tag}`
+  const ferme = `</${tag}>`
+  let pos = 0
+  for (;;) {
+    const s = xml.indexOf(ouvre, pos)
+    if (s < 0) return
+    const apres = xml[s + ouvre.length]
+    // `<c` ne doit pas s'arrêter sur `<cols>` ni `<t` sur `<tableParts>` : la balise finit là.
+    if (apres !== ' ' && apres !== '>' && apres !== '/' && apres !== '\t' && apres !== '\n' && apres !== '\r') {
+      pos = s + ouvre.length
+      continue
+    }
+    const fin = xml.indexOf('>', s)
+    if (fin < 0) return
+    if (xml[fin - 1] === '/') {
+      yield { attrs: xml.slice(s + ouvre.length, fin - 1), inner: '' }
+      pos = fin + 1
+      continue
+    }
+    const e = xml.indexOf(ferme, fin)
+    if (e < 0) return
+    yield { attrs: xml.slice(s + ouvre.length, fin), inner: xml.slice(fin + 1, e) }
+    pos = e + ferme.length
+  }
+}
+
 /** Texte concaténé de tous les <t> d'un fragment (rich text). */
 function textOf(fragment: string): string {
   let out = ''
-  const re = /<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g
-  let m: RegExpExecArray | null
-  while ((m = re.exec(fragment))) out += unescapeXml(m[1])
+  for (const b of blocs(fragment, 't')) out += unescapeXml(b.inner)
   return out
 }
 
 function parseSharedStrings(xml: string | null): string[] {
   if (!xml) return []
   const out: string[] = []
-  const re = /<si>([\s\S]*?)<\/si>/g
-  let m: RegExpExecArray | null
-  while ((m = re.exec(xml))) out.push(textOf(m[1]))
+  for (const b of blocs(xml, 'si')) out.push(textOf(b.inner))
   return out
 }
 
@@ -153,23 +209,26 @@ export function colIndex(ref: string): number {
   return n - 1
 }
 
+const MAX_COLS = 16_384 // XFD, la dernière colonne d'Excel
+const MAX_CELLULES = 500_000 // par feuille : 2 000 lignes × 250 colonnes
+
 function parseSheet(xml: string, shared: string[], dateStyles: boolean[], maxRows: number): string[][] {
   const rows: string[][] = []
-  const rowRe = /<row\b[^>]*>([\s\S]*?)<\/row>/g
-  const cellRe = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g
-  let rm: RegExpExecArray | null
-  while ((rm = rowRe.exec(xml))) {
+  let cellules = 0
+  for (const ligne of blocs(xml, 'row')) {
     if (rows.length >= maxRows) break
     const row: string[] = []
-    let cm: RegExpExecArray | null
-    cellRe.lastIndex = 0
-    while ((cm = cellRe.exec(rm[1]))) {
-      const tag = `<c${cm[1]}>`
+    for (const cellule of blocs(ligne.inner, 'c')) {
+      if (++cellules > MAX_CELLULES) return rows
+      const tag = `<c${cellule.attrs}>`
       const ref = attr(tag, 'r') ?? ''
       const t = attr(tag, 't')
       const s = Number(attr(tag, 's') ?? '-1')
-      const inner = cm[2] ?? ''
+      const inner = cellule.inner
       const col = ref ? colIndex(ref) : row.length
+      // Une référence hors du tableau (« ZZZZZZZ1 ») n'a pas de colonne : la cellule est ignorée. Sans cela,
+      // le remplissage plus bas allouait des milliards de cases pour un fichier de quelques Ko.
+      if (!(col >= 0 && col < MAX_COLS)) continue
       let value = ''
       if (t === 's') {
         const v = inner.match(/<v>([\s\S]*?)<\/v>/)?.[1]
