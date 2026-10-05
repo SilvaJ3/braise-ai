@@ -75,7 +75,8 @@ async function majBoutiqueDepuisAbonnement(sub: Stripe.Subscription, lienId: str
   if (clientId) ecriture.stripe_customer_id = clientId
 
   const { error } = await admin.from('boutique_abonnements').upsert(ecriture, { onConflict: 'lien_id' })
-  if (error) console.error('[stripe-webhook] boutique : écriture', lienId, error)
+  // Une écriture qui échoue remonte : le webhook répond 500 et Stripe rejoue l'événement.
+  if (error) throw new Error(`boutique : écriture ${lienId} : ${error.message}`)
   else console.log('[stripe-webhook] boutique', sub.id, champs.statut, champs.abonnement_frequence, champs.abonnement_annule ? 'résiliation programmée' : '')
 }
 
@@ -149,7 +150,7 @@ async function majDepuisAbonnement(stripe: Stripe, abonnementId: string, userIdC
     // l'essai à chaque événement Stripe.
     .update({ ...ecriture, stripe_customer_id: clientId ?? undefined })
     .eq('user_id', userId)
-  if (error) console.error('[stripe-webhook] écriture du compte', error)
+  if (error) throw new Error(`écriture du compte : ${error.message}`)
   else
     console.log(
       '[stripe-webhook]',
@@ -183,11 +184,9 @@ async function crediterPack(session: Stripe.Checkout.Session): Promise<void> {
     p_source: credit.source,
     p_session: clefCredit(credit),
   })
-  if (error) {
-    // Journalisé : c'est la seule trace d'un crédit qui n'a pas eu lieu.
-    console.error('[stripe-webhook] crédit impossible', credit.sessionId, error)
-    return
-  }
+  // Un crédit qui n'a pas eu lieu remonte : sans cela Stripe ne rejouerait jamais un paiement encaissé.
+  // Le rejeu est sûr, `crediter_pack` est idempotent par session.
+  if (error) throw new Error(`crédit impossible ${credit.sessionId} : ${error.message}`)
   console.log(
     '[stripe-webhook] crédit',
     credit.pack,
@@ -262,9 +261,10 @@ Deno.serve(async (req) => {
         break
     }
   } catch (e) {
-    // On répond quand même 200 : Stripe rejouerait un événement qu'on a déjà accepté, et une erreur
-    // de notre côté ne doit pas se transformer en tempête de réessais.
+    // 500 : l'événement n'a pas été traité, Stripe le rejoue (espacé, pendant trois jours). Tout ce
+    // qui s'écrit ici est idempotent ; un cas qui ne sert à rien de rejouer ne lève pas, il journalise.
     console.error('[stripe-webhook] traitement', evenement.type, e)
+    return new Response('erreur de traitement', { status: 500 })
   }
 
   return new Response('ok', { status: 200 })

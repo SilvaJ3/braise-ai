@@ -145,6 +145,12 @@ Deno.serve(async (req) => {
     .eq('actif', true)
     .maybeSingle()
   const boutique = Boolean(lienBoutique)
+  // L'abonnement d'une boutique s'ouvre ailleurs (`stripe-checkout-boutique`, état dans
+  // `boutique_abonnements`, 0082) : ici il atterrirait dans `assistant_profil`, et une boutique n'y
+  // écrit jamais. Un pack de jetons, lui, reste permis.
+  if (boutique && !pack) {
+    return json({ erreur: 'L’abonnement d’une boutique se règle depuis l’espace boutique.' }, 409)
+  }
   const prix = pack ? null : prixPour(frequence, ids!, boutique)
   if (!pack && !prix) {
     console.error('[stripe-checkout] prix manquant pour', boutique ? 'boutique' : 'artisan', frequence)
