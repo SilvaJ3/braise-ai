@@ -193,10 +193,10 @@ function afficher() {
          pour l'artisan, le bon n'est pas modifié.</p>
       ${p.a_confirmer.map((b) => `
         <div class="carte">
-          <span class="piece">${b.numero ? 'Bon n° ' + b.numero : 'Bon'} — ${dateCourte(b.date)}</span>
+          <span class="piece">${b.numero ? 'Bon n° ' + echapper(b.numero) : 'Bon'} — ${dateCourte(b.date)}</span>
           <span class="sous">${b.pieces} pièce${b.pieces > 1 ? 's' : ''} au total</span>
           <ul class="bon-lignes">
-            ${b.lignes.map((l) => `<li>${l.designation} — ${l.quantite}</li>`).join('')}
+            ${b.lignes.map((l) => `<li>${echapper(l.designation)} — ${l.quantite}</li>`).join('')}
           </ul>
           <button class="secondaire" data-bon="${b.bon_id}">J'ai bien reçu ce bon</button>
           <p class="message" data-retour="${b.bon_id}"></p>
@@ -218,29 +218,29 @@ function afficher() {
     ${plusieurs ? `
       <h2>Artisan</h2>
       <select id="selecteur">
-        ${etat.partenaires.map((x) => `<option value="${x.partenaire_id}" ${x.partenaire_id === p.partenaire_id ? 'selected' : ''}>${x.artisan}</option>`).join('')}
+        ${etat.partenaires.map((x) => `<option value="${x.partenaire_id}" ${x.partenaire_id === p.partenaire_id ? 'selected' : ''}>${echapper(x.artisan)}</option>`).join('')}
       </select>` : ''}
 
     ${p.pieces.length ? `
-    <h2>${p.artisan} — chez ${p.boutique}</h2>
+    <h2>${echapper(p.artisan)} — chez ${echapper(p.boutique)}</h2>
     <p class="aide">À gauche, ce qui devrait rester d'après les bons de dépôt et vos relevés.
        À droite, ce que vous comptez — c'est la différence qui nous dit ce qui est parti.</p>
     <table>
       <thead><tr><th>Pièce</th><th class="d">Il devrait<br>en rester</th><th class="d">Il vous en<br>reste</th></tr></thead>
       <tbody>
         ${p.pieces.map((pc) => `
-          <tr data-cle="${pc.cle}">
-            <td><span class="piece">${pc.designation}</span>
+          <tr data-cle="${echapper(pc.cle)}">
+            <td><span class="piece">${echapper(pc.designation)}</span>
                 <span class="sous">${eur(pc.prix)} pièce</span></td>
             <td class="d">${pc.reste}</td>
             <td class="d"><div class="pas">
               <button type="button" class="moins" aria-label="Une de moins">−</button>
               <input type="number" min="0" step="1" value="${pc.reste}" data-role="compte"
-                     aria-label="Ce qu'il vous reste de ${pc.designation}">
+                     aria-label="Ce qu'il vous reste de ${echapper(pc.designation)}">
               <button type="button" class="plus" aria-label="Une de plus">+</button>
             </div></td>
           </tr>
-          <tr data-detail="${pc.cle}" style="display:none;background:#fff">
+          <tr data-detail="${echapper(pc.cle)}" style="display:none;background:#fff">
             <td colspan="3"><div class="mouvement" data-role="detail"></div></td>
           </tr>`).join('')}
       </tbody>
@@ -251,7 +251,7 @@ function afficher() {
 
     <button class="principal" id="envoyer">Envoyer mon relevé</button>
     <p class="message" id="retour"></p>` : `
-    <h2>${p.artisan} — chez ${p.boutique}</h2>
+    <h2>${echapper(p.artisan)} — chez ${echapper(p.boutique)}</h2>
     <p class="aide">Rien à compter pour l'instant : aucune pièce n'est encore arrivée chez vous.
        Le comptage s'ouvrira à votre premier bon confirmé.</p>`}
 
@@ -269,7 +269,7 @@ function afficher() {
     ${catalogue.length ? `
       <select id="ajouter-piece" aria-label="Ajouter une pièce de l'artisan à ma demande">
         <option value="">+ Ajouter une pièce…</option>
-        ${catalogue.map((c) => `<option value="${c.cle}" data-nom="${echapper(c.nom)}">${echapper(c.nom)}${c.prix != null ? ' · ' + eur(c.prix) : ''}</option>`).join('')}
+        ${catalogue.map((c) => `<option value="${echapper(c.cle)}" data-nom="${echapper(c.nom)}">${echapper(c.nom)}${c.prix != null ? ' · ' + eur(c.prix) : ''}</option>`).join('')}
       </select>
       <p class="aide">Ces pièces viennent du catalogue de l'artisan : celles qu'il ne vous a
          encore jamais confiées. La demander ne la commande pas — l'artisan confirme toujours.</p>` : ''}
@@ -366,7 +366,7 @@ function detailLigne(champ) {
           <span>vendues — facturées</span>
           <div class="pas mini">
             <button type="button" class="moins" aria-label="Une vente de moins">−</button>
-            <input type="number" min="0" step="1" value="${ecart}" data-role="ventes" data-cle="${cle}"
+            <input type="number" min="0" step="1" value="${ecart}" data-role="ventes" data-cle="${echapper(cle)}"
                    aria-label="Vendues">
             <button type="button" class="plus" aria-label="Une vente de plus">+</button>
           </div>
@@ -375,7 +375,7 @@ function detailLigne(champ) {
           <span>reprises — non facturées</span>
           <div class="pas mini">
             <button type="button" class="moins" aria-label="Une reprise de moins">−</button>
-            <input type="number" min="0" step="1" value="0" data-role="reprises" data-cle="${cle}"
+            <input type="number" min="0" step="1" value="0" data-role="reprises" data-cle="${echapper(cle)}"
                    aria-label="Reprises">
             <button type="button" class="plus" aria-label="Une reprise de plus">+</button>
           </div>
@@ -530,7 +530,7 @@ async function envoyer() {
  *  ajoutées depuis le catalogue de l'artisan partent à 1 et peuvent être retirées. */
 function ligneCommande(cle, designation, quantite, ajoutee) {
   return `
-    <tr data-commande="${cle}"${ajoutee ? ' data-ajoutee="1"' : ''}>
+    <tr data-commande="${echapper(cle)}"${ajoutee ? ' data-ajoutee="1"' : ''}>
       <td><span class="piece">${echapper(designation)}</span>${ajoutee
         ? '<button type="button" class="retirer">Retirer</button>' : ''}</td>
       <td class="d"><div class="pas">
