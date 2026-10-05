@@ -105,7 +105,9 @@ select{width:100%;padding:10px;border:1px solid #cfd4cb;border-radius:8px;font:i
 const SUPABASE_URL = 'https://nnssqleqvfafbkkxyqne.supabase.co'
 const CLE_PUBLIQUE = 'sb_publishable_k-84JsMb8QmX70s6Gh3FGw_iaEc-hyE'
 
-const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2')
+// Version EXACTE (celle du package-lock) : `@2` suivait toute nouvelle 2.x sur la page qui porte le jeton.
+// Changer cette ligne change l'empreinte du script : mettre à jour vercel.json (le test le rappelle).
+const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.116.0')
 const supabase = createClient(SUPABASE_URL, CLE_PUBLIQUE)
 
 /* Le jeton vient du chemin : `/boutique/<jeton>` est l'adresse définitive. Les deux autres formes
