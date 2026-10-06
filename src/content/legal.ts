@@ -120,10 +120,9 @@ la fin de la période déjà payée.
 ## Abonnement, prix et TVA
 
 Les prix sont indiqués hors TVA. La TVA belge au taux en vigueur (actuellement 21 %) s'ajoute
-lorsqu'elle est due, selon le statut fiscal de l'éditeur à la date de facturation et selon ton pays
-et ta qualité. Si tu es assujetti établi dans un autre État membre, ton numéro de TVA permet
-l'autoliquidation. Les factures émises pendant la période où l'identification de l'éditeur est en
-cours sont rectifiées si la TVA devient due.
+lorsqu'elle est due, selon ton pays et ta qualité. Si tu es assujetti établi dans un autre État membre,
+ton numéro de TVA permet l'autoliquidation. Les factures portent le numéro de TVA de l'éditeur
+(BE 1043.060.596) et sont conservées dix ans.
 
 L'abonnement se prend au mois (39 € HTVA par mois) ou à l'année (390 € HTVA par an). Le mois est
 sans engagement : il se résilie à tout moment depuis « Mon compte », et il reste actif jusqu'à la fin
@@ -496,10 +495,11 @@ son numéro d'entreprise (à confirmer).
 
 ## TVA
 
-L'éditeur est identifié à la TVA sous le numéro BE 1043.060.596. Le numéro figure sur les factures, et
-publié : il le sera dès que l'identification sera confirmée. En attendant, aucun numéro de TVA n'est
-indiqué sur ce site, et la TVA n'est facturée que lorsqu'elle est due : voir « Abonnement, prix et
-TVA » dans les conditions générales.
+L'éditeur est identifié à la TVA sous le numéro BE 1043.060.596, confirmé par VIES le 6 octobre 2026.
+Le numéro figure sur les factures. Les prix affichés sont hors TVA ; la TVA belge au taux en vigueur
+(21 % à ce jour) s'y ajoute pour les clients particuliers et les assujettis établis en Belgique. Les
+assujettis établis dans un autre État membre ne paient pas la TVA belge : ils indiquent leur numéro de
+TVA et l'autoliquidation s'applique. Voir « Abonnement, prix et TVA » dans les conditions générales.
 
 ## Ce que couvrent ces mentions
 
