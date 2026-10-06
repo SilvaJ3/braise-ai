@@ -101,10 +101,9 @@ describe('les textes légaux', () => {
   it('publie l’identité de l’éditeur en clair', () => {
     expect(CONDITIONS).toContain('Junior Silva Braga Almeida')
     expect(CONDITIONS).toContain('1043.060.596')
-    // Le numéro de TVA n'est pas publié tant que le SPF Finances ne l'a pas confirmé
-    // (VIES « non valide » au 06/10/2026). Le numéro d'entreprise, lui, est actif.
-    expect(CONDITIONS).not.toContain('BE 1043.060.596')
-    expect(CONDITIONS).toContain("Numéro de TVA : à publier dès que l'identification TVA est confirmée")
+    // Le numéro de TVA EST publié : VIES l'a confirmé valide le 06/10/2026 à 16h15, au nom de
+    // l'éditeur. Il doit donc figurer en clair, avec le numéro d'entreprise.
+    expect(CONDITIONS).toContain('BE 1043.060.596')
     expect(CONDITIONS).toContain('contact@braaise.io')
     expect(CONDITIONS).toContain('390 € HTVA par an')
     expect(CONFIDENTIALITE).toContain('Rue Cardinal Lavigerie 7, 1040 Etterbeek')
@@ -213,11 +212,13 @@ describe('les textes légaux', () => {
       expect(MENTIONS).toContain('Stripe Payments Europe, Ltd., 1 Grand Canal Street Lower, Dublin')
     })
 
-    // Le numéro de TVA n'est pas publié tant que le SPF Finances ne l'a pas confirmé.
-    it('disent l’identification TVA en cours et ne publient aucun numéro de TVA', () => {
-      expect(MENTIONS).toContain('L\'identification de l\'éditeur à la TVA est en cours')
-      expect(MENTIONS).not.toMatch(/BE ?1043/)
-      expect(MENTIONS).not.toMatch(/\bBE ?0?\d{3}\.?\d{3}\.?\d{3}\b/)
+    // Le numéro est confirmé valide par VIES (06/10/2026) : les mentions doivent le publier, et
+    // ne plus annoncer une identification « en cours » qui n'a plus lieu d'être.
+    it('publient le numéro de TVA confirmé et n’annoncent plus une identification en cours', () => {
+      expect(MENTIONS).toContain('BE 1043.060.596')
+      expect(MENTIONS).not.toContain('identification de l\'éditeur à la TVA est en cours')
+      // La TVA s'ajoute aux prix hors TVA : la mention doit le dire.
+      expect(MENTIONS).toMatch(/TVA/)
     })
   })
 

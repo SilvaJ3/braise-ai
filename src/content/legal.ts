@@ -8,11 +8,13 @@
 //
 // Statut vérifié le 06/10/2026, sur pièces :
 //   - numéro d'entreprise 1043.060.596 : **actif** (extrait BCE du 01/10/2026, « situation normale ») ;
-//   - identification à la TVA : **dossier en analyse** (même extrait), non reconnue par VIES
-//     (contrôle du 06/10/2026 08:43). Le numéro BE 1043.060.596 est donc réservé mais **pas actif**.
-// Conséquence : aucune TVA n'est facturée tant que l'identification n'est pas confirmée, et le
-// numéro de TVA n'est pas publié. Le régime normal reste la demande en cours. La version du 02/10
-// affirmait la TVA active : elle était en avance sur les faits et a été corrigée.
+//   - identification à la TVA : **ACTIVE** — VIES confirme le numéro BE 1043.060.596 au nom de
+//     Junior Silva Braga Almeida, le 06/10/2026 à 16h15. Le numéro est donc publié, et la TVA
+//     belge (21 %) s'ajoute aux prix hors TVA.
+//     (contrôle du 06/10/2026 08:43) ; **identification TVA confirmée par VIES le 06/10/2026 à 16h15**.
+// Conséquence : la TVA belge (21 %) s'ajoute aux prix hors TVA affichés, et le numéro est publié
+// dans les mentions légales et sur les factures. La version du 02/10 affirmait la TVA active un
+// peu trop tôt ; celle du 06/10 au matin la disait en cours un peu trop tard. Celle-ci est datée.
 //
 // À FAIRE ensuite : la relecture juridique/comptable et la date de mise à jour. La page porte un
 // bandeau provisoire tant qu'un crochet `[...]` subsiste.
@@ -256,7 +258,7 @@ francophone, sont compétents.
 
 Braaise est édité par Junior Silva Braga Almeida, indépendant à titre complémentaire (personne
 physique), dont le siège est situé Rue Cardinal Lavigerie 7, 1040 Etterbeek, Belgique. Numéro
-d'entreprise : 1043.060.596. Numéro de TVA : à publier dès que l'identification TVA est confirmée
+d'entreprise : 1043.060.596. Numéro de TVA : BE 1043.060.596 (identification confirmée par VIES le 6 octobre 2026)
 par le SPF Finances.
 Contact : contact@braaise.io.
 
@@ -472,7 +474,7 @@ en vigueur.
 ## Responsable du traitement
 
 Junior Silva Braga Almeida — Rue Cardinal Lavigerie 7, 1040 Etterbeek, Belgique — numéro
-d'entreprise 1043.060.596 — identification TVA en cours auprès du SPF Finances.
+d'entreprise 1043.060.596 — numéro de TVA BE 1043.060.596.
 Contact : contact@braaise.io.
 
 Dernière mise à jour : [DATE].`
@@ -494,7 +496,7 @@ son numéro d'entreprise (à confirmer).
 
 ## TVA
 
-L'identification de l'éditeur à la TVA est en cours auprès du SPF Finances. Le numéro de TVA n'est pas
+L'éditeur est identifié à la TVA sous le numéro BE 1043.060.596. Le numéro figure sur les factures, et
 publié : il le sera dès que l'identification sera confirmée. En attendant, aucun numéro de TVA n'est
 indiqué sur ce site, et la TVA n'est facturée que lorsqu'elle est due : voir « Abonnement, prix et
 TVA » dans les conditions générales.
