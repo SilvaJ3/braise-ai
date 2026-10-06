@@ -236,6 +236,23 @@ async function handle(req: Request): Promise<Response> {
       .select('plan, quota_mensuel')
       .eq('user_id', userData.user.id)
       .maybeSingle()
+    // Quota par utilisateur : l'import est le poste de coût LLM le plus élevé du projet —
+    // jusqu'à 16 000 jetons de sortie pour un fichier de 6 Mo, jusqu'à ~4 minutes de calcul
+    // facturé, et rien ne le bornait : un compte pouvait le relancer en boucle.
+    //
+    // AVANT la réservation de jetons : un refus ici ne doit rien avoir réservé (dans l'autre ordre,
+    // chaque import refusé gardait sa réserve et vidait l'enveloppe du mois sans aucun appel au modèle).
+    const { data: quotaOk, error: quotaErr } = await admin.rpc('consommer_quota', {
+      p_user: userData.user.id,
+      p_kind: 'import',
+      p_max: IMPORT_MAX_PAR_HEURE,
+      p_fenetre_sec: 3600,
+    })
+    if (quotaErr) console.error('[quota import]', quotaErr)
+    else if (quotaOk === false) {
+      return json({ error: "Tu as importé beaucoup de fichiers coup sur coup. Réessaie dans un moment." }, 429)
+    }
+
     const reservation = await reserverJetons(admin, userData.user.id, profil?.plan, RESERVE_JETONS.import)
     if (reservation.etat === 'refus') return json({ error: reservation.message }, 429)
     if (reservation.etat === 'indisponible') {
@@ -249,20 +266,6 @@ async function handle(req: Request): Promise<Response> {
       else if (moisOk === false) return json({ error: messageQuotaAtteint('imports', quotaMois) }, 429)
     }
     const reserve = reservation.etat === 'reserve' ? reservation.reserve : null
-
-    // Quota par utilisateur : l'import est le poste de coût LLM le plus élevé du projet —
-    // jusqu'à 16 000 jetons de sortie pour un fichier de 6 Mo, jusqu'à ~4 minutes de calcul
-    // facturé, et rien ne le bornait : un compte pouvait le relancer en boucle.
-    const { data: quotaOk, error: quotaErr } = await admin.rpc('consommer_quota', {
-      p_user: userData.user.id,
-      p_kind: 'import',
-      p_max: IMPORT_MAX_PAR_HEURE,
-      p_fenetre_sec: 3600,
-    })
-    if (quotaErr) console.error('[quota import]', quotaErr)
-    else if (quotaOk === false) {
-      return json({ error: "Tu as importé beaucoup de fichiers coup sur coup. Réessaie dans un moment." }, 429)
-    }
 
     try {
       const result = await parseWithClaude(entity, ex, userData.user.id, reserve)

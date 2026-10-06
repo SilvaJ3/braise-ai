@@ -138,16 +138,16 @@ export function useOuvrirPaiement() {
     mutationFn: async (demande: {
       frequence: FrequenceAbonnement
       /**
-       * L'accord d'accès immédiat, coché à l'écran. La fonction `stripe-checkout` REFUSE un
-       * abonnement sans lui (art. VI.47 CDE) : ce n'est pas une case décorative, c'est ce qui
-       * permet au premier mois prélevé de tenir.
+       * La déclaration d'usage professionnel, cochée à l'écran. Braaise est réservé aux
+       * professionnels : cette déclaration constate la qualité du souscripteur, et la fonction
+       * `stripe-checkout` REFUSE un abonnement sans elle.
        */
-      renonceRetractation: boolean
+      usageProfessionnel: boolean
     }): Promise<string> => {
       const { data, error } = await supabase.functions.invoke('stripe-checkout', {
         body: {
           frequence: demande.frequence,
-          renonce_retractation: demande.renonceRetractation,
+          usage_professionnel: demande.usageProfessionnel,
         },
       })
       if (error) throw new Error(await functionErrorMessage(error))

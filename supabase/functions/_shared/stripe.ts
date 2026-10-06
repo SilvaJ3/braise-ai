@@ -29,19 +29,18 @@ export function prixPour(f: Frequence, ids: IdentifiantsStripe, boutique = false
 }
 
 /**
- * La demande d'accès immédiat et la renonciation au droit de rétractation, écrites UNE fois : elles
- * s'affichent à l'écran avant la case à cocher, partent sur la page de paiement Stripe, et sont la
- * raison pour laquelle une personne qui paie au 8e jour ne peut plus se rétracter pendant quatorze
- * jours (art. VI.47 et s. CDE — c'est l'accord exprès qui fait commencer le service tout de suite).
- * Sans cet accord, le service est un contrat à distance ordinaire : la personne peut demander à être
- * remboursée pendant quatorze jours, et la vente d'un premier mois ne tient pas.
+ * La qualité du souscripteur, écrite UNE fois : elle s'affiche à l'écran avant la case à cocher et
+ * part sur la page de paiement Stripe. Braaise s'adresse aux professionnels ; l'artisan ou la
+ * boutique qui s'abonne agit pour son activité, et le droit de rétractation que le CDE réserve au
+ * consommateur (art. VI.47) ne s'applique donc pas. C'est cette déclaration qui le constate —
+ * plutôt qu'une renonciation, qu'on ne peut pas faire abandonner par une case à cocher.
  */
-export const RENONCIATION_RETRACTATION =
-  "En validant, tu acceptes les conditions générales et tu demandes que ton accès commence tout de suite : tu renonces ainsi au droit de rétractation de 14 jours. Ton abonnement reste résiliable à tout moment depuis « Mon compte »."
+export const DECLARATION_PROFESSIONNELLE =
+  "En validant, tu acceptes les conditions générales et tu déclares souscrire pour les besoins de ton activité professionnelle, et non à titre privé. Ton abonnement reste résiliable à tout moment depuis « Mon compte »."
 
-/** Ce que répond la fonction quand l'accord manque : l'écran l'affiche tel quel. */
-export const RENONCIATION_REQUISE =
-  "Coche l'accord d'accès immédiat avant de continuer : sans lui, ton abonnement ne peut pas démarrer aujourd'hui."
+/** Ce que répond la fonction quand la déclaration manque : l'écran l'affiche tel quel. */
+export const DECLARATION_PROFESSIONNELLE_REQUISE =
+  "Coche la déclaration d'usage professionnel avant de continuer : Braaise est réservé aux professionnels."
 
 /**
  * Le tarif fondateur ne s'applique qu'à l'abonnement **mensuel** : l'offre est « 29 € HTVA par mois

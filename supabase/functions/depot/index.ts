@@ -40,6 +40,8 @@ const MAIL_DOMAIN = Deno.env.get('MAIL_DOMAIN')?.trim() || 'braaise.io'
 const BUCKET = 'depots'
 const MAX_SIGNATURE_CHARS = 400_000
 const MAX_PHOTO_CHARS = 2_000_000
+/** Bons envoyés par compte et par jour : large pour un atelier (une dizaine de boutiques), étroit pour un relais de spam. */
+const ENVOIS_MAX_PAR_JOUR = 30
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY)
 
@@ -145,9 +147,10 @@ async function loadDepot(userId: string, depotId: string): Promise<{ row: DepotR
 }
 
 /**
- * Adresses vers lesquelles l'utilisateur a le droit d'envoyer un bon : le contact figé du
- * bon, sa propre adresse d'émetteur, et le carnet de ses boutiques. Empêche d'utiliser le
- * domaine vérifié de l'app pour écrire à des destinataires arbitraires (phishing/spam).
+ * Adresses vers lesquelles l'utilisateur peut envoyer un bon : le contact figé du bon, sa propre
+ * adresse d'émetteur, et les adresses de ses fiches boutique. Ces adresses sont saisies par
+ * l'utilisateur lui-même : le filtre écarte une faute de frappe dans le formulaire d'envoi, il ne
+ * prouve pas qu'une adresse appartient à la boutique (voir le plafond quotidien dans `handleEnvoyer`).
  */
 async function adressesAutorisees(userId: string, doc: DepotDoc): Promise<Set<string>> {
   const set = new Set<string>()
@@ -345,9 +348,10 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>, demo
   const problemes = problemesEnvoi(doc, [...to, ...cc])
   if (problemes.length) return json({ error: problemes.join(' ') }, 400)
 
-  // Le domaine d'envoi est celui, vérifié, de l'application : on n'envoie qu'aux contacts que
-  // l'utilisateur possède déjà (ses boutiques + sa propre adresse), jamais à un tiers saisi
-  // librement — sinon n'importe quel compte pourrait spammer depuis no-reply@<domaine>.
+  // Le domaine d'envoi est celui, vérifié, de l'application : on n'envoie qu'aux adresses de ses
+  // fiches boutique et à la sienne, jamais à un tiers saisi dans le formulaire d'envoi. Attention :
+  // l'adresse d'une fiche est écrite librement par l'artisan, ce filtre ne prouve donc PAS qu'elle
+  // appartient à la boutique — le plafond quotidien ci-dessous est le vrai frein au spam.
   const autorisees = await adressesAutorisees(userId, doc)
   const refuses = [...to, ...cc].filter((e) => !autorisees.has(e.trim().toLowerCase()))
   if (refuses.length) {
@@ -357,6 +361,20 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>, demo
       },
       403,
     )
+  }
+
+  // Plafond d'envois par compte et par jour : un compte qui met l'adresse d'une victime sur une fiche
+  // ne peut pas s'en servir pour inonder cette adresse depuis le domaine de l'app. Un échec du compteur
+  // laisse passer (même choix que `import` et `assistant`) : on ne coupe pas un artisan pour une panne.
+  const { data: quotaOk, error: quotaErr } = await admin.rpc('consommer_quota', {
+    p_user: userId,
+    p_kind: 'depot_mail',
+    p_max: ENVOIS_MAX_PAR_JOUR,
+    p_fenetre_sec: 86400,
+  })
+  if (quotaErr) console.error('[quota depot_mail]', quotaErr)
+  else if (quotaOk === false) {
+    return json({ error: "Tu as envoyé beaucoup de bons aujourd'hui. Réessaie demain, ou écris-nous si c'est normal." }, 429)
   }
 
   // Compte de démonstration : les destinataires sont remplacés par l'adresse du compte, et le mail

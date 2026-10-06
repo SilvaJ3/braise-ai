@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
+import FooterLegal from '../components/FooterLegal'
 import PageLegale from './PageLegale'
 import PremiersPas from './PremiersPas'
 
@@ -41,13 +42,21 @@ describe('les pages légales', () => {
   // Garde-fou : tant qu'un crochet subsiste dans le texte, la page le dit. Le jour où le bloc
   // identité est rempli, ce test tombe — c'est le signal qu'il faut retirer le bandeau.
   it('affiche le bandeau provisoire tant qu’il reste des crochets', () => {
-    for (const document of ['conditions', 'confidentialite'] as const) {
+    for (const document of ['conditions', 'confidentialite', 'mentions'] as const) {
       expect(rendre(<PageLegale document={document} />)).toContain('Version provisoire')
     }
   })
 
-  it('aucune des deux ne parle des artisanes', () => {
-    for (const document of ['conditions', 'confidentialite'] as const) {
+  it('les mentions légales s’affichent et le pied de page y mène', () => {
+    const html = rendre(<PageLegale document="mentions" />)
+    expect(html).toContain('<h1>Mentions légales</h1>')
+    expect(html).toContain('Éditeur du site')
+    expect(html).toContain('Hébergement')
+    expect(rendre(<FooterLegal />)).toContain('href="/mentions-legales"')
+  })
+
+  it('aucune des trois ne parle des artisanes', () => {
+    for (const document of ['conditions', 'confidentialite', 'mentions'] as const) {
       expect(rendre(<PageLegale document={document} />)).not.toMatch(/artisanes?\b/i)
     }
   })

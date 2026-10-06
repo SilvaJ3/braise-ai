@@ -380,6 +380,13 @@ export default function Depot() {
         <p className="muted" style={{ margin: '4px 0 0' }}>
           {profil?.mention_signature}
         </p>
+        <p className="muted" style={{ margin: '4px 0 0' }}>
+          Ses données sont traitées pour le compte de l'artisan : la boutique peut lire comment dans la{' '}
+          <a href="/confidentialite" target="_blank" rel="noopener" className="link">
+            politique de confidentialité
+          </a>
+          .
+        </p>
         <SignaturePad onChange={setSignature} disabled={verrouille} />
       </div>
 

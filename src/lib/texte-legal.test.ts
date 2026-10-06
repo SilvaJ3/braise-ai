@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CONFIDENTIALITE, CONDITIONS } from '../content/legal'
+import { CONFIDENTIALITE, CONDITIONS, MENTIONS } from '../content/legal'
 import { aCompleter, blocs, estProvisoire, sections, titreDocument } from './texte-legal'
 
 describe('blocs', () => {
@@ -10,6 +10,15 @@ describe('blocs', () => {
       { type: 'para', texte: 'Un paragraphe.' },
       { type: 'point', texte: 'une puce' },
       { type: 'point', texte: 'une autre' },
+    ])
+  })
+
+  it('recolle une ligne qui continue un paragraphe ou une puce, et sépare au saut de ligne', () => {
+    expect(blocs('Un para\ncontinué.\n\nUn autre.\n- une puce\n  continuée\n- la suivante')).toEqual([
+      { type: 'para', texte: 'Un para continué.' },
+      { type: 'para', texte: 'Un autre.' },
+      { type: 'point', texte: 'une puce continuée' },
+      { type: 'point', texte: 'la suivante' },
     ])
   })
 
@@ -70,20 +79,32 @@ describe('les textes légaux', () => {
     }
   })
 
-  // Garde-fou de publication : le bloc identité est rempli depuis le 29/09/2026 (nom, statut, siège,
-  // numéro d'entreprise, TVA, contact). Il ne reste que la date de mise à jour, à poser au moment de
-  // publier — c'est elle qui maintient le bandeau provisoire, et qui le fera disparaître.
-  it('ne laisse en crochets que la date de mise à jour', () => {
-    expect(aCompleter(CONDITIONS + CONFIDENTIALITE)).toEqual(['[DATE]'])
+  // Garde-fou de publication : le bloc identité est rempli (nom, statut, siège, numéro d'entreprise,
+  // contact). Ce qui reste en crochets est ce qui manque réellement, et chaque crochet garde le
+  // bandeau provisoire : la date de mise à jour, l'article « Comptes boutique » (à écrire par JSB, offre
+  // pas encore précisée) et les adresses de Supabase et de Resend, absentes du brouillon des mentions.
+  // Si un crochet disparaît, ce test tombe : c'est le signal qu'il faut le retirer d'ici aussi.
+  it('ne laisse en crochets que ce qui manque réellement', () => {
+    expect(aCompleter(CONDITIONS + CONFIDENTIALITE + MENTIONS).sort()).toEqual(
+      [
+        '[DATE]',
+        '[adresse de Resend à confirmer]',
+        '[adresse de Supabase à confirmer]',
+      ].sort(),
+    )
     expect(estProvisoire(CONDITIONS)).toBe(true)
     expect(estProvisoire(CONFIDENTIALITE)).toBe(true)
+    expect(estProvisoire(MENTIONS)).toBe(true)
   })
 
   // Le jour où ces lignes changent, c'est que l'identité publiée a bougé : à relire avant publication.
   it('publie l’identité de l’éditeur en clair', () => {
     expect(CONDITIONS).toContain('Junior Silva Braga Almeida')
     expect(CONDITIONS).toContain('1043.060.596')
-    expect(CONDITIONS).toContain('BE 1043.060.596')
+    // Le numéro de TVA n'est pas publié tant que le SPF Finances ne l'a pas confirmé
+    // (VIES « non valide » au 06/10/2026). Le numéro d'entreprise, lui, est actif.
+    expect(CONDITIONS).not.toContain('BE 1043.060.596')
+    expect(CONDITIONS).toContain("Numéro de TVA : à publier dès que l'identification TVA est confirmée")
     expect(CONDITIONS).toContain('contact@braaise.io')
     expect(CONDITIONS).toContain('390 € HTVA par an')
     expect(CONFIDENTIALITE).toContain('Rue Cardinal Lavigerie 7, 1040 Etterbeek')
@@ -99,6 +120,105 @@ describe('les textes légaux', () => {
     expect(CONFIDENTIALITE).not.toContain('pas encore active')
     expect(CONDITIONS).not.toContain("aucun montant de TVA n'est")
     expect(CONDITIONS).toContain('21 %')
+  })
+
+  it('les conditions disent que Braaise est réservé aux professionnels', () => {
+    expect(CONDITIONS).toContain('## Qui peut s\'abonner')
+    expect(CONDITIONS).toContain('Braaise est réservé aux professionnels')
+    expect(CONDITIONS).toContain('VI.47')
+    expect(CONDITIONS).toContain('ne s\'applique pas aux contrats conclus entre professionnels')
+    expect(CONDITIONS).toContain('tu déclares agir pour les besoins de ton activité professionnelle')
+    expect(CONDITIONS).not.toMatch(/tu renonces/)
+    // L'article « Comptes boutique » est écrit (décision JSB du 06/10) : plus de crochet.
+    expect(CONDITIONS).toContain('Comptes boutique')
+    expect(CONDITIONS).toContain('49 € HTVA par mois')
+  })
+
+  describe('RGPD', () => {
+    it('donne une base légale à chaque traitement (art. 13.1.c)', () => {
+      expect(CONFIDENTIALITE).toContain('## Sur quelle base')
+      for (const base of ['art. 6.1.a', 'art. 6.1.b', 'art. 6.1.c', 'art. 6.1.f']) {
+        expect(CONFIDENTIALITE).toContain(base)
+      }
+    })
+
+    it('intègre l’accord de sous-traitance au lieu de le promettre sur demande (art. 28.3)', () => {
+      expect(CONFIDENTIALITE).toContain('## Accord de sous-traitance')
+      for (const lettre of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']) {
+        expect(CONFIDENTIALITE).toContain(`art. 28.3.${lettre}`)
+      }
+      expect(CONFIDENTIALITE).not.toContain('disponible sur demande')
+      expect(CONDITIONS).not.toContain('disponible sur demande')
+      expect(CONDITIONS).toContain('intégré à la politique de confidentialité')
+    })
+
+    it('informe l’artisan d’une violation dans les meilleurs délais (art. 33.2)', () => {
+      expect(CONFIDENTIALITE).toContain('Braaise t\'informe dans les meilleurs délais')
+      expect(CONFIDENTIALITE).toContain('art. 33.2')
+    })
+
+    it('prévoit l’information et l’opposition en cas de changement de sous-traitant (art. 28.2, 28.4)', () => {
+      expect(CONFIDENTIALITE).toContain('## Quand un sous-traitant change')
+      expect(CONFIDENTIALITE).toContain('Tu peux t\'opposer à ce changement')
+      expect(CONFIDENTIALITE).toContain('art. 28.4')
+    })
+
+    it('dit, pour chaque prestataire, son pays et son mécanisme de transfert (art. 44-46)', () => {
+      const liste = blocs(CONFIDENTIALITE).filter((b) => b.type === 'point').map((b) => b.texte)
+      for (const [nom, pays] of [
+        ['Supabase', 'Francfort'],
+        ['Vercel', 'États-Unis'],
+        ['Stripe', 'Irlande'],
+        ['Resend', 'États-Unis'],
+        ['Anthropic', 'États-Unis'],
+        ['OVH', 'France'],
+        ['OpenStreetMap', 'pays et mécanisme'],
+      ]) {
+        const ligne = liste.find((t) => t.startsWith(nom))
+        expect(ligne, nom).toBeDefined()
+        expect(ligne, nom).toContain(pays)
+      }
+      expect(CONFIDENTIALITE).toContain('cadre de protection des données UE–États-Unis')
+      expect(CONFIDENTIALITE).toContain('art. 46.2.c')
+    })
+
+    it('formule le retrait du consentement et l’opposition comme tels (art. 7.3, 21)', () => {
+      expect(CONFIDENTIALITE).toContain('retirer ton consentement à tout moment (art. 7.3)')
+      expect(CONFIDENTIALITE).toContain('le droit de t\'opposer')
+      expect(CONFIDENTIALITE).toContain('art. 21.1')
+    })
+
+    it('informe la boutique de ses données (art. 13)', () => {
+      expect(CONFIDENTIALITE).toContain('## Si tu es une boutique')
+      expect(CONFIDENTIALITE).toContain('au moment où tes données sont collectées (art. 13')
+    })
+  })
+
+  describe('les mentions légales', () => {
+    it('portent l’identité, le numéro d’entreprise, l’adresse et le contact', () => {
+      for (const attendu of [
+        'Junior Silva Braga Almeida',
+        'Rue Cardinal Lavigerie 7, 1040 Etterbeek',
+        '1043.060.596',
+        'contact@braaise.io',
+      ]) {
+        expect(MENTIONS).toContain(attendu)
+      }
+    })
+
+    it('donnent le nom ET l’adresse de chaque hébergeur', () => {
+      expect(MENTIONS).toContain('Vercel Inc., 340 S Lemon Ave #4133, Walnut, CA 91789')
+      expect(MENTIONS).toContain('OVH SAS, 2 rue Kellermann, 59100 Roubaix')
+      expect(MENTIONS).toContain('Supabase Inc., [adresse de Supabase à confirmer]')
+      expect(MENTIONS).toContain('Stripe Payments Europe, Ltd., 1 Grand Canal Street Lower, Dublin')
+    })
+
+    // Le numéro de TVA n'est pas publié tant que le SPF Finances ne l'a pas confirmé.
+    it('disent l’identification TVA en cours et ne publient aucun numéro de TVA', () => {
+      expect(MENTIONS).toContain('L\'identification de l\'éditeur à la TVA est en cours')
+      expect(MENTIONS).not.toMatch(/BE ?1043/)
+      expect(MENTIONS).not.toMatch(/\bBE ?0?\d{3}\.?\d{3}\.?\d{3}\b/)
+    })
   })
 
   it('a un titre de document lisible', () => {

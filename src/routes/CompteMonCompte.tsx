@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 // La phrase de l'accord d'accès immédiat, partagée avec le serveur : c'est littéralement celle que
 // `stripe-checkout` refuse de ne pas recevoir (art. VI.47 CDE), et celle que porte la page Stripe.
-import { RENONCIATION_RETRACTATION } from '../../supabase/functions/_shared/stripe'
+import { DECLARATION_PROFESSIONNELLE } from '../../supabase/functions/_shared/stripe'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
@@ -378,7 +378,7 @@ function Abonnement({
   const erreur = paiement.error?.message ?? portail.error?.message ?? null
   const rienAGerer = portail.isSuccess && !portail.data
 
-  // L'accord d'accès immédiat (art. VI.47 CDE) : sans lui, le serveur REFUSE d'ouvrir l'abonnement.
+  // La déclaration d'usage professionnel : sans elle, le serveur REFUSE d'ouvrir l'abonnement.
   // La phrase qui l'accompagne est celle du module partagé — la même que celle posée sur la page de
   // paiement Stripe : on ne fait pas cocher ce qu'on ne montre pas.
   const [accord, setAccord] = useState(false)
@@ -386,7 +386,7 @@ function Abonnement({
   const souscrire = async (frequence: FrequenceAbonnement) => {
     // `assign` et non une navigation interne : la page suivante est celle de Stripe, hors de l'app.
     const url = await paiement
-      .mutateAsync({ frequence, renonceRetractation: accord })
+      .mutateAsync({ frequence, usageProfessionnel: accord })
       .catch(() => null)
     if (url) window.location.assign(url)
   }
@@ -445,7 +445,7 @@ function Abonnement({
                 style={{ marginTop: 3 }}
               />
               <span className="muted" style={{ fontSize: '0.85rem' }}>
-                {RENONCIATION_RETRACTATION}
+                {DECLARATION_PROFESSIONNELLE}
               </span>
             </label>
             <div className="row" style={{ marginTop: 10 }}>
