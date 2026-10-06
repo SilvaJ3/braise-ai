@@ -32,8 +32,8 @@ import {
   appliqueCouponFondateur,
   frequenceValide,
   prixPour,
-  RENONCIATION_REQUISE,
-  RENONCIATION_RETRACTATION,
+  DECLARATION_PROFESSIONNELLE_REQUISE,
+  DECLARATION_PROFESSIONNELLE,
   type IdentifiantsStripe,
 } from '../_shared/stripe.ts'
 import { abonnementOuvreAcces, ESSAI_JOURS } from '../_shared/essai.ts'
@@ -115,8 +115,13 @@ Deno.serve(async (req) => {
   const corps = (await req.json().catch(() => ({}))) as {
     frequence?: unknown
     pack?: unknown
-    /** L'accord exprès d'accès immédiat, coché à l'écran : voir `RENONCIATION_RETRACTATION`. */
-    renonce_retractation?: unknown
+    /**
+     * La déclaration d'usage professionnel, cochée à l'écran. Braaise est réservé aux
+     * professionnels : un consommateur a un droit de rétractation de quatorze jours
+     * (art. VI.47 CDE) qu'on ne peut pas lui faire abandonner par une case à cocher.
+     * On recueille donc la qualité du souscripteur, et on refuse un abonnement sans elle.
+     */
+    usage_professionnel?: unknown
   }
   const frequence = frequenceValide(corps?.frequence)
   // Un identifiant de pack inconnu ne retombe sur rien : on refuse au lieu de vendre autre chose.
@@ -167,12 +172,13 @@ Deno.serve(async (req) => {
   // suite. Un essai qui se rouvrirait à chaque passage ne serait plus un essai.
   const premierEssai = !pack && !profil?.stripe_subscription_id
 
-  // La renonciation au droit de rétractation (art. VI.47 CDE) : sans accord exprès, la personne qui
-  // paie au 8e jour peut encore se rétracter pendant quatorze jours à compter de la conclusion du
-  // contrat. L'écran la demande, cette fonction REFUSE un abonnement sans elle, et la phrase est
-  // aussi portée par la page de paiement (`custom_text`) — on ne l'impose pas en la cachant.
-  const renonce = corps?.renonce_retractation === true
-  if (!pack && !renonce) return json({ erreur: RENONCIATION_REQUISE, renonciation: true }, 400)
+  // La qualité du souscripteur (décision du 06/10/2026). Braaise s'adresse aux professionnels :
+  // l'artisan ou la boutique qui s'abonne agit pour son activité, pas à titre privé. Le droit de
+  // rétractation que le CDE réserve au consommateur ne s'applique donc pas — et c'est cette
+  // déclaration qui le constate, au lieu d'une renonciation qu'on ne peut pas imposer à un
+  // consommateur. Cette fonction REFUSE un abonnement sans elle.
+  const professionnel = corps?.usage_professionnel === true
+  if (!pack && !professionnel) return json({ erreur: DECLARATION_PROFESSIONNELLE_REQUISE, professionnel: true }, 400)
 
   // `ui_mode: 'hosted_page'` (Checkout Studio) n'existe qu'à partir de cette version d'API ; les
   // types de stripe@17 ne la connaissent pas, d'où le cast.
@@ -213,16 +219,15 @@ Deno.serve(async (req) => {
     customer_update: { address: 'auto' as const, name: 'auto' as const },
   }
 
-  // La renonciation est DATÉE avant d'ouvrir le paiement, et l'écriture est vérifiée : c'est la
-  // seule preuve qu'on a demandé l'accord. Une vente dont on ne peut pas prouver la date se
-  // rétracte, donc on ne l'ouvre pas.
-  if (!pack && renonce) {
+  // La déclaration est DATÉE avant d'ouvrir le paiement, et l'écriture est vérifiée : c'est la
+  // preuve que le souscripteur a déclaré sa qualité au moment où il s'est abonné.
+  if (!pack && professionnel) {
     const { error } = await admin
       .from('assistant_profil')
-      .update({ retractation_renoncee_le: new Date().toISOString() })
+      .update({ usage_professionnel_declare_le: new Date().toISOString() })
       .eq('user_id', utilisateur.id)
     if (error) {
-      console.error('[stripe-checkout] renonciation non datée', error)
+      console.error('[stripe-checkout] déclaration non datée', error)
       return json({ erreur: 'Le paiement n’a pas pu être ouvert.' }, 502)
     }
   }
@@ -296,7 +301,7 @@ Deno.serve(async (req) => {
           },
           // La phrase est aussi sur la page de paiement : la carte est donnée après l'avoir lue,
           // pas seulement après avoir coché une case chez nous.
-          custom_text: { submit: { message: RENONCIATION_RETRACTATION } },
+          custom_text: { submit: { message: DECLARATION_PROFESSIONNELLE } },
           success_url: `${url}/compte/mon-compte?paiement=${premierEssai ? 'essai' : 'ok'}`,
           cancel_url: `${url}/compte/mon-compte?paiement=annule`,
         })

@@ -1,9 +1,9 @@
 import { Link } from 'react-router-dom'
-import { CONFIDENTIALITE, CONDITIONS } from '../content/legal'
+import { CONFIDENTIALITE, CONDITIONS, MENTIONS } from '../content/legal'
 import { estProvisoire, sections } from '../lib/texte-legal'
 
 /**
- * Une page légale : le même écran pour les conditions et la confidentialité, parce que c'est le
+ * Une page légale : le même écran pour les conditions, la confidentialité et les mentions, parce que c'est le
  * même document à lire — seul le texte change. Le format est posé une fois (sections, puces,
  * paragraphes) dans `livre` ci-dessous, jamais dans le texte.
  *
@@ -11,9 +11,14 @@ import { estProvisoire, sections } from '../lib/texte-legal'
  * demande à quelqu'un d'accepter les conditions, à l'inscription. Une case à cocher qui renvoie
  * vers une page introuvable ne vaut pas mieux que pas de case du tout.
  */
-export default function PageLegale({ document }: { document: 'conditions' | 'confidentialite' }) {
-  const texte = document === 'conditions' ? CONDITIONS : CONFIDENTIALITE
-  const titre = document === 'conditions' ? 'Conditions générales' : 'Confidentialité'
+const PAGES = {
+  conditions: { texte: CONDITIONS, titre: 'Conditions générales' },
+  confidentialite: { texte: CONFIDENTIALITE, titre: 'Confidentialité' },
+  mentions: { texte: MENTIONS, titre: 'Mentions légales' },
+}
+
+export default function PageLegale({ document }: { document: keyof typeof PAGES }) {
+  const { texte, titre } = PAGES[document]
   const provisoire = estProvisoire(texte)
 
   const livre = sections(texte)

@@ -58,6 +58,7 @@ export default function App() {
             avant d'avoir un compte. */}
         <Route path="/conditions" element={<PageLegale document="conditions" />} />
         <Route path="/confidentialite" element={<PageLegale document="confidentialite" />} />
+        <Route path="/mentions-legales" element={<PageLegale document="mentions" />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     )
@@ -140,6 +141,7 @@ export default function App() {
         <Route path="/nouveau-mot-de-passe" element={<NouveauMotDePasse />} />
         <Route path="/conditions" element={<PageLegale document="conditions" />} />
         <Route path="/confidentialite" element={<PageLegale document="confidentialite" />} />
+        <Route path="/mentions-legales" element={<PageLegale document="mentions" />} />
         {/* Réservé à l'administration : la garde est dans l'écran, et le serveur refuse de toute
             façon de rendre les demandes à un compte qui n'administre pas. */}
         <Route path="/compte/demandes" element={<Demandes />} />

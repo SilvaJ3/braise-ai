@@ -1,5 +1,13 @@
 {
   "permissions": {
-    "allow": ["Bash(git push:*)"]
+    "allow": [
+      "Bash(git push:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(**/*.pem)",
+      "Read(**/.hermes/**)"
+    ]
   }
 }

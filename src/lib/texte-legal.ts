@@ -14,13 +14,24 @@ export type Bloc =
 
 export function blocs(texte: string): Bloc[] {
   const sortie: Bloc[] = []
+  // Une ligne qui suit directement un paragraphe ou une puce, sans ligne vide, en est la suite :
+  // les textes sont écrits à 100 colonnes, et sans cela chaque ligne source deviendrait un bloc.
+  let suite = false
   for (const brute of texte.split('\n')) {
     const ligne = brute.trim()
-    if (!ligne) continue
-    if (ligne.startsWith('## ')) sortie.push({ type: 'titre', texte: ligne.slice(3).trim() })
-    else if (ligne.startsWith('- ')) sortie.push({ type: 'point', texte: ligne.slice(2).trim() })
-    else if (ligne.startsWith('#')) continue // niveau de titre non utilisé
-    else sortie.push({ type: 'para', texte: ligne })
+    if (!ligne) suite = false
+    else if (ligne.startsWith('## ')) {
+      sortie.push({ type: 'titre', texte: ligne.slice(3).trim() })
+      suite = false
+    } else if (ligne.startsWith('- ')) {
+      sortie.push({ type: 'point', texte: ligne.slice(2).trim() })
+      suite = true
+    } else if (ligne.startsWith('#')) continue // niveau de titre non utilisé
+    else if (suite) sortie[sortie.length - 1].texte += ` ${ligne}`
+    else {
+      sortie.push({ type: 'para', texte: ligne })
+      suite = true
+    }
   }
   return sortie
 }
