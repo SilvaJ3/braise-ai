@@ -552,6 +552,26 @@ async function handleChat(req: Request, userIdPret: string | undefined, corps: R
   const acces = await accesDuCompte(admin, userId)
   if (!acces.autorise) return json({ error: acces.message }, 402)
 
+  // Quota par utilisateur : chaque tour peut coûter plusieurs appels LLM + recherches web.
+  // Le compteur vit dans `rate_limits` (service_role uniquement) : contrairement à l'ancien
+  // décompte sur `chat_messages`, le client ne peut pas l'effacer pour se redonner du crédit.
+  //
+  // AVANT la réservation de jetons : un refus ici ne doit rien avoir réservé. Dans l'autre ordre, chaque
+  // question refusée par le plafond horaire gardait ses jetons réservés, et un compte qui insistait
+  // vidait son enveloppe du mois sans qu'aucun appel au modèle n'ait eu lieu.
+  const { data: quotaOk, error: quotaErr } = await admin.rpc('consommer_quota', {
+    p_user: userId,
+    p_kind: 'chat',
+    p_max: CHAT_MAX_PER_WINDOW,
+    p_fenetre_sec: Math.floor(CHAT_WINDOW_MS / 1000),
+  })
+  if (quotaErr) {
+    // Un quota indisponible ne doit pas bloquer l'usage : on journalise et on laisse passer.
+    console.error('[quota chat]', quotaErr)
+  } else if (quotaOk === false) {
+    return json({ error: 'Tu as posé beaucoup de questions coup sur coup. Réessaie dans un moment.' }, 429)
+  }
+
   const profil = await loadProfil(userId).catch(() => null)
   const reservation = await reserverJetons(admin, userId, profil?.plan, RESERVE_JETONS.assistant)
   if (reservation.etat === 'refus') return json({ error: reservation.message }, 429)
@@ -570,29 +590,17 @@ async function handleChat(req: Request, userIdPret: string | undefined, corps: R
   }
   const reserve = reservation.etat === 'reserve' ? reservation.reserve : null
 
-  // Quota par utilisateur : chaque tour peut coûter plusieurs appels LLM + recherches web.
-  // Le compteur vit dans `rate_limits` (service_role uniquement) : contrairement à l'ancien
-  // décompte sur `chat_messages`, le client ne peut pas l'effacer pour se redonner du crédit.
-  const { data: quotaOk, error: quotaErr } = await admin.rpc('consommer_quota', {
-    p_user: userId,
-    p_kind: 'chat',
-    p_max: CHAT_MAX_PER_WINDOW,
-    p_fenetre_sec: Math.floor(CHAT_WINDOW_MS / 1000),
-  })
-  if (quotaErr) {
-    // Un quota indisponible ne doit pas bloquer l'usage : on journalise et on laisse passer.
-    console.error('[quota chat]', quotaErr)
-  } else if (quotaOk === false) {
-    return json({ error: 'Tu as posé beaucoup de questions coup sur coup. Réessaie dans un moment.' }, 429)
-  }
-
   await admin.from('chat_messages').insert({ user_id: userId, role: 'user', content: message })
   const { data: assistantRow, error: insErr } = await admin
     .from('chat_messages')
     .insert({ user_id: userId, role: 'assistant', content: '', status: 'pending' })
     .select('id')
     .single()
-  if (insErr || !assistantRow) return json({ error: 'création de la réponse impossible' }, 500)
+  if (insErr || !assistantRow) {
+    // Aucun appel au modèle n'aura lieu : la place réservée revient dans l'enveloppe.
+    await corrigerJetons(admin, userId, reserve, CONSOMMATION_VIDE)
+    return json({ error: 'création de la réponse impossible' }, 500)
+  }
   const assistantId = assistantRow.id as string
 
   // Historique (hors réponse en cours), 20 derniers messages, ordre chronologique.
@@ -746,37 +754,46 @@ async function runWeeklyForUser(userId: string): Promise<ResultatBilan> {
   }
   const reserve = reservation.etat === 'reserve' ? reservation.reserve : null
 
-  const context = await buildContext(userId, 80)
-  // Titres déjà au planning : le prompt les interdit explicitement, et le filtre
-  // ci-dessous les rejette si le modèle passe outre.
-  const titresConnus = (await loadPlanning(userId, 300)).map((e) => e.title).filter(Boolean)
+  let resp: Awaited<ReturnType<typeof anthropic>>
+  // Titres déjà au planning : le prompt les interdit explicitement, et le filtre plus bas les
+  // rejette si le modèle passe outre (d'où la déclaration hors du try).
+  let titresConnus: string[]
+  try {
+    const context = await buildContext(userId, 80)
+    titresConnus = (await loadPlanning(userId, 300)).map((e) => e.title).filter(Boolean)
 
-  // Le bilan tourne une fois par compte : le cache ne peut pas resservir à l'intérieur d'un tour.
-  // Là où il sert, c'est d'un compte au suivant dans la même passe de cron : on ne met donc en
-  // cache QUE les consignes, identiques pour tout le monde, et pas le contexte qui est propre à
-  // chaque compte (sinon le préfixe diffère et rien n'est jamais relu).
-  const system = systemEnBlocs(
-    [CONSIGNES_BILAN],
-    [
-      context.stable,
-      `Nous sommes le ${today}.`,
-      `Titres à ne PAS réutiliser :\n${titresConnus.map((t) => `- ${t}`).join('\n')}`,
-      context.variable,
-    ],
-  )
+    // Le bilan tourne une fois par compte : le cache ne peut pas resservir à l'intérieur d'un tour.
+    // Là où il sert, c'est d'un compte au suivant dans la même passe de cron : on ne met donc en
+    // cache QUE les consignes, identiques pour tout le monde, et pas le contexte qui est propre à
+    // chaque compte (sinon le préfixe diffère et rien n'est jamais relu).
+    const system = systemEnBlocs(
+      [CONSIGNES_BILAN],
+      [
+        context.stable,
+        `Nous sommes le ${today}.`,
+        `Titres à ne PAS réutiliser :\n${titresConnus.map((t) => `- ${t}`).join('\n')}`,
+        context.variable,
+      ],
+    )
 
-  const resp = await anthropic(
-    {
-      model: WEEKLY_MODEL,
-      max_tokens: 2500,
-      output_config: { effort: 'low' },
-      system,
-      messages: [{ role: 'user', content: 'Génère le bilan de la semaine.' }],
-      tools: [BILAN_TOOL],
-      tool_choice: { type: 'tool', name: 'rendre_bilan' },
-    },
-    60_000,
-  )
+    resp = await anthropic(
+      {
+        model: WEEKLY_MODEL,
+        max_tokens: 2500,
+        output_config: { effort: 'low' },
+        system,
+        messages: [{ role: 'user', content: 'Génère le bilan de la semaine.' }],
+        tools: [BILAN_TOOL],
+        tool_choice: { type: 'tool', name: 'rendre_bilan' },
+      },
+      60_000,
+    )
+  } catch (e) {
+    // Une panne avant ou pendant l'appel : la place réservée revient dans l'enveloppe (sinon un incident
+    // du fournisseur de modèle coûtait au compte une part de son mois pour un bilan jamais produit).
+    await corrigerJetons(admin, userId, reserve, CONSOMMATION_VIDE)
+    throw e
+  }
   const call = resp.content.find((b) => b.type === 'tool_use')
   const consoBilan = consommation(resp.usage)
   await enregistrerUsage(userId, 'bilan', consoBilan)
