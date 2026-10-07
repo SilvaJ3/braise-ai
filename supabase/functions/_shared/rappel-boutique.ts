@@ -16,7 +16,7 @@
 // Le texte est ici, en TypeScript pur : il se vérifie sans base et sans réseau (voir le test).
 
 import { fmtQte, moisLisible } from './depot-doc.ts'
-import { mailHtml } from './mail-html.ts'
+import { LOGO_BRAAISE, mailHtml } from './mail-html.ts'
 
 export type TypeRappel = 'rappel' | 'relance'
 
@@ -143,6 +143,7 @@ export function construireRappel(args: {
   const resume = partenaires.length ? `${partenaires[0].artisan} : ${phraseMouvements(partenaires[0], moisPrecedent)}` : ''
 
   const html = mailHtml({
+      logo: LOGO_BRAAISE,
     expediteur: qui || 'Suivi des dépôts',
     titre: type === 'relance' ? 'Il nous manque votre relevé' : 'Où en sont vos pièces ?',
     paragraphes,

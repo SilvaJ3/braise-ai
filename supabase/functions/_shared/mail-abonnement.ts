@@ -13,7 +13,7 @@
 // L'envoi, lui, est dans la fonction `abonnement-rappels`.
 
 import { euros } from './stripe.ts'
-import { mailHtml } from './mail-html.ts'
+import { LOGO_BRAAISE, mailHtml } from './mail-html.ts'
 
 /** Le taux appliqué par Stripe Tax en Belgique : 21 %. Sert à écrire le TTC à côté du HTVA. */
 const TAUX_TVA = 0.21
@@ -85,6 +85,7 @@ export function mailEssaiBientot(s: Situation & { jours: number; finLe: string }
     subject: titre,
     text,
     html: mailHtml({
+      logo: LOGO_BRAAISE,
       expediteur: s.expediteur,
       titre,
       paragraphes: [p1, p2, p3],
@@ -126,6 +127,7 @@ export function mailImpaye(s: Situation & { relance: number }): MailAbonnement {
     subject: titre,
     text,
     html: mailHtml({
+      logo: LOGO_BRAAISE,
       expediteur: s.expediteur,
       titre,
       paragraphes: [p1, p2, p3],
@@ -160,6 +162,7 @@ export function mailAvisRenouvellement(s: Situation & { finLe: string }): MailAb
     subject: titre,
     text,
     html: mailHtml({
+      logo: LOGO_BRAAISE,
       expediteur: s.expediteur,
       titre,
       paragraphes: [p1, p2, p3],

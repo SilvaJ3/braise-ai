@@ -1,6 +1,13 @@
 // Mise en page des mails HTML : un cadre centré, un titre, des paragraphes, et un bouton
 // d'action en fin de cadre.
 //
+// L'icône du produit, servie par l'app : tout mail de Braaise peut la porter. Une seule
+// définition, pour que le jour où l'icône change, elle change partout.
+export const LOGO_BRAAISE = {
+  url: 'https://artisan.braaise.io/apple-touch-icon.png',
+  alt: 'Braaise',
+}
+
 // Contraintes du courrier électronique, pas du web : on écrit des tableaux (pas de flexbox), des
 // styles en ligne (les feuilles de style sont souvent retirées), et on ne compte sur aucune image
 // (beaucoup de clients les bloquent). Le logo est donc posé en image AVEC un texte de remplacement :

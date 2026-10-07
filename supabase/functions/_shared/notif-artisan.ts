@@ -12,7 +12,7 @@
 // le produit parle des artisans, jamais des artisanes (voir BRAISE-POSITIONNEMENT.md).
 
 import { fmtDateCourte, fmtDateLongue, fmtEuro, fmtQte } from './depot-doc.ts'
-import { mailHtml } from './mail-html.ts'
+import { LOGO_BRAAISE, mailHtml } from './mail-html.ts'
 
 export type TypeNotifArtisan = 'bon_confirme' | 'reassort' | 'stock_mouvement' | 'releve_emis'
 
@@ -92,6 +92,7 @@ export function mailBonConfirme(b: BonConfirme, args: { lien: string }): Message
   texte.push('', 'Pour toute question, réponds simplement à ce mail.')
 
   const html = mailHtml({
+      logo: LOGO_BRAAISE,
     expediteur: 'Braaise',
     titre: `${b.boutique} a confirmé la réception`,
     paragraphes: [
@@ -160,6 +161,7 @@ export function mailReassort(r: Reassort, args: { lien: string }): Message {
   texte.push('', 'Pour toute question, réponds simplement à ce mail.')
 
   const html = mailHtml({
+      logo: LOGO_BRAAISE,
     expediteur: 'Braaise',
     titre: `${r.boutique} te demande un réassort`,
     paragraphes: [
@@ -227,6 +229,7 @@ export function mailStockMouvement(s: StockMouvement, args: { lien: string }): M
   texte.push('', 'Pour toute question, réponds simplement à ce mail.')
 
   const html = mailHtml({
+      logo: LOGO_BRAAISE,
     expediteur: 'Braaise',
     titre: `${s.boutique} a déclaré des ventes`,
     paragraphes: [
@@ -294,6 +297,7 @@ export function mailReleveEmis(r: ReleveEmis, args: { lien: string }): Message {
   texte.push('', 'Pour toute question, réponds simplement à ce mail.')
 
   const html = mailHtml({
+      logo: LOGO_BRAAISE,
     expediteur: 'Braaise',
     titre: `Ton relevé ${r.numero} est prêt`,
     paragraphes: [

@@ -7,7 +7,7 @@
 //  1. la notification à l'administrateur (avec le jeton de validation) ;
 //  2. l'invitation à la personne, **seulement** après le clic de validation.
 
-import type { MailMise } from './mail-html.ts'
+import { LOGO_BRAAISE, type MailMise } from './mail-html.ts'
 
 export const MESSAGES_DEMANDE = {
   email: "Cette adresse email n'a pas l'air complète — vérifie-la.",
@@ -117,6 +117,7 @@ export function mailNotification(
     subject: sujetNotification(d.email),
     text: lignes.filter((l): l is string => l !== null).join('\n'),
     mise: {
+      logo: LOGO_BRAAISE,
       expediteur: 'Braaise',
       titre: "Nouvelle demande d'accès",
       paragraphes: [
@@ -160,6 +161,7 @@ export function mailInvitation(
       '— Braaise',
     ].join('\n'),
     mise: {
+      logo: LOGO_BRAAISE,
       expediteur: 'Braaise',
       titre: 'Ton invitation à Braaise',
       paragraphes: [

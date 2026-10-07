@@ -15,7 +15,7 @@
 // ailleurs (voir `lien-boutique.ts`). TypeScript pur, ni base ni réseau : ce texte se vérifie dans
 // un test (voir `presentation-boutique.test.ts`).
 
-import { mailHtml } from './mail-html.ts'
+import { LOGO_BRAAISE, mailHtml, type Section } from './mail-html.ts'
 
 export type PresentationEmail = { subject: string; text: string; html: string }
 
@@ -54,17 +54,49 @@ export function construirePresentation(args: PresentationArgs): PresentationEmai
   const lien = String(args.lien ?? '').trim()
   const chez = boutique ? ` chez ${boutique}` : ' chez vous'
 
-  const corps = [
-    `${artisan} dépose ses pièces${chez} et suit ses dépôts avec Braaise. Le lien reçu dans le mail précédent est votre page : voici à quoi elle sert.`,
-    "Ce que vous y trouvez : les pièces déposées et le bon qui les accompagne, ce qu'il vous en reste d'après ce qui a été noté, une case pour dire ce qui a été vendu et une pour les pièces reprises, et de quoi demander un réassort.",
-    "Ce qu'on attend de vous : une fois par mois, quelques minutes. Vous dites ce qu'il vous reste, la page en déduit ce qui est parti — c'est le geste que vous faites déjà à la main. Si tout a été vendu, vous n'avez qu'à le confirmer.",
-    "Ce qui reste chez l'artisan : les pièces sont sa propriété jusqu'à la vente, et le bon signé reste la pièce qui compte. Braaise ne tient pas votre caisse et ne fait ni facture ni comptabilité : votre relevé est daté et à votre nom, c'est lui qui le valide.",
-    "Votre lien est personnel : il ne montre que les pièces de cet artisan chez vous, jamais son stock ni les autres boutiques. Il n'y a rien à installer, rien à payer, et aucun compte à créer.",
+  const accroche =
+    `${artisan} dépose ses pièces${chez} et suit ses dépôts avec Braaise. ` +
+    'Le lien reçu dans le mail précédent est votre page : voici à quoi elle sert.'
+
+  // Une étiquette courte, puis la phrase — dans cet ordre. Les deux versions sont construites
+  // d'ici : la brute recoud « étiquette : phrase », donc la phrase ne se corrige qu'à un endroit.
+  const blocs: Section[] = [
+    {
+      icone: '📄',
+      titre: 'Ce que vous y trouvez',
+      texte:
+        "les pièces déposées et le bon qui les accompagne, ce qu'il vous en reste d'après ce qui " +
+        "a été noté, une case pour dire ce qui a été vendu et une pour les pièces reprises, et de " +
+        'quoi demander un réassort.',
+    },
+    {
+      icone: '🗓️',
+      titre: "Ce qu'on attend de vous",
+      texte:
+        "une fois par mois, quelques minutes. Vous dites ce qu'il vous reste, la page en déduit " +
+        "ce qui est parti — c'est le geste que vous faites déjà à la main. Si tout a été vendu, " +
+        "vous n'avez qu'à le confirmer.",
+    },
+    {
+      icone: '🤝',
+      titre: "Ce qui reste chez l'artisan",
+      texte:
+        "les pièces sont sa propriété jusqu'à la vente, et le bon signé reste la pièce qui " +
+        'compte. Braaise ne tient pas votre caisse et ne fait ni facture ni comptabilité : votre ' +
+        "relevé est daté et à votre nom, c'est lui qui le valide.",
+    },
+    {
+      icone: '🔗',
+      titre: 'Votre lien est personnel',
+      texte:
+        'il ne montre que les pièces de cet artisan chez vous, jamais son stock ni les autres ' +
+        "boutiques. Il n'y a rien à installer, rien à payer, et aucun compte à créer.",
+    },
   ]
 
-  // Un paragraphe par bloc dans la version brute aussi : c'est celle qui s'affiche quand le client
-  // refuse le HTML, et un pavé y est illisible.
-  const parts = ['Bonjour,', '', ...corps.flatMap((p) => [p, ''])]
+  // Version brute : un paragraphe par bloc — c'est celle qui s'affiche quand le client refuse le
+  // HTML, et un pavé y est illisible.
+  const parts = ['Bonjour,', '', accroche, '', ...blocs.flatMap((b) => [`${b.titre} : ${b.texte}`, ''])]
   if (lien) {
     parts.push(lien, '', "C'est toujours la même adresse — gardez-la.")
   } else {
@@ -80,7 +112,9 @@ export function construirePresentation(args: PresentationArgs): PresentationEmai
   const html = mailHtml({
     expediteur: artisan,
     titre: 'Vos pièces, et votre lien',
-    paragraphes: corps,
+    logo: LOGO_BRAAISE,
+    paragraphes: [accroche],
+    sections: blocs,
     ...(lien ? { cta: { libelle: 'Ouvrir ma page', url: lien } } : {}),
     note: lien
       ? "C'est toujours la même adresse : gardez-la, elle ne changera pas."

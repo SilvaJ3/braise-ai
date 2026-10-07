@@ -21,7 +21,7 @@ import {
   totalDoc,
   type DepotDoc,
 } from './depot-doc.ts'
-import { mailHtml } from './mail-html.ts'
+import { LOGO_BRAAISE, mailHtml } from './mail-html.ts'
 import { mentionDemo } from './demo.ts'
 
 export type MailBon = { subject: string; text: string; html: string }
@@ -85,6 +85,7 @@ export function construireMailBon(
     subject: prefixe.length ? `${prefixe.join(' — ')} — ${objet}` : objet,
     text: texte,
     html: mailHtml({
+      logo: LOGO_BRAAISE,
       expediteur: doc.emetteur.nom,
       titre: reference,
       paragraphes,
