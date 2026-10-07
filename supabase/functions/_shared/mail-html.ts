@@ -3,10 +3,14 @@
 //
 // Contraintes du courrier électronique, pas du web : on écrit des tableaux (pas de flexbox), des
 // styles en ligne (les feuilles de style sont souvent retirées), et on ne compte sur aucune image
-// (beaucoup de clients les bloquent). D'où un en-tête typographique plutôt qu'un logo.
+// (beaucoup de clients les bloquent). Le logo est donc posé en image AVEC un texte de remplacement :
+// un client qui bloque les images affiche « Braaise », pas un carré vide.
 //
 // Le texte brut reste joint à chaque envoi : c'est lui qui s'affiche dans un lecteur qui refuse
 // le HTML, et il évite à un mail légitime d'avoir l'air d'un mail publicitaire.
+//
+// Un mail qui se lit se lit en diagonale : les étapes passent par `sections` (un titre court et une
+// ligne), pas par un paragraphe qui raconte la même chose en six lignes.
 
 /** Échappe ce qui vient de la base ou d'un utilisateur avant de le poser dans le HTML. */
 export function echapper(v: string): string {
@@ -20,11 +24,16 @@ export function echapper(v: string): string {
 
 export type Encadre = { lignes: [string, string][] }
 
+/** Une étape : un titre court, une ligne. Numérotée automatiquement par l'ordre du tableau. */
+export type Section = { titre: string; texte: string }
+
 export type MailMise = {
   /** Nom affiché en en-tête : le nom commercial de l'expéditeur. */
   expediteur: string
   titre: string
   paragraphes: string[]
+  /** Étapes numérotées : la forme à préférer dès qu'il y a plus d'une chose à faire. */
+  sections?: Section[]
   /** Bouton d'action, en fin de cadre. Sans lui, pas de bouton. */
   cta?: { libelle: string; url: string }
   /** Petit tableau de détails (dates, quantités, adresse…). */
@@ -35,6 +44,11 @@ export type MailMise = {
   pied?: string
   /** Résumé invisible, affiché par la boîte mail à côté de l'objet. */
   resume?: string
+  /**
+   * Marque en tête de carte. Image + texte de remplacement : jamais l'un sans l'autre.
+   * Doit être une URL absolue en HTTPS, servie par le produit.
+   */
+  logo?: { url: string; alt: string }
 }
 
 // Palette reprise du produit : fond chaud, carte blanche, accent bleu de l'app.
@@ -49,8 +63,8 @@ const SANS = "-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
 const SERIF = "Georgia,'Times New Roman',serif"
 
 /**
- * Le mail HTML complet. Structure : fond → carte centrée de 600 px → en-tête, titre,
- * paragraphes, encadré, bouton, note → pied hors carte.
+ * Le mail HTML complet. Structure : fond → carte centrée de 600 px → logo, en-tête, titre,
+ * paragraphes, étapes, encadré, bouton, note → pied hors carte.
  */
 export function mailHtml(m: MailMise): string {
   const paragraphes = m.paragraphes
@@ -59,6 +73,25 @@ export function mailHtml(m: MailMise): string {
         `<tr><td style="padding:0 32px 14px;font-family:${SANS};font-size:16px;line-height:1.6;color:${TEXTE};">${echapper(p)}</td></tr>`,
     )
     .join('')
+
+  const sections = m.sections?.length
+    ? m.sections
+        .map(
+          (s, i) =>
+            `<tr><td style="padding:0 32px 16px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+          <tr>
+            <td width="26" valign="top" style="font-family:${SANS};font-size:15px;font-weight:700;line-height:1.4;color:${ACCENT};">${i + 1}</td>
+            <td style="font-family:${SANS};">
+              <div style="font-size:15px;font-weight:600;line-height:1.4;color:${TEXTE};">${echapper(s.titre)}</div>
+              <div style="padding-top:3px;font-size:14px;line-height:1.55;color:${DOUX};">${echapper(s.texte)}</div>
+            </td>
+          </tr>
+        </table>
+      </td></tr>`,
+        )
+        .join('')
+    : ''
 
   const encadre = m.encadre?.lignes.length
     ? `<tr><td style="padding:4px 32px 16px;">
@@ -100,6 +133,14 @@ export function mailHtml(m: MailMise): string {
     ? `<tr><td align="center" style="padding:18px 8px 0;font-family:${SANS};font-size:12px;line-height:1.55;color:${DOUX};">${echapper(m.pied)}</td></tr>`
     : ''
 
+  // Le logo : image ET texte de remplacement. `border-radius` pour adoucir un carré sombre, et
+  // `display:block` parce qu'une image en ligne dans une cellule Outlook récupère une ligne fantôme.
+  const logo = m.logo
+    ? `<tr><td style="padding:26px 32px 8px;">
+        <img src="${echapper(m.logo.url)}" alt="${echapper(m.logo.alt)}" width="36" height="36" style="display:block;width:36px;height:36px;border:0;border-radius:9px;" />
+      </td></tr>`
+    : ''
+
   // Toujours un peu d'air sous le dernier bloc : un mail dont le texte touche le bord du cadre a
   // l'air tronqué, même quand il ne l'est pas.
   const basDeCadre =
@@ -124,13 +165,15 @@ ${resume}
   <tr>
     <td align="center" style="padding:30px 12px 42px;">
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:${CARTE};border:1px solid ${BORD};border-radius:16px;">
+        ${logo}
         <tr>
-          <td style="padding:28px 32px 6px;font-family:${SANS};font-size:12px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:${DOUX};">${echapper(m.expediteur)}</td>
+          <td style="padding:${m.logo ? '8px' : '28px'} 32px 6px;font-family:${SANS};font-size:12px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:${DOUX};">${echapper(m.expediteur)}</td>
         </tr>
         <tr>
           <td style="padding:0 32px 18px;font-family:${SERIF};font-size:25px;line-height:1.25;color:${TEXTE};">${echapper(m.titre)}</td>
         </tr>
         ${paragraphes}
+        ${sections}
         ${encadre}
         ${cta}
         ${note}

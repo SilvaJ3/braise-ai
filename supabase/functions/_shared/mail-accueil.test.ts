@@ -5,7 +5,7 @@
 // Ce fichier tient ces garde-fous-là, sans réseau ni envoi.
 import { describe, expect, it } from 'vitest'
 import { enveloppeJetons, questionsIndicatives } from './enveloppe'
-import { accueilArme, construireMailAccueil, NOM_MODELE, OBJET_ACCUEIL } from './mail-accueil'
+import { accueilArme, construireMailAccueil, LOGO_ACCUEIL, NOM_MODELE, OBJET_ACCUEIL } from './mail-accueil'
 
 const APP = 'https://artisan.braaise.io'
 
@@ -79,5 +79,26 @@ describe('mail d’accueil', () => {
     // Sans URL, pas de bouton mort : le mail part quand même, sans CTA.
     const sans = construireMailAccueil({ appUrl: '', plan: 'mensuel' })
     expect(sans.html).not.toContain('Ouvrir Braaise')
+  })
+
+  // Le 07/10 : la version précédente était une tartine de trois paragraphes de six lignes. Un mail
+  // qu'on ne lit pas ne sert à rien ; ces deux tests tiennent la forme courte.
+  it('se lit en diagonale : trois étapes titrées, pas de tartine', () => {
+    const m = construireMailAccueil({ appUrl: APP, plan: 'mensuel' })
+    const titres = ['Posez Braaise sur votre téléphone', 'Chargez votre catalogue', 'Ce que ça consomme']
+    titres.forEach((t, i) => {
+      expect(m.text).toContain(`${i + 1}. ${t}`)
+      expect(m.html).toContain(t)
+    })
+    // La version brute reste sous le volume d'écran : au-delà, c'est qu'un bloc a regonflé.
+    expect(m.text.length).toBeLessThan(2200)
+  })
+
+  it('porte le logo en image, avec un texte de remplacement', () => {
+    const m = construireMailAccueil({ appUrl: APP, plan: 'mensuel' })
+    expect(m.html).toContain(`<img src="${APP}${LOGO_ACCUEIL.chemin}" alt="${LOGO_ACCUEIL.alt}"`)
+    // Sans URL d'app, pas de logo : une image morte n'apprend rien.
+    const sans = construireMailAccueil({ appUrl: '', plan: 'mensuel' })
+    expect(sans.html).not.toContain('<img')
   })
 })
