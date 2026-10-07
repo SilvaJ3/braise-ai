@@ -257,8 +257,8 @@ francophone, sont compétents.
 
 Braaise est édité par Junior Silva Braga Almeida, indépendant à titre complémentaire (personne
 physique), dont le siège est situé Rue Cardinal Lavigerie 7, 1040 Etterbeek, Belgique. Numéro
-d'entreprise : 1043.060.596. Numéro de TVA : BE 1043.060.596 (identification confirmée par VIES le 6 octobre 2026)
-par le SPF Finances.
+d'entreprise : 1043.060.596. Numéro de TVA : BE 1043.060.596 (identification confirmée par VIES le
+6 octobre 2026).
 Contact : contact@braaise.io.
 
 Dernière mise à jour : [DATE].`

@@ -217,6 +217,9 @@ describe('les textes légaux', () => {
     it('publient le numéro de TVA confirmé et n’annoncent plus une identification en cours', () => {
       expect(MENTIONS).toContain('BE 1043.060.596')
       expect(MENTIONS).not.toContain('identification de l\'éditeur à la TVA est en cours')
+      // La phrase ne doit pas rester en suspens : « … le 6 octobre 2026) » puis « par le SPF Finances. »
+      // traînait une fin de phrase de la version « en cours ».
+      expect(MENTIONS).not.toContain('par le SPF Finances')
       // La TVA s'ajoute aux prix hors TVA : la mention doit le dire.
       expect(MENTIONS).toMatch(/TVA/)
     })
