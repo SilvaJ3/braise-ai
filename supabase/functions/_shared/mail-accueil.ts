@@ -66,6 +66,7 @@ const LIMITES =
 function etapes(app: string, enveloppe: string, payant: boolean): Section[] {
   return [
     {
+      icone: '📱',
       titre: 'Posez Braaise sur votre téléphone',
       texte:
         "iPhone : « Partager » puis « Sur l'écran d'accueil ». Android : menu ⋮ puis « Ajouter à " +
@@ -74,22 +75,21 @@ function etapes(app: string, enveloppe: string, payant: boolean): Section[] {
         (app ? '' : ' Le pas-à-pas est dans l\'app, Compte puis « Sur mon téléphone ».'),
     },
     {
+      icone: '📊',
       titre: 'Chargez votre catalogue',
       texte:
-        `Le fichier joint, ${NOM_MODELE} : une feuille par chose à importer (produits, matières, ` +
-        'fournisseurs, boutiques), une ligne par pièce, seule la colonne Nom est obligatoire. ' +
-        'N\'y ajoutez ni titre, ni total, ni exemples : ces lignes seraient importées. L\'import ' +
-        'se charge en une fois (Atelier, puis Importer), avec un aperçu avant de confirmer.',
+        `Le fichier joint, ${NOM_MODELE} : une feuille par chose à importer, une ligne par pièce, ` +
+        'seule la colonne Nom est obligatoire. Une fois prêt, tout se charge d\'un coup, avec un ' +
+        'aperçu avant de confirmer.',
+      puces: ['Produits', 'Matières', 'Fournisseurs', 'Boutiques'],
     },
     {
+      icone: '⚡',
       titre: 'Ce que ça consomme',
       texte:
-        `${enveloppe} Un fichier propre consomme peu ; une photo de liste ou un PDF en désordre ` +
-        'consomme davantage. Le compte est dans l\'app, sous Mon compte.' +
-        (payant
-          ? ' Si l\'enveloppe du mois s\'épuise, un pack de calcul s\'achète sans changer ' +
-            'd\'abonnement — le choix reste le vôtre, l\'app ne l\'achète jamais à votre place.'
-          : ''),
+        `${enveloppe} Un fichier propre consomme peu ; une photo de liste, davantage. Le reste ` +
+        'est visible dans l\'app, sous Mon compte.' +
+        (payant ? ' Si l\'enveloppe s\'épuise, un pack de calcul s\'achète si vous le décidez.' : ''),
     },
   ]
 }
@@ -109,7 +109,14 @@ export function construireMailAccueil(opts: { appUrl: string; plan?: Plan | stri
   // Version brute : la source, toujours envoyée. Le lien y est écrit en clair, et les étapes
   // suivent la même numérotation que la version mise en page.
   const brutEtapes = sections
-    .map((s, i) => [`${i + 1}. ${s.titre}`, ...(i === 0 && app ? [app] : []), s.texte].join('\n'))
+    .map((s, i) =>
+      [
+        `☐ ${i + 1}. ${s.titre}`,
+        ...(i === 0 && app ? [app] : []),
+        s.texte,
+        ...(s.puces?.length ? [`À importer : ${s.puces.join(', ').toLowerCase()}.`] : []),
+      ].join('\n'),
+    )
     .join('\n\n')
 
   const text =

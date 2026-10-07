@@ -24,8 +24,8 @@ export function echapper(v: string): string {
 
 export type Encadre = { lignes: [string, string][] }
 
-/** Une étape : un titre court, une ligne. Numérotée automatiquement par l'ordre du tableau. */
-export type Section = { titre: string; texte: string }
+/** Une étape : une icône dans une case (ou son numéro), un titre court, une ligne. */
+export type Section = { titre: string; texte: string; icone?: string; puces?: string[] }
 
 export type MailMise = {
   /** Nom affiché en en-tête : le nom commercial de l'expéditeur. */
@@ -76,20 +76,30 @@ export function mailHtml(m: MailMise): string {
 
   const sections = m.sections?.length
     ? m.sections
-        .map(
-          (s, i) =>
-            `<tr><td style="padding:0 32px 16px;">
+        .map((s, i) => {
+          // La case : une icône quand il y en a une, le numéro sinon. Même boîte dans les deux cas —
+          // c'est ce qui donne à la liste son air de liste à cocher.
+          const case_ = s.icone
+            ? `<div style="width:34px;height:34px;background:#faf7f2;border:1px solid ${BORD};border-radius:9px;font-family:${SANS};font-size:17px;line-height:34px;text-align:center;color:${TEXTE};">${echapper(s.icone)}</div>`
+            : `<div style="width:34px;height:34px;font-family:${SANS};font-size:15px;font-weight:700;line-height:34px;color:${ACCENT};">${i + 1}</div>`
+          // Pastilles : ce qu'on importe, énuméré court. Des `span` en ligne plutôt qu'un tableau :
+          // ça passe à la ligne tout seul dans une largeur étroite, sans déborder.
+          const puces = s.puces?.length
+            ? `<div style="padding-top:8px;">${s.puces.map((p) => `<span style="display:inline-block;background:#faf7f2;border:1px solid ${BORD};border-radius:8px;padding:5px 10px;margin:0 5px 5px 0;font-family:${SANS};font-size:13px;line-height:1;color:${TEXTE};">${echapper(p)}</span>`).join('')}</div>`
+            : ''
+          return `<tr><td style="padding:0 32px 14px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
           <tr>
-            <td width="26" valign="top" style="font-family:${SANS};font-size:15px;font-weight:700;line-height:1.4;color:${ACCENT};">${i + 1}</td>
+            <td width="44" valign="top" style="width:44px;">${case_}</td>
             <td style="font-family:${SANS};">
               <div style="font-size:15px;font-weight:600;line-height:1.4;color:${TEXTE};">${echapper(s.titre)}</div>
               <div style="padding-top:3px;font-size:14px;line-height:1.55;color:${DOUX};">${echapper(s.texte)}</div>
+              ${puces}
             </td>
           </tr>
         </table>
-      </td></tr>`,
-        )
+      </td></tr>`
+        })
         .join('')
     : ''
 

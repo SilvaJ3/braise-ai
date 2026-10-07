@@ -92,6 +92,14 @@ describe('mail d’accueil', () => {
     })
     // La version brute reste sous le volume d'écran : au-delà, c'est qu'un bloc a regonflé.
     expect(m.text.length).toBeLessThan(2200)
+    // Une case à cocher dans le brut, une icône dans le HTML : la liste se parcourt à l'œil.
+    expect(m.text).toContain('☐ 1. Posez Braaise sur votre téléphone')
+    for (const ico of ['📱', '📊', '⚡']) expect(m.html).toContain(ico)
+    // Ce qu'on importe, en pastilles sous l'étape 2.
+    for (const p of ['Produits', 'Matières', 'Fournisseurs', 'Boutiques']) {
+      expect(m.html).toContain(p)
+      expect(m.text.toLowerCase()).toContain(p.toLowerCase())
+    }
   })
 
   it('porte le logo en image, avec un texte de remplacement', () => {
