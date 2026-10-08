@@ -198,6 +198,8 @@ async function contenuStockMouvement(ref: Record<string, unknown>, appUrl: strin
     nb_lignes: Number(ref.nb_lignes ?? 0),
     facturable: Number(ref.facturable ?? 0),
     periode: String(ref.periode ?? '').slice(0, 7),
+    // 0090 : un seul message peut résumer plusieurs déclarations. Absent (anciennes lignes) = 1.
+    declarations: Number(ref.declarations ?? 1),
   }
 
   return {

@@ -192,6 +192,40 @@ describe('mailStockMouvement', () => {
   })
 })
 
+describe('mouvement de stock — le message groupé (0090)', () => {
+  it('une déclaration seule se lit au présent, comme avant', () => {
+    const p = pushStockMouvement(stock({ declarations: 1 }))
+    expect(p.body).toContain('3 lignes —')
+    expect(p.body).not.toContain('déclarations')
+  })
+
+  it('plusieurs déclarations se disent en une fois, avec le total', () => {
+    const p = pushStockMouvement(stock({ declarations: 3, nb_lignes: 7, facturable: 402 }))
+    expect(p.body).toContain('3 déclarations')
+    expect(p.body).toContain('7 lignes au total')
+    expect(p.body).toContain('402 €')
+  })
+
+  it('le mail dit combien de déclarations il regroupe, et le récapitulatif le porte', () => {
+    const m = mailStockMouvement(stock({ declarations: 4, nb_lignes: 9 }), { lien: LIEN })
+    expect(m.text).toContain('en 4 fois')
+    expect(m.text).toContain('9 lignes au total')
+    expect(m.html).toContain('Déclarations regroupées')
+    expect(m.html).toContain('9')
+  })
+
+  it('une déclaration seule ne parle pas de regroupement', () => {
+    const m = mailStockMouvement(stock(), { lien: '' })
+    expect(m.text).not.toContain('en 1 fois')
+    expect(m.html).not.toContain('regroupées')
+  })
+
+  it('n’emploie aucun mot genré, groupé ou non', () => {
+    const m = mailStockMouvement(stock({ declarations: 2 }), { lien: '' })
+    expect(`${m.subject} ${m.text}`).not.toMatch(/artisan(e|es)\b/)
+  })
+})
+
 // --- Le relevé émis ----------------------------------------------------------------------------
 
 function releve(over: Partial<ReleveEmis> = {}): ReleveEmis {

@@ -202,21 +202,42 @@ export type StockMouvement = {
   facturable: number
   /** La période de la déclaration (« 2026-10 »). */
   periode: string
+  /**
+   * Le nombre de déclarations regroupées dans ce message (0090). Absent ou 1 : une seule
+   * déclaration, le message se lit au présent. Plus de 1 : la boutique a enchaîné plusieurs
+   * envois rapprochés, et un seul message les résume — c'est la période calme qui les a groupés.
+   */
+  declarations?: number
 }
 
+/** « 3 lignes » — l'accord du mot, partagé par le push et le mail. */
+const motLignes = (s: StockMouvement): string =>
+  `${s.nb_lignes} ligne${s.nb_lignes > 1 ? 's' : ''}`
+
 export function pushStockMouvement(s: StockMouvement): Push {
+  const n = s.declarations ?? 1
   return {
     title: `${s.boutique} a déclaré des ventes`,
-    body: `${s.nb_lignes} ligne${s.nb_lignes > 1 ? 's' : ''} — ${fmtEuro(s.facturable)} à facturer.`,
+    body:
+      n > 1
+        ? `${n} déclarations — ${motLignes(s)} au total, ${fmtEuro(s.facturable)} à facturer.`
+        : `${motLignes(s)} — ${fmtEuro(s.facturable)} à facturer.`,
   }
 }
 
 export function mailStockMouvement(s: StockMouvement, args: { lien: string }): Message {
+  const n = s.declarations ?? 1
+  const lignes = motLignes(s)
+  // Le premier paragraphe : au présent pour une déclaration, au regroupé pour plusieurs.
+  const intro =
+    n > 1
+      ? [`${s.boutique} a déclaré ses ventes en ${n} fois,`, `soit ${lignes} au total, pour ${fmtEuro(s.facturable)}.`]
+      : [`${s.boutique} vient de déclarer ses ventes : ${lignes},`, `pour ${fmtEuro(s.facturable)}.`]
+
   const texte = [
     'Bonjour,',
     '',
-    `${s.boutique} vient de déclarer ses ventes : ${s.nb_lignes} ligne${s.nb_lignes > 1 ? 's' : ''},`,
-    `pour ${fmtEuro(s.facturable)}.`,
+    ...intro,
     '',
     'Ce sont des pièces qui ne sont plus chez elle. Le détail est dans l\'app, et le relevé',
     'facturable se génère depuis ton compte quand tu es prêt à facturer.',
@@ -233,13 +254,16 @@ export function mailStockMouvement(s: StockMouvement, args: { lien: string }): M
     expediteur: 'Braaise',
     titre: `${s.boutique} a déclaré des ventes`,
     paragraphes: [
-      `${s.nb_lignes} ligne${s.nb_lignes > 1 ? 's' : ''} déclarée${s.nb_lignes > 1 ? 's' : ''}, pour ${fmtEuro(s.facturable)}.`,
+      n > 1
+        ? `${lignes} au total, déclarées en ${n} fois, pour ${fmtEuro(s.facturable)}.`
+        : `${lignes} déclarée${s.nb_lignes > 1 ? 's' : ''}, pour ${fmtEuro(s.facturable)}.`,
       'Ce sont des pièces qui ne sont plus chez elle. Le relevé facturable se génère depuis ton compte quand tu es prêt à facturer.',
     ],
     encadre: {
       lignes: [
         ['Boutique', s.boutique],
         ['Période', s.periode],
+        ...(n > 1 ? ([['Déclarations regroupées', String(n)]] as [string, string][]) : []),
         ['Lignes', String(s.nb_lignes)],
         ['À facturer', fmtEuro(s.facturable)],
       ],
@@ -248,7 +272,10 @@ export function mailStockMouvement(s: StockMouvement, args: { lien: string }): M
     pied:
       'Tu reçois ce message parce que Braaise te prévient dès qu\'une de tes boutiques ' +
       'déclare des ventes, confirme un bon ou te demande un réassort.',
-    resume: `${s.boutique} a déclaré ${s.nb_lignes} ligne(s), ${fmtEuro(s.facturable)} à facturer.`,
+    resume:
+      n > 1
+        ? `${s.boutique} a déclaré des ventes en ${n} fois, ${fmtEuro(s.facturable)} à facturer.`
+        : `${s.boutique} a déclaré ${s.nb_lignes} ligne(s), ${fmtEuro(s.facturable)} à facturer.`,
   })
 
   return {
