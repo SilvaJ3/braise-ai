@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { joursAvecCommande, pastillesDuJour, type Famille } from '../lib/calendrier'
+import { joursMarques, pastillesDuJour, type Famille } from '../lib/calendrier'
 import { ymd } from '../lib/dates'
 import type { Commande, ContentEntry } from '../lib/supabase'
 
@@ -15,6 +15,8 @@ import type { Commande, ContentEntry } from '../lib/supabase'
 const FAMILLE_COLOR: Record<Famille, string> = {
   contenu: '#4f9d5d',
   commande: '#4a7396',
+  // Le réassort a sa couleur : ce qui vient d'une boutique ne se confond pas avec ses commandes.
+  reassort: '#c8862f',
 }
 
 const WEEKDAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
@@ -30,7 +32,8 @@ export default function MonthCalendar({
   onSelect,
 }: {
   entries: ContentEntry[]
-  /** Commandes à servir : leur échéance marque le jour, à côté des statuts de publication. */
+  /** Commandes à servir : leur échéance marque le jour — les siennes en bleu, les réassorts de
+   * boutique en ambre, à côté des statuts de publication. */
   commandes?: Commande[]
   selected: string | null
   onSelect: (date: string | null) => void
@@ -51,7 +54,7 @@ export default function MonthCalendar({
     return m
   }, [entries])
 
-  const commandesParJour = useMemo(() => joursAvecCommande(commandes), [commandes])
+  const jours = useMemo(() => joursMarques(commandes), [commandes])
 
   const year = cursor.getFullYear()
   const month = cursor.getMonth()
@@ -64,7 +67,7 @@ export default function MonthCalendar({
   for (let d = 1; d <= daysInMonth; d++) cells.push(ymd(new Date(year, month, d)))
 
   function dotColors(date: string): Array<{ couleur: string; creux: boolean }> {
-    return pastillesDuJour(byDay.get(date) ?? [], commandesParJour, date).map((p) => ({
+    return pastillesDuJour(byDay.get(date) ?? [], jours, date).map((p) => ({
       couleur: FAMILLE_COLOR[p.famille],
       creux: p.creux,
     }))
@@ -140,6 +143,9 @@ export default function MonthCalendar({
         </span>
         <span className="muted">
           <i className="cal-dot" style={{ background: FAMILLE_COLOR.contenu }} /> Publié
+        </span>
+        <span className="muted">
+          <i className="cal-dot" style={{ background: FAMILLE_COLOR.reassort }} /> Réassort boutique
         </span>
         <span className="muted">
           <i className="cal-dot" style={{ background: FAMILLE_COLOR.commande }} /> Commande
