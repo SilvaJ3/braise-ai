@@ -2,10 +2,11 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { etatAbonnementBoutique } from '../lib/abonnement-boutique'
 import { useEspaceBons, useEspaceBoutique, useMonAbonnementBoutique } from '../lib/compte-boutique'
-import { resumeFournisseur, type FournisseurEspace } from '../lib/espace-boutique'
+import { resumeFournisseur, type EtatEspace, type FournisseurEspace } from '../lib/espace-boutique'
+import { planningDeLaSemaine } from '../lib/planning-boutique'
 import { supabase } from '../lib/supabase'
 
-// L'espace de la boutique connectée — l'écran d'entrée : ses fournisseurs.
+// L'espace de la boutique connectée — l'écran d'entrée : cette semaine, puis ses fournisseurs.
 //
 // C'est la première chose qu'elle voit après avoir choisi son mot de passe. Elle ne voit QUE ses
 // artisans rattachés : ni les autres boutiques d'un artisan, ni son stock personnel (le cloisonnement
@@ -36,6 +37,8 @@ export default function EspaceBoutique() {
         <div className="spacer" />
         <Deconnexion />
       </header>
+
+      <Planning etat={etat} />
 
       {etat.fournisseurs.length === 0 && (
         <p className="empty">Aucun artisan n'est encore rattaché à ta boutique.</p>
@@ -105,6 +108,36 @@ function LienAbonnement() {
         <span className="muted">›</span>
       </div>
     </Link>
+  )
+}
+
+/**
+ * « Cette semaine » — le planning en trois lignes au plus, calculé à partir de ce que la base sait
+ * déjà (bons à confirmer, rituel du mois, fins de rayon, rythme de chaque artisan). L'idée : elle
+ * n'a plus besoin d'un carnet pour savoir ce qui l'attend — le carnet ne relance personne.
+ */
+function Planning({ etat }: { etat: EtatEspace }) {
+  const lignes = planningDeLaSemaine(etat).slice(0, 3)
+  return (
+    <section className="card" style={{ marginTop: 12 }}>
+      <strong>Cette semaine</strong>
+      {lignes.length === 0 ? (
+        <p className="muted" style={{ margin: '6px 0 0', fontSize: '0.9rem' }}>
+          Rien en attente : tout est à jour.
+        </p>
+      ) : (
+        lignes.map((l) => (
+          <p key={l.cle} style={{ margin: '8px 0 0' }}>
+            <Link to={l.vers} className="link">
+              <span aria-hidden="true" style={{ marginRight: 6 }}>
+                {l.icone}
+              </span>
+              {l.texte}
+            </Link>
+          </p>
+        ))
+      )}
+    </section>
   )
 }
 

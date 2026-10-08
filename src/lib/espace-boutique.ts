@@ -23,12 +23,19 @@ export type PieceEspace = {
   /** déposé + entré − vendu − repris */
   reste: number
   /**
-   * La quantité du DERNIER dépôt de cette pièce (0061) : c'est elle que la demande de réassort
-   * propose, parce que « ce que vous avez reçu la dernière fois » se réécrit d'un cran, alors qu'un
-   * chiffre inventé se corrige de zéro. Zéro quand l'artisan ne l'a jamais déposée.
-   */
-  derniere_quantite: number
-}
+   /** La quantité du DERNIER dépôt de cette pièce (0061) : c'est elle que la demande de réassort
+    * propose, parce que « ce que vous avez reçu la dernière fois » se réécrit d'un cran, alors qu'un
+    * chiffre inventé se corrige de zéro. Zéro quand l'artisan ne l'a jamais déposée.
+    */
+   derniere_quantite: number
+   /**
+    * La date du dernier dépôt de cette pièce (« AAAA-MM-JJ »), `null` si elle n'a jamais été déposée.
+    * `boutique_etat` la rend depuis 0061 : c'est elle qui donne son rythme au planning. Facultative
+    * comme toute clé venue d'un `jsonb` : une version antérieure de la fonction ne la rend pas, et
+    * l'écran doit tenir quand même.
+    */
+   dernier_depot?: string | null
+   }
 
 export type LigneBon = {
   designation: string
@@ -152,6 +159,7 @@ function listePieces(brut: unknown): PieceEspace[] {
       // si une clé manque (une version antérieure de la fonction, par exemple).
       reste: o.reste === undefined ? depose + entre - vendu - repris : n(o.reste),
       derniere_quantite: n(o.derniere_quantite),
+      dernier_depot: o.dernier_depot ? String(o.dernier_depot) : null,
     }
   })
 }
