@@ -33,6 +33,17 @@ import {
 import { RESERVE_JETONS } from '../_shared/enveloppe.ts'
 import { corrigerJetons, reserverJetons } from '../_shared/enveloppe-rpc.ts'
 import { accesDuCompte } from '../_shared/essai-rpc.ts'
+import {
+  aUnSignal,
+  CONSIGNES_BILAN,
+  formaterAnomalies,
+  noteIdee,
+  refusIdee,
+  sansTiretCadratin,
+  type IdeeBilan,
+  type LigneAnomalie,
+} from '../_shared/consignes-bilan.ts'
+import { NOMS_FORMULES } from '../_shared/formules-accroche.ts'
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void }
 
@@ -70,23 +81,8 @@ qui marchent en ce moment, ou des infos d'actualité.
 Écris en texte simple pour un écran de téléphone : pas de markdown (pas de **, #, >, -),
 des paragraphes courts, va à l'essentiel.`
 
-/**
- * Consignes fixes du bilan hebdo. Montées en premier bloc, comme celles du chat — ici l'intérêt du
- * cache est différent : le cron génère un bilan par compte, l'un après l'autre. Ces consignes sont
- * identiques pour tous les comptes, donc relues (0,1x) dès la deuxième génération de la passe.
- */
-const CONSIGNES_BILAN = `Prépare :
-1. 4 idées de publications concrètes pour les 2 prochaines semaines, toutes NOUVELLES.
-   Choisis ce que cette personne est seule à pouvoir montrer — son atelier, ses matières, ses
-   clients, la saison — plutôt qu'un format que tout le monde publie. Ne propose que des
-   produits réellement en stock.
-2. 1 à 3 observations utiles sur son planning (trous, idées qui stagnent, plateforme
-   délaissée, saisonnalité).
-
-Rends ton travail via l'outil rendre_bilan. N'écris pas de texte en dehors de l'outil.
-
-INTERDIT ABSOLU : ne repropose aucune des idées déjà présentes dans le planning donné plus bas,
-même reformulée, même avec un autre angle, une autre plateforme ou un autre format.`
+// Consignes fixes du bilan hebdo : voir _shared/consignes-bilan.ts (premier bloc du prompt, comme celles
+// du chat, pour que le cache les relise d'un compte au suivant dans la même passe de cron).
 
 // Garde-fous
 const MAX_MESSAGE_CHARS = 4000 // question utilisateur
@@ -187,9 +183,12 @@ const BILAN_TOOL = {
             title: { type: 'string' },
             platform: { type: 'string', enum: [...PLATFORMS] },
             type: { type: 'string', enum: [...TYPES] },
-            note: { type: 'string', description: 'angle / pourquoi' },
+            formule: { type: 'string', enum: [...NOMS_FORMULES], description: "nom exact de la formule d'accroche" },
+            a_dire: { type: 'string', description: "texte à dire en caméra, avec un chiffre issu des ventes quand l'idée s'appuie sur elles" },
+            ecran: { type: 'string', description: "accroche affichée à l'écran, 6 mots ou moins" },
+            note: { type: 'string', description: 'angle / pourquoi cette idée' },
           },
-          required: ['title'],
+          required: ['title', 'formule', 'a_dire', 'ecran'],
         },
       },
       observations: { type: 'array', items: { type: 'string' } },
@@ -758,9 +757,21 @@ async function runWeeklyForUser(userId: string): Promise<ResultatBilan> {
   // Titres déjà au planning : le prompt les interdit explicitement, et le filtre plus bas les
   // rejette si le modèle passe outre (d'où la déclaration hors du try).
   let titresConnus: string[]
+  let anomalies: LigneAnomalie[] | null = null
   try {
     const context = await buildContext(userId, 80)
     titresConnus = (await loadPlanning(userId, 300)).map((e) => e.title).filter(Boolean)
+
+    // Le calcul d'anomalie (0089) : ce qui a décollé ou décroché chez cet artisan. Une panne ici ne
+    // bloque pas le bilan, mais elle ne doit pas non plus se faire passer pour « aucune vente » : le
+    // bloc est alors simplement absent, et le texte à dire n'est pas exigé chiffré.
+    try {
+      const { data, error } = await admin.rpc('anomalies_ventes', { p_user: userId })
+      if (error) throw error
+      anomalies = (data ?? []) as LigneAnomalie[]
+    } catch (e) {
+      console.error('[bilan] anomalies_ventes illisible', e)
+    }
 
     // Le bilan tourne une fois par compte : le cache ne peut pas resservir à l'intérieur d'un tour.
     // Là où il sert, c'est d'un compte au suivant dans la même passe de cron : on ne met donc en
@@ -771,6 +782,7 @@ async function runWeeklyForUser(userId: string): Promise<ResultatBilan> {
       [
         context.stable,
         `Nous sommes le ${today}.`,
+        anomalies ? formaterAnomalies(anomalies) : '',
         `Titres à ne PAS réutiliser :\n${titresConnus.map((t) => `- ${t}`).join('\n')}`,
         context.variable,
       ],
@@ -798,21 +810,31 @@ async function runWeeklyForUser(userId: string): Promise<ResultatBilan> {
   const consoBilan = consommation(resp.usage)
   await enregistrerUsage(userId, 'bilan', consoBilan)
   await corrigerJetons(admin, userId, reserve, consoBilan)
-  const parsed = (call?.input as { ideas?: IdeaInput[]; observations?: string[] }) ?? {
+  const parsed = (call?.input as { ideas?: IdeeBilan[]; observations?: string[] }) ?? {
     ideas: [],
     observations: [],
   }
 
   let inserted = 0
   let ecartees = 0
+  const signal = aUnSignal(anomalies)
   for (const idea of parsed.ideas ?? []) {
-    const titre = typeof idea.title === 'string' ? idea.title.trim() : ''
+    const titre = typeof idea.title === 'string' ? sansTiretCadratin(idea.title.trim()) : ''
     if (!titre) continue
+    // Une idée sans formule nommée, ou sans chiffre alors que les ventes en donnaient un, est écartée :
+    // c'est exactement ce que les consignes exigent, vérifié ici plutôt que cru sur parole.
+    const refus = refusIdee(idea, signal)
+    if (refus) {
+      console.error(`[bilan] idée écartée : ${refus}`)
+      ecartees++
+      continue
+    }
     if (estDoublon(titre, titresConnus)) {
       ecartees++
       continue
     }
-    const id = await insertEntry(userId, idea)
+    const note = noteIdee(idea)
+    const id = await insertEntry(userId, { ...idea, title: titre, note })
     if (!id) continue
     // évite aussi qu'une même idée revienne deux fois dans le même bilan
     titresConnus.push(titre)
@@ -820,12 +842,15 @@ async function runWeeklyForUser(userId: string): Promise<ResultatBilan> {
     await admin.from('assistant_suggestions').insert({
       user_id: userId,
       type: 'idee_contenu',
-      message: idea.note ? `${idea.title} — ${idea.note}` : idea.title,
+      message: note ? `${titre} — ${note}` : titre,
       source_id: id,
     })
   }
 
-  const observations = (parsed.observations ?? []).slice(0, 5).filter((o) => typeof o === 'string')
+  const observations = (parsed.observations ?? [])
+    .slice(0, 5)
+    .filter((o) => typeof o === 'string')
+    .map(sansTiretCadratin)
   for (const message of observations) {
     await admin.from('assistant_suggestions').insert({ user_id: userId, type: 'observation', message })
   }
