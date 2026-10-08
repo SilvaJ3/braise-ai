@@ -157,12 +157,16 @@ export function ligneProchainDepot(etat: EtatEspace, maintenant: Date): LignePla
   const premier = prochains[0]
   const jours = joursDepuis(premier.quand, maintenant)
   if (jours !== null && jours > 21) return null
-  // `joursDepuis` rend un nombre NÉGATIF pour une date à venir : c'est ce qui décide du mot.
-  const prefixe = jours !== null && jours < 0 ? 'vers le' : 'depuis le'
+  // `joursDepuis` rend un nombre NÉGATIF pour une date à venir : c'est ce qui décide de la phrase.
+  // Une date dépassée ne s'annonce pas comme un « prochain dépôt » — elle se dit pour ce qu'elle est.
+  const qui = premier.f.artisan || 'un artisan'
+  const enRetard = jours !== null && jours >= 0
   return {
     cle: 'prochain',
-    icone: '📅',
-    texte: `Prochain dépôt de ${premier.f.artisan || 'un artisan'} — ${prefixe} ${jour(premier.quand)}`,
+    icone: enRetard ? '⏳' : '📅',
+    texte: enRetard
+      ? `Dépôt de ${qui} attendu depuis le ${jour(premier.quand)}`
+      : `Prochain dépôt de ${qui} — vers le ${jour(premier.quand)}`,
     vers: `/espace-boutique/fournisseur/${premier.f.partenaire_id}`,
   }
 }

@@ -158,6 +158,14 @@ describe('le prochain dépôt, annoncé comme une indication', () => {
     expect(ligneProchainDepot(etat([vieux]), AUJOURD_HUI)).toBeNull()
   })
 
+  it('une échéance dépassée se dit pour ce qu’elle est, pas comme un « prochain dépôt »', () => {
+    // Dernier dépôt le 19/09 + 1 semaine = le 26/09 : c'est passé de douze jours.
+    const enRetard = fournisseur({ delai_semaines: 1, pieces: [piece({ dernier_depot: '2026-09-19' })] })
+    const ligne = ligneProchainDepot(etat([enRetard]), AUJOURD_HUI)
+    expect(ligne?.texte).toBe('Dépôt de Au Coin du Feu attendu depuis le 26/09/2026')
+    expect(ligne?.icone).toBe('⏳')
+  })
+
   it('sans dépôt connu : rien à annoncer', () => {
     expect(ligneProchainDepot(etat([fournisseur({ pieces: [piece({ dernier_depot: null })] })]), AUJOURD_HUI)).toBeNull()
   })
