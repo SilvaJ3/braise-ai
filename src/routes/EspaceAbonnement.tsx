@@ -3,6 +3,7 @@ import {
   etatAbonnementBoutique,
   messageRetourPaiementBoutique,
   phraseAbonnerPendantOffert,
+  prixBoutique,
   type LigneAbonnementBoutique,
 } from '../lib/abonnement-boutique'
 import {
@@ -16,9 +17,12 @@ import {
 //
 // Les boutons « S'abonner » et « Gérer » n'apparaissent que si le paiement est OUVERT (interrupteur de
 // build `VITE_PAIEMENT_BOUTIQUE`, éteint par défaut : tant que les fonctions Stripe ne sont pas déployées,
-// un bouton qui échouerait serait un geste annoncé et non livré) ET si l'état le permet. Aucun prix n'est
-// écrit ici : il s'affiche sur la page de paiement Stripe, avant que la boutique ne valide. Le lien de la
+// un bouton qui échouerait serait un geste annoncé et non livré) ET si l'état le permet. Le lien de la
 // boutique, lui, ne dépend jamais de cet écran.
+//
+// Le prix est ÉCRIT ici (décision de JSB du 07/10/2026) : la boutique doit savoir ce qu'elle paie avant
+// d'ouvrir une page de paiement. Les deux formules viennent de `PRIX_BOUTIQUE`, pas d'une phrase tapée
+// à la main — et la TVA reste dite, parce qu'elle s'ajoute au paiement.
 export default function EspaceAbonnement() {
   const { data, isLoading } = useMonAbonnementBoutique()
   const ouvert = usePaiementBoutiqueOuvert()
@@ -62,9 +66,8 @@ function Etat({ ligne, ouvert }: { ligne: LigneAbonnementBoutique; ouvert: boole
 }
 
 /**
- * S'abonner : deux formules, au mois ou à l'année (engagement de douze mois). On ne montre aucun prix ici —
- * la page Stripe l'affiche avant validation. Le bouton se verrouille dès le clic : un second clic ouvrirait
- * une seconde session de paiement.
+ * S'abonner : deux formules, au mois ou à l'année (engagement de douze mois), chacune avec son prix.
+ * Le bouton se verrouille dès le clic : un second clic ouvrirait une seconde session de paiement.
  */
 function Souscrire({ ligne }: { ligne: LigneAbonnementBoutique }) {
   const ouvrir = useOuvrirPaiementBoutique()
@@ -78,7 +81,8 @@ function Souscrire({ ligne }: { ligne: LigneAbonnementBoutique }) {
       <strong>S’abonner</strong>
       {offert && <p style={{ margin: '8px 0 0' }}>{offert}</p>}
       <p className="muted" style={{ margin: '8px 0 0', fontSize: '0.9rem' }}>
-        Le prix s’affiche sur la page de paiement, avant que tu ne valides. À l’année, tu t’engages pour douze mois.
+        Les prix sont hors TVA : la TVA de ton pays s’ajoute au paiement, et le montant exact s’affiche
+        sur la page de paiement avant que tu ne valides.
       </p>
       {ouvrir.isError && (
         <p className="muted" role="alert" style={{ margin: '8px 0 0' }}>
@@ -87,10 +91,10 @@ function Souscrire({ ligne }: { ligne: LigneAbonnementBoutique }) {
       )}
       <div className="row" style={{ marginTop: 12, gap: 8, flexWrap: 'wrap' }}>
         <button className="primary" type="button" disabled={occupe} onClick={() => aller('mensuel')}>
-          {occupe ? 'Ouverture…' : 'S’abonner au mois'}
+          {occupe ? 'Ouverture…' : `S’abonner au mois — ${prixBoutique('mensuel')}`}
         </button>
         <button type="button" disabled={occupe} onClick={() => aller('annuel')}>
-          S’abonner à l’année
+          S’abonner à l’année — {prixBoutique('annuel')}
         </button>
       </div>
     </section>

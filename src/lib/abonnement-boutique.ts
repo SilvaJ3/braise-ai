@@ -83,6 +83,20 @@ export function phraseAbonnerPendantOffert(ligne: LigneAbonnementBoutique | null
     : `Ton accès offert se termine le ${date} : si tu t’abonnes maintenant, l’abonnement démarre tout de suite.`
 }
 
+/**
+ * Le prix de l'abonnement boutique, en clair. Décision de JSB du 07/10/2026 : la boutique voit ce
+ * qu'elle paie AVANT de cliquer (jusqu'ici le prix n'apparaissait que sur la page Stripe — c'est là
+ * qu'on la perdait). Les prix Stripe live disent la même chose : 4 900 et 49 000 centimes.
+ */
+export const PRIX_BOUTIQUE = {
+  mensuel: '49 € HTVA par mois',
+  annuel: '490 € HTVA par an, engagement de douze mois',
+} as const
+
+export function prixBoutique(frequence: 'mensuel' | 'annuel'): string {
+  return frequence === 'annuel' ? PRIX_BOUTIQUE.annuel : PRIX_BOUTIQUE.mensuel
+}
+
 export type EtatBoutique = {
   statut: StatutBoutique
   badge: string

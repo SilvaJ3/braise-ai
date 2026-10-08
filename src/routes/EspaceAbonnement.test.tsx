@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import EspaceAbonnement from './EspaceAbonnement'
+import { PRIX_BOUTIQUE } from '../lib/abonnement-boutique'
 
 // L'écran est monté pour de vrai et on lit le HTML rendu : ce qu'une boutique voit de son accès.
 // Deux choses comptent : (1) interrupteur de paiement ÉTEINT = aucun bouton, aucun prix (le paiement n'est
@@ -55,6 +56,10 @@ describe('EspaceAbonnement', () => {
     const html = rendu(OFFERT, { ouvert: true })
     expect(html).toContain('S’abonner au mois')
     expect(html).toContain('S’abonner à l’année')
+    // Le prix se lit AVANT de cliquer (décision JSB du 07/10/2026) — et il est hors TVA, comme partout.
+    expect(html).toContain(PRIX_BOUTIQUE.mensuel)
+    expect(html).toContain('490 € HTVA par an')
+    expect(html).toContain('la TVA de ton pays s’ajoute au paiement')
     expect(html).toContain('tu gardes tes jours offerts')
     expect(html).not.toContain('Gérer mon abonnement')
   })
@@ -71,11 +76,21 @@ describe('EspaceAbonnement', () => {
     expect(html).not.toContain('Gérer mon abonnement')
   })
 
-  it('même interrupteur allumé, aucun prix n’est écrit : il s’affiche sur la page de paiement', () => {
-    for (const data of [OFFERT, { statut: 'actif', fin: '2999-01-20' }, { statut: 'aucun' }, { statut: 'resilie', fin: '2000-01-01' }]) {
+  it('le prix est écrit à l’écran dès qu’on propose de s’abonner (décision JSB du 07/10/2026)', () => {
+    // On propose de s'abonner dans trois cas : accès offert, aucun abonnement, abonnement terminé.
+    // La boutique doit savoir ce qu'elle paie AVANT d'ouvrir une page de paiement.
+    for (const data of [OFFERT, { statut: 'aucun' }, { statut: 'resilie', fin: '2000-01-01' }]) {
+      const html = rendu(data, { ouvert: true })
+      expect(html).toContain(PRIX_BOUTIQUE.mensuel)
+      expect(html).toContain('490 € HTVA par an')
+      expect(html).toContain('la TVA de ton pays s’ajoute au paiement')
+    }
+    // Là où il n'y a rien à souscrire, aucun tarif ne traîne : un abonné actif ne voit pas de prix.
+    for (const data of [{ statut: 'actif', fin: '2999-01-20' }, { statut: 'en_retard', fin: '2999-01-20' }]) {
       expect(rendu(data, { ouvert: true })).not.toMatch(/€/)
     }
-    expect(rendu(OFFERT, { ouvert: true })).toContain('Le prix s’affiche sur la page de paiement')
+    // Interrupteur éteint : pas de bouton, donc pas de prix non plus.
+    expect(rendu(OFFERT, { ouvert: false })).not.toMatch(/€/)
   })
 
   it('le retour de la page de paiement est dit en une phrase', () => {
