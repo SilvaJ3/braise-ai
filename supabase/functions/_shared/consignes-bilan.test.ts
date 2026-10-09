@@ -94,6 +94,8 @@ describe('refusIdee : la sortie du bilan contient une formule nommée ET un chif
     formule: 'Le reçu',
     a_dire: "J'ai vendu 12 bols en octobre. Sur ces 12, la moitié est partie par deux.",
     ecran: '12 BOLS. 6 PAR DEUX.',
+    format: 'reel',
+    hashtags: ['ceramique', 'bol', 'artisanat'],
   }
 
   it('accepte une idée avec formule du catalogue et chiffre', () => {
@@ -105,6 +107,32 @@ describe('refusIdee : la sortie du bilan contient une formule nommée ET un chif
     expect(note).toContain('Formule : Le reçu')
     expect(note).toMatch(/\d/)
     expect(note).toContain('En écran : 12 BOLS. 6 PAR DEUX.')
+  })
+
+  it('la note porte le format et des hashtags prêts à coller (avec #, sans doublon de #)', () => {
+    const note = noteIdee(bonne)
+    expect(note).toContain('Format : reel')
+    expect(note).toContain('Hashtags : #ceramique #bol #artisanat')
+    // le modèle rend parfois un hashtag déjà préfixé : on ne double pas le #
+    expect(noteIdee({ ...bonne, hashtags: ['#ceramique', 'bol'] })).toContain('Hashtags : #ceramique #bol')
+  })
+
+  it('refuse un format absent ou hors des quatre, et des hashtags hors gabarit', () => {
+    expect(refusIdee({ ...bonne, format: undefined }, true)).toMatch(/format/)
+    expect(refusIdee({ ...bonne, format: 'vidéo' }, true)).toMatch(/format/)
+    expect(refusIdee({ ...bonne, hashtags: undefined }, true)).toMatch(/hashtags/)
+    expect(refusIdee({ ...bonne, hashtags: [] }, true)).toMatch(/hashtags/)
+    expect(refusIdee({ ...bonne, hashtags: ['a', 'b', 'c', 'd', 'e'] }, true)).toMatch(/hashtags/)
+    expect(refusIdee({ ...bonne, hashtags: ['a', '  '] }, true)).toMatch(/hashtags/)
+  })
+
+  it('accepte les quatre formats et tronque le surplus de hashtags au stockage', () => {
+    for (const format of ['reel', 'carrousel', 'photo', 'story']) {
+      expect(refusIdee({ ...bonne, format }, true)).toBeNull()
+    }
+    const note = noteIdee({ ...bonne, hashtags: ['a', 'b', 'c', 'd', 'e'] })
+    expect(note).toContain('#d')
+    expect(note).not.toContain('#e')
   })
 
   it('refuse une formule absente ou inventée', () => {

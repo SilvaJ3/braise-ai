@@ -9,6 +9,12 @@ import { catalogueEnTexte, NOMS_FORMULES } from './formules-accroche.ts'
 export const SEUIL_HAUT = 3
 export const SEUIL_BAS = 0.5
 
+/** Les formats de publication possibles : un seul mot, choisi par le modèle, validé par code. */
+export const FORMATS = ['reel', 'carrousel', 'photo', 'story'] as const
+export type Format = (typeof FORMATS)[number]
+/** Plafond de hashtags descriptifs par idée : des étiquettes, pas un baril de tendances. */
+export const MAX_HASHTAGS = 4
+
 export const CONSIGNES_BILAN = `Prépare le bilan de la semaine.
 
 1. 4 idées de publications concrètes pour les 2 prochaines semaines, toutes NOUVELLES.
@@ -30,6 +36,16 @@ export const CONSIGNES_BILAN = `Prépare le bilan de la semaine.
    au moins un chiffre issu de ce bloc : unités vendues, médiane, rapport. Nombres, pas adjectifs :
    « 12 bols vendus en octobre » et non « ça a bien marché ». Ne rends jamais un chiffre absent des
    données. Le champ ecran est l'accroche affichée à l'écran : 6 mots ou moins.
+
+   Chaque idée porte aussi son format (champ format, un seul mot) : reel quand un geste ou une voix
+   se filme, carrousel quand une comparaison ou une suite d'étapes se montre en plusieurs images,
+   photo quand une pièce finie se suffit, story quand c'est une question ou un sondage qui ne vit
+   que 24 heures. Varie les formats d'une idée à l'autre plutôt que de tout filmer.
+
+   Chaque idée porte 1 à ${MAX_HASHTAGS} hashtags descriptifs (champ hashtags, sans le signe #) : le métier, la matière,
+   la ville, le moment. Ce sont des étiquettes de classement pour être trouvé, pas une promesse :
+   n'annonce jamais une portée, jamais « viral », jamais un hashtag de tendance. Si le profil ne donne
+   pas la ville ni la matière, n'invente rien et reste sur le métier.
 
    Les idées sur un signal haut ne portent que sur des produits réellement en stock. Une idée sur un
    signal bas peut porter sur un article invendu.
@@ -101,6 +117,8 @@ export type IdeeBilan = {
   formule?: string
   a_dire?: string
   ecran?: string
+  format?: string
+  hashtags?: string[]
   note?: string
 }
 
@@ -117,20 +135,35 @@ const TOURNURE_IA = /\bil\s+ne\s+s['’]agit\s+pas\b/i
  */
 export function refusIdee(idee: IdeeBilan, avecSignal: boolean): string | null {
   if (!idee.formule || !NOMS_FORMULES.includes(idee.formule)) return 'formule absente ou hors catalogue'
+  if (!idee.format || !(FORMATS as readonly string[]).includes(idee.format)) return 'format absent ou inconnu'
+  const tags = idee.hashtags
+  if (
+    !Array.isArray(tags) ||
+    !tags.length ||
+    tags.length > MAX_HASHTAGS ||
+    tags.some((t) => typeof t !== 'string' || !t.trim())
+  )
+    return 'hashtags absents ou hors gabarit (1 à 4)'
   const dit = idee.a_dire ?? ''
   if (avecSignal && !/\d/.test(dit)) return 'aucun chiffre dans le texte à dire'
   if (idee.ecran && idee.ecran.trim().split(/\s+/).length > 6) return "accroche d'écran de plus de 6 mots"
-  const tout = [idee.title, dit, idee.ecran, idee.note].filter(Boolean).join(' ')
+  const tout = [idee.title, dit, idee.ecran, idee.note, ...tags].filter(Boolean).join(' ')
   if (TOURNURE_IA.test(tout)) return "tournure « il ne s'agit pas de X mais de Y »"
   return null
 }
 
 /** Le texte stocké au planning : tout ce que l'artisan colle ou filme, tiré des champs de l'idée. */
 export function noteIdee(idee: IdeeBilan): string {
+  const tags = (idee.hashtags ?? [])
+    .slice(0, MAX_HASHTAGS)
+    .map((t) => t.trim().replace(/^#+/, ''))
+    .filter(Boolean)
   return sansTiretCadratin(
     [
       idee.a_dire ? `À dire : ${idee.a_dire}` : '',
       idee.ecran ? `En écran : ${idee.ecran}` : '',
+      idee.format ? `Format : ${idee.format}` : '',
+      tags.length ? `Hashtags : ${tags.map((t) => `#${t}`).join(' ')}` : '',
       idee.formule ? `Formule : ${idee.formule}` : '',
       idee.note ?? '',
     ]
