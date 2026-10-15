@@ -10,6 +10,7 @@
 import { accesDuCompteAffiche } from './abonnement'
 import {
   ESSAI_JOURS,
+  ESSAI_OUVERT_D_OFFICE_APRES_JOURS,
   abonnementOuvreAcces,
   essaiEnCours,
   joursEssaiRestants,
@@ -41,6 +42,8 @@ export type EtatCompteAffiche = {
   offert: boolean
   /** Le bouton a-t-il un sens ? Un compte de test ou de démonstration est ouvert de toute façon. */
   basculable: boolean
+  /** Peut-on redonner des jours d'essai ? Seulement quand l'essai décide de l'accès. */
+  prolongeable: boolean
 }
 
 /** La date courte d'un compte, ou null : une valeur illisible ne s'affiche pas. */
@@ -68,6 +71,7 @@ export function etatCompte(c: CompteAdmin, maintenant: Date = new Date()): EtatC
       phrase: depuis ? `Accès offert — depuis le ${depuis}. Rien n’est prélevé.` : 'Accès offert — rien n’est prélevé.',
       offert: true,
       basculable,
+      prolongeable: false,
     }
   }
 
@@ -79,6 +83,7 @@ export function etatCompte(c: CompteAdmin, maintenant: Date = new Date()): EtatC
         'Compte de démonstration : l’accès reste ouvert, et aucune de ses actions n’écrit à une boutique — tout ce qu’il enverrait lui revient, pour qu’il voie ce qui serait parti.',
       offert: false,
       basculable: false,
+      prolongeable: false,
     }
   }
 
@@ -90,6 +95,7 @@ export function etatCompte(c: CompteAdmin, maintenant: Date = new Date()): EtatC
         'Compte de test (testeur) : accès ouvert et gratuit, et il deviendra un compte utilisateur. Ses mails, eux, partent normalement.',
       offert: false,
       basculable: false,
+      prolongeable: false,
     }
   }
 
@@ -103,6 +109,7 @@ export function etatCompte(c: CompteAdmin, maintenant: Date = new Date()): EtatC
           : 'Abonnement en cours : l’accès est payé.',
       offert: false,
       basculable,
+      prolongeable: false,
     }
   }
 
@@ -114,6 +121,20 @@ export function etatCompte(c: CompteAdmin, maintenant: Date = new Date()): EtatC
       phrase: `Essai en cours : il reste ${jours} jour${jours > 1 ? 's' : ''} sur les ${ESSAI_JOURS}.`,
       offert: false,
       basculable,
+      prolongeable: true,
+    }
+  }
+
+  // Pas de date d'essai : il n'a pas commencé (0091). Le compte travaille, et l'essai s'ouvre à sa
+  // première action — ou d'office, sept jours après l'ouverture du compte.
+  if (!c.essai_fin) {
+    return {
+      ouvert,
+      badge: 'Essai à démarrer',
+      phrase: `L’essai n’a pas commencé : il s’ouvre à la première action du compte, ou d’office ${ESSAI_OUVERT_D_OFFICE_APRES_JOURS} jours après son ouverture.`,
+      offert: false,
+      basculable,
+      prolongeable: true,
     }
   }
 
@@ -124,6 +145,7 @@ export function etatCompte(c: CompteAdmin, maintenant: Date = new Date()): EtatC
       'Essai terminé et rien d’ouvert : l’assistant et les imports ne répondent plus. Ouvrir l’accès ici les remet en marche.',
     offert: false,
     basculable,
+    prolongeable: true,
   }
 }
 
@@ -148,4 +170,16 @@ export function resumeComptes(comptes: CompteAdmin[], maintenant: Date = new Dat
   ]
   if (fermes > 0) morceaux.push(`${fermes} sans accès`)
   return `${morceaux.join(' · ')}.`
+}
+
+/** La plage de jours qu'on peut redonner à un compte : la même que `prolonger_essai` (0091). */
+export const PROLONGATION_MIN_JOURS = 1
+export const PROLONGATION_MAX_JOURS = 60
+
+/** Des jours à redonner, saisis dans un champ : un entier dans la plage, ou null (rien n'est envoyé). */
+export function joursProlongation(saisie: unknown): number | null {
+  const n = typeof saisie === 'string' ? Number(saisie.trim()) : saisie
+  return typeof n === 'number' && Number.isInteger(n) && n >= PROLONGATION_MIN_JOURS && n <= PROLONGATION_MAX_JOURS
+    ? n
+    : null
 }
