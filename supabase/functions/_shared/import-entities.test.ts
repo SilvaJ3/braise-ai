@@ -157,6 +157,16 @@ describe('heuristicMap / rowsFromTable', () => {
     const map = heuristicMap('produits', header)
     expect(map).toMatchObject({ 0: 'shopify_handle', 1: 'nom', 2: 'description', 6: 'actif', 7: 'prix_vente' })
   })
+  it('mappe un export WooCommerce en français', () => {
+    const header = ['ID', 'Type', 'UGS', 'Nom', 'Publié', 'Description courte', 'Tarif promo', 'Tarif régulier']
+    const map = heuristicMap('produits', header)
+    expect(map).toMatchObject({ 2: 'shopify_handle', 3: 'nom', 4: 'actif', 7: 'prix_vente' })
+    expect(Object.values(map).filter((k) => k === 'prix_vente')).toHaveLength(1)
+  })
+  it('mappe un export Etsy', () => {
+    const map = heuristicMap('produits', ['TITLE', 'DESCRIPTION', 'PRICE', 'CURRENCY_CODE', 'QUANTITY', 'TAGS', 'SKU'])
+    expect(map).toMatchObject({ 0: 'nom', 1: 'description', 2: 'prix_vente', 6: 'shopify_handle' })
+  })
   it('ne prend chaque champ qu’une fois, tolère accents et suffixes', () => {
     const map = heuristicMap('matieres_premieres', ['Matière', 'Qté en stock', 'Unité', 'Prix unitaire (€)', 'Fournisseur', 'Seuil mini'])
     expect(map).toEqual({ 0: 'nom', 1: 'stock_actuel', 2: 'unite', 3: 'prix_unitaire', 4: 'fournisseur_nom', 5: 'seuil_alerte' })

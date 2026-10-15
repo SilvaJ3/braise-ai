@@ -2,13 +2,16 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   dateCompte,
+  joursProlongation,
+  PROLONGATION_MAX_JOURS,
+  PROLONGATION_MIN_JOURS,
   etatCompte,
   libelleBascule,
   nomCompte,
   resumeComptes,
   type CompteAdmin,
 } from '../lib/admin-comptes'
-import { useComptesAdmin, useEstAdmin, useReglerAccesGratuit } from '../lib/profil'
+import { useComptesAdmin, useEstAdmin, useProlongerEssai, useReglerAccesGratuit } from '../lib/profil'
 
 // Qui utilise Braaise gratuitement.
 //
@@ -26,6 +29,7 @@ export default function ComptesAdmin() {
   const admin = useEstAdmin()
   const liste = useComptesAdmin(admin.data === true)
   const regler = useReglerAccesGratuit()
+  const prolonger = useProlongerEssai()
   const [enCours, setEnCours] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -83,6 +87,24 @@ export default function ComptesAdmin() {
     }
   }
 
+  const redonner = async (c: CompteAdmin, saisie: string) => {
+    const jours = joursProlongation(saisie)
+    if (jours === null) {
+      setMessage(`Choisis un nombre entier de jours, entre ${PROLONGATION_MIN_JOURS} et ${PROLONGATION_MAX_JOURS}.`)
+      return
+    }
+    setMessage(null)
+    setEnCours(c.user_id)
+    try {
+      const fin = await prolonger.mutateAsync({ userId: c.user_id, jours })
+      setMessage(`${jours} jour${jours > 1 ? 's' : ''} redonné${jours > 1 ? 's' : ''} à ${nomCompte(c)} : l’essai court maintenant jusqu’au ${dateCompte(fin) ?? 'une date illisible'}.`)
+    } catch (e) {
+      setMessage((e as Error).message)
+    } finally {
+      setEnCours(null)
+    }
+  }
+
   return (
     <>
       {retour}
@@ -118,6 +140,36 @@ export default function ComptesAdmin() {
               {ouvert ? `Compte ouvert le ${ouvert}` : 'Date d’ouverture inconnue'}
               {depuis ? ` · offert depuis le ${depuis}` : ''}
             </p>
+
+            {etat.prolongeable && (
+              <form
+                className="row"
+                style={{ marginTop: 10, gap: 8 }}
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  const champ = new FormData(e.currentTarget).get('jours')
+                  void redonner(c, String(champ ?? ''))
+                }}
+              >
+                <label htmlFor={`jours-${c.user_id}`} className="muted" style={{ fontSize: '0.85rem' }}>
+                  Redonner
+                </label>
+                <input
+                  id={`jours-${c.user_id}`}
+                  name="jours"
+                  type="number"
+                  inputMode="numeric"
+                  min={PROLONGATION_MIN_JOURS}
+                  max={PROLONGATION_MAX_JOURS}
+                  defaultValue={7}
+                  style={{ width: 70 }}
+                />
+                <span className="muted" style={{ fontSize: '0.85rem' }}>jours</span>
+                <button type="submit" disabled={enCours !== null}>
+                  {enCours === c.user_id ? '…' : 'Valider'}
+                </button>
+              </form>
+            )}
 
             {etat.basculable ? (
               <button

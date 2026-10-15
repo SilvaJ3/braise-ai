@@ -6,11 +6,13 @@
 // nouveau bon avec cette règle ; l'écran l'annonce avec la même — deux implémentations
 // divergeraient au premier changement.
 //
-// Décision de JSB (02/10/2026) : l'essai de sept jours **s'ouvre avec la carte** (Checkout Stripe,
-// `trial_period_days: 7`, carte exigée), et il est résiliable à tout moment. Un essai qui s'ouvre
-// tout seul laisse l'artisan s'installer dans un outil qu'il ne paiera jamais : le compte neuf n'a
-// donc rien avant d'avoir commencé son essai. Deux rappels partent avant le premier prélèvement —
-// deux jours avant, puis la veille — et c'est à la personne d'arrêter si elle ne veut pas.
+// Décision de JSB (14/10/2026), qui remplace celle du 02/10 : l'essai de sept jours **s'ouvre à la
+// première vraie action**, sans carte (0091). Un compte neuf qui devait donner sa carte avant
+// d'avoir vu l'outil se voyait refuser son premier import. Le compte neuf travaille donc tout de
+// suite ; l'essai commence au premier aha (un produit enregistré, un bon, un post validé ou publié,
+// un message à l'assistant) et la carte se demande avant la fin, pas avant le début. Deux rappels
+// partent avant la fin — deux jours avant, puis la veille. Un essai ouvert avec la carte (Checkout)
+// reste possible pour qui la donne avant son premier aha.
 //
 // Ce que l'accès fermé NE ferme pas : les données. Dépôts déjà émis, planning, stock, boutiques,
 // page de la boutique restent lisibles. Ce qui s'arrête, c'est le travail : l'assistant, les
@@ -19,6 +21,13 @@
 
 /** La durée de l'essai, en jours. La seule ligne à changer si la règle change. */
 export const ESSAI_JOURS = 7
+
+/**
+ * Un compte qui n'atteint jamais son premier aha voit son essai s'ouvrir d'office après ce délai
+ * (0091, décision du 14/10/2026) : au plus ESSAI_OUVERT_D_OFFICE_APRES_JOURS + ESSAI_JOURS jours
+ * d'accès sans payer, depuis l'ouverture du compte.
+ */
+export const ESSAI_OUVERT_D_OFFICE_APRES_JOURS = 7
 
 const MS_JOUR = 86_400_000
 
@@ -122,9 +131,10 @@ export function abonnementOuvreAcces(statut: unknown): boolean {
  *  · un abonnement actif ou en retard ouvre l'accès ;
  *  · sinon, c'est l'essai qui décide.
  *
- * Une date d'essai absente ou illisible ouvre l'accès : c'est le seul cas où l'on ne sait pas, et
- * fermer l'outil à quelqu'un sur une colonne vide serait pire que laisser travailler un compte.
- * Le jour où la colonne disparaît, c'est la base qui est en retard sur le code — jamais l'inverse.
+ * Une date d'essai absente ouvre l'accès, et c'est voulu depuis 0091 : l'essai n'a pas encore
+ * commencé, le compte travaille pour atteindre son premier aha. C'est aussi le bon réflexe si la
+ * colonne est illisible : fermer l'outil à quelqu'un sur une colonne vide serait pire que laisser
+ * travailler un compte.
  */
 export function accesAutorise(etat: EtatAcces | null | undefined, maintenant: Date = new Date()): boolean {
   if (etat?.est_test) return true
@@ -146,12 +156,12 @@ export function messageEssaiTermine(): string {
 }
 
 /**
- * Le compte n'a jamais commencé son essai — c'est l'état d'un compte neuf depuis le 02/10/2026,
- * puisque l'essai s'ouvre en enregistrant la carte. La phrase dit le geste, le délai, et le droit
- * d'arrêter : c'est exactement ce qu'on veut qu'il lise avant de donner sa carte, pas après.
+ * Le compte n'a pas encore commencé son essai — c'est l'état d'un compte neuf depuis le 14/10/2026 :
+ * les sept jours s'ouvrent à la première vraie action. La phrase dit quoi faire pour commencer, et
+ * qu'il n'y a rien à régler avant.
  */
-export function messageEssaiAJournir(): string {
-  return `Tes ${ESSAI_JOURS} jours d'essai commencent quand tu enregistres ta carte, depuis « Mon compte » : tu peux arrêter avant la fin, et on te prévient deux jours avant, puis la veille. Aucun prélèvement avant la fin de l'essai.`
+export function messageEssaiPasCommence(): string {
+  return `Tes ${ESSAI_JOURS} jours d'essai commencent à ta première action : importer tes produits, préparer un bon de dépôt, valider un post ou poser une question à l'assistant. Rien à régler avant.`
 }
 
 /** La phrase du refus après trois relances : ce qui a été tenté, et ce qu'une régularisation rouvre. */
@@ -160,15 +170,40 @@ export function messageImpaye(): string {
 }
 
 /**
- * La phrase du refus, choisie sur l'état RÉEL du compte. Trois situations, trois causes, trois
- * phrases : un compte qui n'a jamais commencé son essai (la carte l'ouvre), un essai terminé
- * (l'abonnement le rouvre), une fermeture après relances (une facture le rouvre). Une seule
- * implémentation, lue par le serveur ET par l'écran.
+ * La phrase du refus, choisie sur l'état RÉEL du compte. Deux causes, deux phrases : un essai
+ * terminé (l'abonnement le rouvre), une fermeture après relances (une facture le rouvre). Un compte
+ * dont l'essai n'a pas commencé n'est jamais refusé (`accesAutorise`). Une seule implémentation, lue
+ * par le serveur ET par l'écran.
  */
 export function messageAccesRefuse(etat: EtatAcces | null | undefined): string {
   if (etat?.acces_ferme_le) return messageImpaye()
-  if (!etat?.abonnement_statut || etat.abonnement_statut === 'aucun') return messageEssaiAJournir()
   return messageEssaiTermine()
+}
+
+/** Marge sous laquelle Stripe refuse une fin d'essai fixée à la main : au moins 48 h dans le futur. */
+const MARGE_FIN_ESSAI_STRIPE_MS = 49 * 3_600_000
+
+/**
+ * Ce que le Checkout doit dire de l'essai, pour qu'une carte donnée en cours d'essai ne rouvre pas
+ * sept jours de plus :
+ *  · un compte qui a déjà eu un abonnement paie tout de suite ;
+ *  · l'essai n'a pas commencé : sept jours, ouverts avec la carte ;
+ *  · l'essai court encore, avec de la marge : il se poursuit jusqu'à SA date (`trial_end`), la carte
+ *    n'ajoute rien ;
+ *  · l'essai est fini, ou il reste trop peu pour que Stripe l'accepte : paiement immédiat.
+ */
+export function essaiPourCheckout(
+  essaiFin: string | null | undefined,
+  aDejaUnAbonnement: boolean,
+  maintenant: Date = new Date(),
+): { trial_period_days: number } | { trial_end: number } | null {
+  if (aDejaUnAbonnement) return null
+  const fin = dateFin(essaiFin)
+  if (!fin) return { trial_period_days: ESSAI_JOURS }
+  if (fin.getTime() - maintenant.getTime() >= MARGE_FIN_ESSAI_STRIPE_MS) {
+    return { trial_end: Math.floor(fin.getTime() / 1000) }
+  }
+  return null
 }
 
 /**

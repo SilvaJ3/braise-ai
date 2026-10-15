@@ -259,6 +259,30 @@ export function useReglerAccesGratuit() {
 }
 
 /**
+ * Redonner des jours d'essai à un compte (`prolonger_essai()`, 0091) : réservé à l'administration,
+ * le client n'a aucun droit d'écriture sur `essai_fin`. Rend la nouvelle date de fin.
+ */
+export function useProlongerEssai() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ userId, jours }: { userId: string; jours: number }): Promise<string> => {
+      const { data, error } = await supabase.rpc('prolonger_essai', { p_user: userId, p_jours: jours })
+      if (error) {
+        if (error.message.includes('acces_refuse')) {
+          throw new Error('Cet écran est réservé à l’administration de Braaise.')
+        }
+        if (error.message.includes('jours_invalides')) {
+          throw new Error('Choisis un nombre entier de jours, entre 1 et 60.')
+        }
+        throw error
+      }
+      return String(data)
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['comptes-admin'] }),
+  })
+}
+
+/**
  * Les demandes d'accès, lues par un administrateur (`demandes_acces_admin()`, migration 0065).
  * La table elle-même n'est lisible par personne côté client : c'est la fonction qui décide, et
  * elle rend le jeton des demandes encore à traiter — c'est lui qui permet d'agir.

@@ -16,8 +16,9 @@
 // `tax_id_collection` garde le numéro de TVA du client professionnel pour l'autoliquidation hors
 // Belgique.
 //
-// L'essai de sept jours s'ouvre ICI, avec la carte (`trial_period_days`, carte exigée), et une
-// seule fois par compte (02/10/2026) : voir `_shared/essai.ts` pour la règle.
+// L'essai de sept jours s'ouvre à la première action du compte, sans carte (14/10/2026, 0091). Ici,
+// la carte le poursuit jusqu'à sa date (`trial_end`), ou l'ouvre si rien n'a commencé
+// (`trial_period_days`) : voir `essaiPourCheckout` dans `_shared/essai.ts`.
 //
 // Un client Stripe est créé au premier paiement puis réutilisé : c'est lui qui permet au webhook de
 // retrouver le compte.
@@ -36,7 +37,7 @@ import {
   DECLARATION_PROFESSIONNELLE,
   type IdentifiantsStripe,
 } from '../_shared/stripe.ts'
-import { abonnementOuvreAcces, ESSAI_JOURS } from '../_shared/essai.ts'
+import { abonnementOuvreAcces, ESSAI_JOURS, essaiPourCheckout } from '../_shared/essai.ts'
 import { metadonneesPack, packValide, prixPack, type IdentifiantsPacks } from '../_shared/packs.ts'
 
 const CORS = {
@@ -136,7 +137,7 @@ Deno.serve(async (req) => {
 
   const { data: profil } = await admin
     .from('assistant_profil')
-    .select('plan, stripe_customer_id, stripe_subscription_id, abonnement_statut')
+    .select('plan, stripe_customer_id, stripe_subscription_id, abonnement_statut, essai_fin')
     .eq('user_id', utilisateur.id)
     .maybeSingle()
 
@@ -173,10 +174,17 @@ Deno.serve(async (req) => {
     return json({ erreur: 'Ton abonnement est déjà en cours : gère-le depuis « Mon compte ».' }, 409)
   }
 
-  // L'essai de sept jours s'ouvre UNE fois, avec la carte (décision du 02/10/2026). Le repère est
-  // l'abonnement Stripe déjà rattaché au compte : un compte qui a déjà eu le sien paie tout de
-  // suite. Un essai qui se rouvrirait à chaque passage ne serait plus un essai.
-  const premierEssai = !pack && !profil?.stripe_subscription_id
+  // L'essai de sept jours s'ouvre UNE fois. Depuis le 14/10/2026 il commence à la première action,
+  // sans carte (0091) : une carte donnée en cours d'essai le poursuit jusqu'à SA date, elle n'en
+  // rouvre pas un second (`essaiPourCheckout`). Le repère de « déjà eu un essai » est l'abonnement
+  // Stripe rattaché au compte. Une boutique n'a pas d'essai par action : elle garde les sept jours
+  // ouverts avec la carte.
+  const dejaAbonneUnJour = Boolean(profil?.stripe_subscription_id)
+  const essai = pack
+    ? null
+    : boutique
+      ? dejaAbonneUnJour ? null : { trial_period_days: ESSAI_JOURS }
+      : essaiPourCheckout(profil?.essai_fin as string | null | undefined, dejaAbonneUnJour)
 
   // La qualité du souscripteur (décision du 06/10/2026). Braaise s'adresse aux professionnels :
   // l'artisan ou la boutique qui s'abonne agit pour son activité, pas à titre privé. Le droit de
@@ -303,12 +311,12 @@ Deno.serve(async (req) => {
           subscription_data: {
             metadata: { user_id: utilisateur.id },
             // L'essai s'ouvre UNE fois : un compte qui a déjà eu le sien paie dès le premier jour.
-            ...(premierEssai ? { trial_period_days: ESSAI_JOURS } : {}),
+            ...essai,
           },
           // La phrase est aussi sur la page de paiement : la carte est donnée après l'avoir lue,
           // pas seulement après avoir coché une case chez nous.
           custom_text: { submit: { message: DECLARATION_PROFESSIONNELLE } },
-          success_url: `${url}/compte/mon-compte?paiement=${premierEssai ? 'essai' : 'ok'}`,
+          success_url: `${url}/compte/mon-compte?paiement=${essai ? 'essai' : 'ok'}`,
           cancel_url: `${url}/compte/mon-compte?paiement=annule`,
         })
     if (!session.url) {

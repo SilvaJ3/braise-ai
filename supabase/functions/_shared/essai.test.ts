@@ -4,8 +4,12 @@ import {
   abonnementOuvreAcces,
   accesAutorise,
   essaiEnCours,
+  essaiPourCheckout,
   joursEssaiRestants,
+  messageAccesRefuse,
+  messageEssaiPasCommence,
   messageEssaiTermine,
+  messageImpaye,
 } from './essai.ts'
 
 const MAINTENANT = new Date('2026-10-01T10:00:00.000Z')
@@ -110,5 +114,54 @@ describe('messageEssaiTermine', () => {
     expect(m).toContain('assistant')
     expect(m).toContain('toujours là')
     expect(m).toContain('Mon compte')
+  })
+})
+
+describe('un compte neuf, essai pas commencé (0091)', () => {
+  it('travaille : pas de date d’essai, pas de porte', () => {
+    expect(accesAutorise({ essai_fin: null, abonnement_statut: 'aucun' }, MAINTENANT)).toBe(true)
+  })
+
+  it('un essai commencé puis terminé, sans paiement, ferme la porte', () => {
+    expect(accesAutorise({ essai_fin: finDans(-1), abonnement_statut: 'aucun' }, MAINTENANT)).toBe(false)
+  })
+
+  it('la phrase de l’essai pas commencé dit quoi faire et qu’il n’y a rien à régler', () => {
+    const m = messageEssaiPasCommence()
+    expect(m).toContain(`${ESSAI_JOURS} jours`)
+    expect(m).toContain('première action')
+    expect(m).toContain('Rien à régler avant')
+  })
+})
+
+describe('messageAccesRefuse', () => {
+  it('dit l’impayé quand la porte est fermée après relances', () => {
+    expect(messageAccesRefuse({ acces_ferme_le: '2026-10-01T00:00:00.000Z' })).toBe(messageImpaye())
+  })
+
+  it('dit l’essai terminé sinon, même sans abonnement : l’essai a bien commencé', () => {
+    expect(messageAccesRefuse({ essai_fin: finDans(-1), abonnement_statut: 'aucun' })).toBe(messageEssaiTermine())
+  })
+})
+
+describe('essaiPourCheckout', () => {
+  it('un compte qui a déjà eu un abonnement paie tout de suite', () => {
+    expect(essaiPourCheckout(finDans(5), true, MAINTENANT)).toBeNull()
+    expect(essaiPourCheckout(null, true, MAINTENANT)).toBeNull()
+  })
+
+  it('essai pas commencé : sept jours, ouverts avec la carte', () => {
+    expect(essaiPourCheckout(null, false, MAINTENANT)).toEqual({ trial_period_days: ESSAI_JOURS })
+    expect(essaiPourCheckout(undefined, false, MAINTENANT)).toEqual({ trial_period_days: ESSAI_JOURS })
+  })
+
+  it('essai en cours avec de la marge : la carte le poursuit jusqu’à sa date, sans en rouvrir un', () => {
+    const fin = finDans(4)
+    expect(essaiPourCheckout(fin, false, MAINTENANT)).toEqual({ trial_end: Math.floor(new Date(fin).getTime() / 1000) })
+  })
+
+  it('essai bientôt fini (moins de 49 h) ou terminé : paiement immédiat, jamais un second essai', () => {
+    expect(essaiPourCheckout(finDans(1), false, MAINTENANT)).toBeNull()
+    expect(essaiPourCheckout(finDans(-3), false, MAINTENANT)).toBeNull()
   })
 })

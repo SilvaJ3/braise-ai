@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { etatCompte, libelleBascule, nomCompte, resumeComptes, type CompteAdmin } from './admin-comptes'
+import { etatCompte, joursProlongation, libelleBascule, nomCompte, resumeComptes, type CompteAdmin } from './admin-comptes'
 
 const MAINTENANT = new Date('2026-10-01T10:00:00.000Z')
 const dans = (jours: number) => new Date(MAINTENANT.getTime() + jours * 86_400_000).toISOString()
@@ -96,5 +96,37 @@ describe('resumeComptes', () => {
   it('ne parle pas d’accès offert quand il n’y en a pas, et gère la liste vide', () => {
     expect(resumeComptes([compte()], MAINTENANT)).toBe('1 compte · 0 offert.')
     expect(resumeComptes([], MAINTENANT)).toBe('Aucun compte à afficher.')
+  })
+})
+
+describe('essai pas commencé et prolongation (0091)', () => {
+  const neuf: CompteAdmin = {
+    user_id: 'u1', email: 'neuf@exemple.be', plan: 'essai', abonnement_statut: 'aucun',
+    essai_fin: null, acces_gratuit: false, acces_gratuit_depuis: null, est_test: false, demo: false, ouvert_le: null,
+  }
+
+  it('un compte sans date d’essai est ouvert, pas « fermé », et prolongeable', () => {
+    const e = etatCompte(neuf)
+    expect(e.ouvert).toBe(true)
+    expect(e.badge).toBe('Essai à démarrer')
+    expect(e.phrase).toContain('première action')
+    expect(e.prolongeable).toBe(true)
+  })
+
+  it('un compte fermé est prolongeable ; un abonné, un offert et un testeur ne le sont pas', () => {
+    const maintenant = new Date('2026-10-14T10:00:00Z')
+    expect(etatCompte({ ...neuf, essai_fin: '2026-10-01T00:00:00Z' }, maintenant).prolongeable).toBe(true)
+    expect(etatCompte({ ...neuf, abonnement_statut: 'actif' }, maintenant).prolongeable).toBe(false)
+    expect(etatCompte({ ...neuf, acces_gratuit: true }, maintenant).prolongeable).toBe(false)
+    expect(etatCompte({ ...neuf, est_test: true }, maintenant).prolongeable).toBe(false)
+  })
+
+  it('joursProlongation accepte un entier de 1 à 60 et rien d’autre', () => {
+    expect(joursProlongation('7')).toBe(7)
+    expect(joursProlongation(' 60 ')).toBe(60)
+    expect(joursProlongation(1)).toBe(1)
+    for (const mauvais of ['', '0', '61', '-3', '2.5', 'abc', null, undefined, NaN]) {
+      expect(joursProlongation(mauvais)).toBeNull()
+    }
   })
 })

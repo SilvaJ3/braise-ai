@@ -20,7 +20,7 @@ import {
   accesAutorise,
   essaiEnCours,
   joursEssaiRestants,
-  messageEssaiAJournir,
+  messageEssaiPasCommence,
   messageEssaiTermine,
   messageImpaye,
 } from '../../supabase/functions/_shared/essai'
@@ -314,7 +314,12 @@ export function etatEssai(
     return { enCours: false, joursRestants: 0, fin, phrase: messageImpaye() }
   }
   if (abonnementOuvreAcces(statutBrut)) return { enCours: false, joursRestants: 0, fin, phrase: null }
-  if (!essaiFin) return { enCours: false, joursRestants: 0, fin: null, phrase: null }
+  // Pas de date : l'essai n'a pas commencé, il s'ouvre à la première action (0091). Un abonnement
+  // résilié n'a pas non plus de date d'essai, mais il n'a rien à « commencer » : on se tait.
+  if (!essaiFin) {
+    const phrase = statutAbonnement(statutBrut) === 'aucun' ? messageEssaiPasCommence() : null
+    return { enCours: false, joursRestants: 0, fin: null, phrase }
+  }
 
   if (essaiEnCours(essaiFin, maintenant)) {
     const jours = joursEssaiRestants(essaiFin, maintenant)
@@ -327,17 +332,9 @@ export function etatEssai(
     }
   }
 
-  // Deux causes possibles à un essai qui n'ouvre plus l'accès, et l'écran ne doit pas les confondre :
-  // un compte qui n'a JAMAIS commencé son essai (la carte l'ouvre — c'est l'état d'un compte neuf
-  // depuis le 02/10/2026), et un essai terminé (l'abonnement le rouvre). Les phrases viennent du
-  // module partagé avec le serveur : ce que l'écran annonce est ce que le serveur fera.
-  const statut = typeof statutBrut === 'string' ? statutBrut : 'aucun'
-  return {
-    enCours: false,
-    joursRestants: 0,
-    fin,
-    phrase: statut === 'aucun' ? messageEssaiAJournir() : messageEssaiTermine(),
-  }
+  // Un essai qui n'ouvre plus l'accès est un essai terminé : l'abonnement le rouvre. La phrase vient
+  // du module partagé avec le serveur : ce que l'écran annonce est ce que le serveur fera.
+  return { enCours: false, joursRestants: 0, fin, phrase: messageEssaiTermine() }
 }
 
 /**
@@ -367,4 +364,25 @@ export function accesDuCompteAffiche(
     },
     maintenant,
   )
+}
+
+/** Les jours restants à partir desquels l'accueil rappelle l'essai. Avant, il n'y a rien à dire. */
+export const JOURS_RAPPEL_ESSAI = 3
+
+/**
+ * Le rappel de l'accueil quand l'essai touche à sa fin : ce que la personne a déjà fait (c'est ce
+ * qu'elle perdrait de vue en s'arrêtant), puis ce qu'il faut faire pour continuer. Rend null tant
+ * qu'il reste plus de `JOURS_RAPPEL_ESSAI` jours : un rappel trop tôt n'est qu'un bandeau de plus.
+ */
+export function rappelEssai(
+  joursRestants: number,
+  fait: { produits: number; bons: number },
+): string | null {
+  if (joursRestants < 1 || joursRestants > JOURS_RAPPEL_ESSAI) return null
+  const reste = joursRestants === 1 ? 'Il te reste 1 jour' : `Il te reste ${joursRestants} jours`
+  const acquis: string[] = []
+  if (fait.produits > 0) acquis.push(`${fait.produits} produit${fait.produits > 1 ? 's' : ''}`)
+  if (fait.bons > 0) acquis.push(`${fait.bons} bon${fait.bons > 1 ? 's' : ''} de dépôt`)
+  const bilan = acquis.length ? ` Tu as déjà ${acquis.join(' et ')} dans Braaise.` : ''
+  return `${reste} d’essai.${bilan} Pour continuer sans interruption, ajoute ta carte : rien n’est prélevé avant la fin de l’essai.`
 }

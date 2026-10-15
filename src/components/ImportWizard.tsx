@@ -1,5 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { etapesDemarrage, useEtatDemarrage } from '../lib/demarrage'
 import { logEvent } from '../lib/events'
 import {
   ACCEPTED_EXTENSIONS,
@@ -40,6 +42,37 @@ function summary(entity: ImportEntity, row: PlanItem['row']): string {
     })
     .filter(Boolean)
     .join(' · ')
+}
+
+/**
+ * Après l'import : la suite réelle du compte, lue dans ses données (la même source que la carte
+ * « Pour démarrer »), pour ne pas laisser la personne devant un « Import terminé » sans suite. Elle
+ * ne s'affiche que s'il reste une étape.
+ */
+function ProchaineEtape() {
+  const navigate = useNavigate()
+  const { etat, isLoading } = useEtatDemarrage(true)
+  const prochaine = etapesDemarrage(etat).find((e) => e.cle !== 'produits')
+  if (isLoading || !prochaine) return null
+  return (
+    <div className="stack" style={{ marginTop: 4, marginBottom: 8 }}>
+      <p className="muted" style={{ margin: 0 }}>
+        Et maintenant : <strong>{prochaine.titre.toLowerCase()}</strong>. {prochaine.detail}
+      </p>
+      <div style={{ marginTop: 10 }}>
+        <button
+          className="primary"
+          type="button"
+          onClick={() => {
+            logEvent('import_prochaine_etape', { cle: prochaine.cle })
+            navigate(prochaine.vers, { state: prochaine.etat })
+          }}
+        >
+          {prochaine.action} →
+        </button>
+      </div>
+    </div>
+  )
 }
 
 export default function ImportWizard({ initialEntity }: { initialEntity?: ImportEntity }) {
@@ -92,6 +125,8 @@ export default function ImportWizard({ initialEntity }: { initialEntity?: Import
       const r = await applyPlan(entity, plan)
       setApplied(r)
       for (const k of QUERY_KEYS[entity]) qc.invalidateQueries({ queryKey: [k] })
+      // La carte « Pour démarrer » et la suite proposée plus bas relisent leurs comptages.
+      qc.invalidateQueries({ queryKey: ['demarrage'] })
       logEvent('import_done', { entity, created: r.created, updated: r.updated, errors: r.errors.length })
       setStep('fini')
     } catch (e) {
@@ -268,6 +303,7 @@ export default function ImportWizard({ initialEntity }: { initialEntity?: Import
               ))}
             </ul>
           )}
+          {entity === 'produits' && applied.created + applied.updated > 0 && <ProchaineEtape />}
           <div>
             <button onClick={reset}>Importer un autre fichier</button>
           </div>
