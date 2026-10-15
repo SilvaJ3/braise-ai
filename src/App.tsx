@@ -33,7 +33,7 @@ import Marche from './routes/Marche'
 import Notifications from './routes/Notifications'
 import NotificationsCategorie from './routes/NotificationsCategorie'
 import NouveauMotDePasse from './routes/NouveauMotDePasse'
-import Onboarding from './routes/Onboarding'
+import Onboarding, { SortieOnboarding } from './routes/Onboarding'
 import PageLegale from './routes/PageLegale'
 import Planning from './routes/Planning'
 import PremiersPas from './routes/PremiersPas'
@@ -115,7 +115,7 @@ export default function App() {
       <NotificationBell />
       <Routes>
         <Route path="/" element={<Aujourdhui />} />
-        <Route path="/onboarding" element={<Navigate to="/" replace />} />
+        <Route path="/onboarding" element={<SortieOnboarding />} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/notifications/:categorie" element={<NotificationsCategorie />} />
         <Route path="/planning" element={<Planning />} />

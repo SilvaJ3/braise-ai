@@ -1,12 +1,28 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { ChampsActivite, ChampsCanaux, VALEURS_VIDES, type ValeursProfil } from '../components/ChampsProfil'
 import { logEvent } from '../lib/events'
+import { ESSAI_JOURS } from '../../supabase/functions/_shared/essai'
 import { useEnregistrerProfilCompte, useProfilCompte, useTerminerOnboarding, type Canaux } from '../lib/profil'
 
-// Tunnel d'accueil : trois écrans, dans l'ordre où la question se pose. Chaque étape enregistre ce
-// qu'elle a recueilli avant de passer à la suivante — une app fermée en cours de route ne fait pas
-// perdre la réponse précédente. Tant qu'il n'est pas terminé, App.tsx n'ouvre aucune autre route.
+// Tunnel d'accueil : deux écrans. Le premier dit qui est la personne (le métier suffit ; où elle
+// vend est une option repliée), le second la mène à ses produits — le chemin le plus court vers le
+// premier vrai résultat. Chaque étape enregistre ce qu'elle a recueilli avant de passer à la
+// suivante — une app fermée en cours de route ne fait pas perdre la réponse précédente. Tant qu'il
+// n'est pas terminé, App.tsx n'ouvre aucune autre route. Les sept jours d'essai ne commencent pas
+// ici : ils s'ouvrent à la première vraie action (0091).
+/**
+ * Où va la personne une fois le tunnel terminé. Quand le profil est relu, l'écran d'onboarding est
+ * démonté et la garde d'entrée (App.tsx) renvoie `/onboarding` vers l'accueil : une navigation
+ * lancée depuis l'écran lui-même arrive trop tard. La destination voyage donc dans l'état de la
+ * route, et c'est cette redirection qui la lit. Seule une adresse interne est suivie.
+ */
+export function SortieOnboarding() {
+  const { state } = useLocation()
+  const suite = typeof state?.suite === 'string' && /^\/(?!\/)/.test(state.suite) ? state.suite : '/'
+  return <Navigate to={suite} replace />
+}
+
 export default function Onboarding() {
   const navigate = useNavigate()
   const { data: profil } = useProfilCompte()
@@ -48,19 +64,11 @@ export default function Onboarding() {
           metier: valeurs.metier.trim(),
           nom_commercial: valeurs.nomCommercial.trim() || null,
           ville: valeurs.ville.trim() || null,
-        })
-        logEvent('onboarding_etape', { etape: 1 })
-        setEtape(2)
-        return
-      }
-
-      if (etape === 2) {
-        await enregistrer.mutateAsync({
           canaux: valeurs.canaux,
           plateformes: valeurs.canaux.includes('reseaux') ? valeurs.plateformes : [],
         })
-        logEvent('onboarding_etape', { etape: 2 })
-        setEtape(3)
+        logEvent('onboarding_etape', { etape: 1 })
+        setEtape(2)
         return
       }
 
@@ -75,9 +83,9 @@ export default function Onboarding() {
   async function chargerCatalogue() {
     setErreur(null)
     try {
+      navigate('/onboarding', { replace: true, state: { suite: '/atelier?tab=import&entity=produits' } })
       await terminer.mutateAsync()
       logEvent('onboarding_termine', { metier: valeurs.metier.trim(), avec_import: true })
-      navigate('/atelier?tab=import&entity=produits', { replace: true })
     } catch (e) {
       setErreur((e as Error).message)
     }
@@ -88,7 +96,7 @@ export default function Onboarding() {
   return (
     <>
       <p className="muted" style={{ marginBottom: 4 }}>
-        Étape {etape} sur 3
+        Étape {etape} sur 2
       </p>
 
       {etape === 1 && (
@@ -100,27 +108,29 @@ export default function Onboarding() {
           <div className="card stack">
             <ChampsActivite valeurs={valeurs} onChange={maj} />
           </div>
+          <details style={{ marginTop: 12 }}>
+            <summary className="link" style={{ cursor: 'pointer' }}>
+              Où tu vends (facultatif)
+            </summary>
+            <p className="muted" style={{ margin: '8px 0' }}>
+              Ça évite qu'on te propose un Reel Instagram quand tu passes tes dimanches en marché.
+            </p>
+            <ChampsCanaux valeurs={valeurs} onChange={maj} />
+          </details>
         </>
       )}
 
       {etape === 2 && (
         <>
-          <h1>Où tu vends</h1>
+          <h1>Tes produits</h1>
           <p className="muted" style={{ marginTop: 0 }}>
-            Coche tout ce qui compte, même si c'est petit. Ça évite qu'on te propose un Reel Instagram
-            quand tu passes tes dimanches en marché.
+            Le plus rapide : donne ta liste telle qu'elle existe. Un fichier Excel ou CSV, un export de
+            ta boutique en ligne, ou simplement une photo de ta liste de prix — Braaise la lit et te
+            montre ce qu'il a compris avant d'enregistrer quoi que ce soit.
           </p>
-          <ChampsCanaux valeurs={valeurs} onChange={maj} />
-        </>
-      )}
-
-      {etape === 3 && (
-        <>
-          <h1>Ton point de départ</h1>
-          <p className="muted" style={{ marginTop: 0 }}>
-            Si tu as déjà un fichier avec tes produits — un export de boutique en ligne, un tableau
-            maison — Braaise sait le lire (Excel, CSV, PDF, photo). Sinon, tu peux commencer à la main,
-            tout de suite, et importer plus tard.
+          <p className="muted">
+            Rien à payer pour l'instant : tes {ESSAI_JOURS} jours d'essai commencent quand tu commences
+            vraiment.
           </p>
         </>
       )}
@@ -138,23 +148,23 @@ export default function Onboarding() {
           </button>
         )}
         <div className="spacer" />
-        <button className="primary" type="button" onClick={suivant} disabled={occupe}>
-          {occupe ? '…' : etape === 3 ? 'Commencer à la main' : 'Continuer'}
-        </button>
+        {etape === 1 ? (
+          <button className="primary" type="button" onClick={suivant} disabled={occupe}>
+            {occupe ? '…' : 'Continuer'}
+          </button>
+        ) : (
+          <button className="primary" type="button" onClick={chargerCatalogue} disabled={occupe}>
+            {occupe ? '…' : 'Importer ma liste de produits'}
+          </button>
+        )}
       </div>
 
       {etape === 2 && (
-        <p className="muted" style={{ fontSize: '0.85rem' }}>
-          Rien ne t'oblige à cocher : tu peux passer, mais l'assistant sera plus vague.
-        </p>
-      )}
-
-      {etape === 3 && (
-        <div style={{ marginTop: 10 }}>
-          <button className="primary" type="button" onClick={chargerCatalogue} disabled={occupe}>
-            {occupe ? '…' : 'Charger mon catalogue depuis un fichier'}
+        <p style={{ marginTop: 14 }}>
+          <button className="link" type="button" onClick={suivant} disabled={occupe}>
+            Je les ajouterai à la main
           </button>
-        </div>
+        </p>
       )}
     </>
   )
