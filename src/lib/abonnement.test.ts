@@ -7,6 +7,7 @@ import {
   dateLisible,
   etatAbonnement,
   etatEssai,
+  rappelEssai,
   formuleFacturee,
   libelleSouscription,
   messagePaiement,
@@ -347,5 +348,24 @@ describe('etatEssai — l’accès offert', () => {
     expect(e.phrase).toContain('offert')
     expect(e.phrase).not.toContain('terminés')
     expect(e.enCours).toBe(false)
+  })
+})
+
+describe('rappelEssai', () => {
+  it('se tait tant qu’il reste plus de trois jours, et quand l’essai est fini', () => {
+    expect(rappelEssai(4, { produits: 10, bons: 1 })).toBeNull()
+    expect(rappelEssai(0, { produits: 10, bons: 1 })).toBeNull()
+  })
+
+  it('dit ce qui a été fait et qu’aucun prélèvement ne part avant la fin', () => {
+    const m = rappelEssai(2, { produits: 42, bons: 2 })
+    expect(m).toContain('Il te reste 2 jours')
+    expect(m).toContain('42 produits et 2 bons de dépôt')
+    expect(m).toContain('rien n’est prélevé avant la fin')
+  })
+
+  it('accorde le singulier et omet le bilan quand rien n’est fait', () => {
+    expect(rappelEssai(1, { produits: 1, bons: 0 })).toContain('Il te reste 1 jour d’essai. Tu as déjà 1 produit dans')
+    expect(rappelEssai(3, { produits: 0, bons: 0 })).not.toContain('Tu as déjà')
   })
 })

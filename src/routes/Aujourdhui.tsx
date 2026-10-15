@@ -4,6 +4,7 @@ import ACommander from '../components/ACommander'
 import Demarrage from '../components/Demarrage'
 import Fab from '../components/Fab'
 import InstallHint from '../components/InstallHint'
+import RappelEssai from '../components/RappelEssai'
 import Today from '../components/Today'
 import { logEvent } from '../lib/events'
 import { useProfilCompte } from '../lib/profil'
@@ -28,6 +29,7 @@ export default function Aujourdhui() {
       {profil?.message_accueil && <p>{profil.message_accueil}</p>}
       <ACommander />
       <InstallHint />
+      <RappelEssai />
       <Demarrage />
       <Today />
       <Fab onClick={() => navigate('/planning', { state: { new: true } })} />

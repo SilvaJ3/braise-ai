@@ -365,3 +365,24 @@ export function accesDuCompteAffiche(
     maintenant,
   )
 }
+
+/** Les jours restants à partir desquels l'accueil rappelle l'essai. Avant, il n'y a rien à dire. */
+export const JOURS_RAPPEL_ESSAI = 3
+
+/**
+ * Le rappel de l'accueil quand l'essai touche à sa fin : ce que la personne a déjà fait (c'est ce
+ * qu'elle perdrait de vue en s'arrêtant), puis ce qu'il faut faire pour continuer. Rend null tant
+ * qu'il reste plus de `JOURS_RAPPEL_ESSAI` jours : un rappel trop tôt n'est qu'un bandeau de plus.
+ */
+export function rappelEssai(
+  joursRestants: number,
+  fait: { produits: number; bons: number },
+): string | null {
+  if (joursRestants < 1 || joursRestants > JOURS_RAPPEL_ESSAI) return null
+  const reste = joursRestants === 1 ? 'Il te reste 1 jour' : `Il te reste ${joursRestants} jours`
+  const acquis: string[] = []
+  if (fait.produits > 0) acquis.push(`${fait.produits} produit${fait.produits > 1 ? 's' : ''}`)
+  if (fait.bons > 0) acquis.push(`${fait.bons} bon${fait.bons > 1 ? 's' : ''} de dépôt`)
+  const bilan = acquis.length ? ` Tu as déjà ${acquis.join(' et ')} dans Braaise.` : ''
+  return `${reste} d’essai.${bilan} Pour continuer sans interruption, ajoute ta carte : rien n’est prélevé avant la fin de l’essai.`
+}
