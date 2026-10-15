@@ -20,7 +20,7 @@ import {
   accesAutorise,
   essaiEnCours,
   joursEssaiRestants,
-  messageEssaiAJournir,
+  messageEssaiPasCommence,
   messageEssaiTermine,
   messageImpaye,
 } from '../../supabase/functions/_shared/essai'
@@ -314,7 +314,12 @@ export function etatEssai(
     return { enCours: false, joursRestants: 0, fin, phrase: messageImpaye() }
   }
   if (abonnementOuvreAcces(statutBrut)) return { enCours: false, joursRestants: 0, fin, phrase: null }
-  if (!essaiFin) return { enCours: false, joursRestants: 0, fin: null, phrase: null }
+  // Pas de date : l'essai n'a pas commencé, il s'ouvre à la première action (0091). Un abonnement
+  // résilié n'a pas non plus de date d'essai, mais il n'a rien à « commencer » : on se tait.
+  if (!essaiFin) {
+    const phrase = statutAbonnement(statutBrut) === 'aucun' ? messageEssaiPasCommence() : null
+    return { enCours: false, joursRestants: 0, fin: null, phrase }
+  }
 
   if (essaiEnCours(essaiFin, maintenant)) {
     const jours = joursEssaiRestants(essaiFin, maintenant)
@@ -327,17 +332,9 @@ export function etatEssai(
     }
   }
 
-  // Deux causes possibles à un essai qui n'ouvre plus l'accès, et l'écran ne doit pas les confondre :
-  // un compte qui n'a JAMAIS commencé son essai (la carte l'ouvre — c'est l'état d'un compte neuf
-  // depuis le 02/10/2026), et un essai terminé (l'abonnement le rouvre). Les phrases viennent du
-  // module partagé avec le serveur : ce que l'écran annonce est ce que le serveur fera.
-  const statut = typeof statutBrut === 'string' ? statutBrut : 'aucun'
-  return {
-    enCours: false,
-    joursRestants: 0,
-    fin,
-    phrase: statut === 'aucun' ? messageEssaiAJournir() : messageEssaiTermine(),
-  }
+  // Un essai qui n'ouvre plus l'accès est un essai terminé : l'abonnement le rouvre. La phrase vient
+  // du module partagé avec le serveur : ce que l'écran annonce est ce que le serveur fera.
+  return { enCours: false, joursRestants: 0, fin, phrase: messageEssaiTermine() }
 }
 
 /**

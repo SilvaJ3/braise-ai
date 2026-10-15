@@ -289,12 +289,19 @@ describe('etatEssai', () => {
     expect(e.phrase).toContain('toujours là')
   })
 
-  it('annonce l’essai à un compte qui ne l’a jamais commencé', () => {
-    // `aucun` = aucune souscription n'a jamais été ouverte. Depuis le 02/10/2026, l'essai s'ouvre en
-    // enregistrant la carte : le dire AVANT vaut mieux que de laisser croire à un essai consommé.
+  it('annonce que l’essai commence à la première action, sans carte, à un compte neuf', () => {
+    // Depuis le 14/10/2026 (0091) : pas de date d'essai = l'essai n'a pas commencé, et il n'y a
+    // rien à régler avant. La phrase dit ce qui le lance.
+    const e = etatEssai(null, 'aucun', { maintenant: MAINTENANT })
+    expect(e.enCours).toBe(false)
+    expect(e.phrase).toContain('première action')
+    expect(e.phrase).toContain('Rien à régler avant')
+  })
+
+  it('dit « terminés » à un essai fini sans paiement : il a bien commencé', () => {
     const e = etatEssai(finDans(-1), 'aucun', { maintenant: MAINTENANT })
-    expect(e.phrase).toContain('commencent quand tu enregistres ta carte')
-    expect(e.phrase).toContain('deux jours avant')
+    expect(e.phrase).toContain('terminés')
+    expect(e.phrase).not.toContain('première action')
   })
 
   it('dit l’impayé quand la porte a été fermée après trois relances', () => {
@@ -311,9 +318,9 @@ describe('etatEssai', () => {
     }
   })
 
-  it('se tait quand la base ne connaît pas encore l’essai : rien d’inventé', () => {
-    expect(etatEssai(null, 'aucun', { maintenant: MAINTENANT }).phrase).toBeNull()
-    expect(etatEssai(undefined, 'aucun', { maintenant: MAINTENANT }).phrase).toBeNull()
+  it('se tait sur un abonnement résilié sans date d’essai : il n’a rien à « commencer »', () => {
+    expect(etatEssai(null, 'resilie', { maintenant: MAINTENANT }).phrase).toBeNull()
+    expect(etatEssai(undefined, 'resilie', { maintenant: MAINTENANT }).phrase).toBeNull()
     expect(etatEssai('pas une date', 'aucun', { maintenant: MAINTENANT })).toMatchObject({ enCours: false, fin: null })
   })
 })
