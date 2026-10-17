@@ -39,6 +39,7 @@ import {
 } from '../_shared/stripe.ts'
 import { abonnementOuvreAcces, ESSAI_JOURS, essaiPourCheckout } from '../_shared/essai.ts'
 import { metadonneesPack, packValide, prixPack, type IdentifiantsPacks } from '../_shared/packs.ts'
+import { estOrigineAutorisee } from '../_shared/origines.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -97,6 +98,9 @@ async function adresseApp(): Promise<string> {
 }
 
 Deno.serve(async (req) => {
+  if (!estOrigineAutorisee(req.headers.get('origin'))) {
+    return new Response('{"error":"origine non autorisée"}', { status: 403 })
+  }
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ erreur: 'méthode non autorisée' }, 405)
 

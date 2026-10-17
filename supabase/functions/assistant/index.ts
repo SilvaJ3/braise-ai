@@ -45,6 +45,7 @@ import {
   type LigneAnomalie,
 } from '../_shared/consignes-bilan.ts'
 import { NOMS_FORMULES } from '../_shared/formules-accroche.ts'
+import { estOrigineAutorisee } from '../_shared/origines.ts'
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void }
 
@@ -921,6 +922,9 @@ function json(body: unknown, status = 200): Response {
 }
 
 Deno.serve(async (req) => {
+  if (!estOrigineAutorisee(req.headers.get('origin'))) {
+    return new Response('{"error":"origine non autorisée"}', { status: 403 })
+  }
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'POST uniquement' }, 405)
   if (!ANTHROPIC_KEY) return json({ error: 'ANTHROPIC_API_KEY non configurée' }, 500)

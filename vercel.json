@@ -19,6 +19,15 @@
       ]
     },
     {
+      "source": "/(.*)",
+      "has": [
+        { "type": "host", "value": "artisan.braaise.io" }
+      ],
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://nnssqleqvfafbkkxyqne.supabase.co; connect-src 'self' https://nnssqleqvfafbkkxyqne.supabase.co wss://nnssqleqvfafbkkxyqne.supabase.co https://nominatim.openstreetmap.org; frame-src 'self' blob: data: https://www.openstreetmap.org https://nnssqleqvfafbkkxyqne.supabase.co; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; manifest-src 'self'" }
+      ]
+    },
+    {
       "source": "/boutique/:path*",
       "headers": [
         { "key": "Referrer-Policy", "value": "no-referrer" },

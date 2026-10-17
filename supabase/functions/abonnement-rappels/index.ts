@@ -1,3 +1,4 @@
+import { estOrigineAutorisee } from '../_shared/origines.ts'
 // Les rappels de l'abonnement : ce qui part, à qui, et quand.
 //
 // Trois envois, et ils n'ont pas la même raison d'être :
@@ -148,6 +149,9 @@ function decrire(a: Action): Record<string, unknown> {
 }
 
 Deno.serve(async (req) => {
+  if (!estOrigineAutorisee(req.headers.get('origin'))) {
+    return new Response('{"error":"origine non autorisée"}', { status: 403 })
+  }
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'méthode non autorisée' }, 405)
   if (!(await cronAllowed(req))) return json({ error: 'non autorisé' }, 401)

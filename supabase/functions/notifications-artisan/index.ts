@@ -1,3 +1,4 @@
+import { estOrigineAutorisee } from '../_shared/origines.ts'
 // La boutique vient de faire quelque chose — confirmer un bon reçu, demander un réassort : l'artisan
 // doit le savoir tout de suite. Cette fonction porte cet événement sur ses deux canaux, un push et
 // un mail, et rien d'autre.
@@ -383,6 +384,9 @@ async function lister(reserver: boolean): Promise<NotifRow[] | string> {
 }
 
 Deno.serve(async (req) => {
+  if (!estOrigineAutorisee(req.headers.get('origin'))) {
+    return new Response('{"error":"origine non autorisée"}', { status: 403 })
+  }
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'POST uniquement' }, 405)
 

@@ -1,3 +1,4 @@
+import { estOrigineAutorisee } from '../_shared/origines.ts'
 // Abonnement Braaise BOUTIQUE : crée une session de paiement Stripe pour le compte de boutique connecté.
 //
 // Fonction à part de `stripe-checkout` (celle des artisans) : on ne touche pas au code de paiement qui
@@ -66,6 +67,9 @@ async function adresseApp(): Promise<string> {
 }
 
 Deno.serve(async (req) => {
+  if (!estOrigineAutorisee(req.headers.get('origin'))) {
+    return new Response('{"error":"origine non autorisée"}', { status: 403 })
+  }
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ erreur: 'méthode non autorisée' }, 405)
 

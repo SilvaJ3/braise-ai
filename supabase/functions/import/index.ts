@@ -31,6 +31,7 @@ import {
 import { RESERVE_JETONS } from '../_shared/enveloppe.ts'
 import { corrigerJetons, reserverJetons } from '../_shared/enveloppe-rpc.ts'
 import { accesDuCompte } from '../_shared/essai-rpc.ts'
+import { estOrigineAutorisee } from '../_shared/origines.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -290,6 +291,9 @@ async function handle(req: Request): Promise<Response> {
 }
 
 Deno.serve(async (req) => {
+  if (!estOrigineAutorisee(req.headers.get('origin'))) {
+    return new Response('{"error":"origine non autorisée"}', { status: 403 })
+  }
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'POST uniquement' }, 405)
   try {

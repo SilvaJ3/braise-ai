@@ -21,6 +21,7 @@ import {
 import { accueilArme, construireMailAccueil, NOM_MODELE } from '../_shared/mail-accueil.ts'
 import { MODELE_IMPORT_B64 } from '../_shared/modele-import.ts'
 import { envoyerMail } from '../_shared/mailer.ts'
+import { estOrigineAutorisee } from '../_shared/origines.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -147,6 +148,9 @@ async function tropDeTentatives(email: string, ip: string | null): Promise<boole
 }
 
 Deno.serve(async (req) => {
+  if (!estOrigineAutorisee(req.headers.get('origin'))) {
+    return new Response('{"error":"origine non autorisée"}', { status: 403 })
+  }
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'POST uniquement' }, 405)
 

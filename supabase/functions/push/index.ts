@@ -1,6 +1,7 @@
 // Notifications push Web (VAPID). Clé privée = secret Supabase VAPID_PRIVATE_KEY.
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3.6.7'
+import { estOrigineAutorisee } from '../_shared/origines.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -199,6 +200,9 @@ async function handleWeeklyDigest(): Promise<Response> {
 }
 
 Deno.serve(async (req) => {
+  if (!estOrigineAutorisee(req.headers.get('origin'))) {
+    return new Response('{"error":"origine non autorisée"}', { status: 403 })
+  }
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'POST uniquement' }, 405)
   if (!vapidReady) return json({ error: 'VAPID_PRIVATE_KEY manquante ou invalide' }, 500)

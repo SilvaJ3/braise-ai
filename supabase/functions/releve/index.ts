@@ -14,6 +14,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 import type { Emetteur, ModeVente } from '../_shared/depot-doc.ts'
 import { renderRelevePdf } from '../_shared/releve-pdf.ts'
 import { releveFilename, type ReleveDoc, type ReleveLigne } from '../_shared/releve-doc.ts'
+import { estOrigineAutorisee } from '../_shared/origines.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -207,6 +208,9 @@ async function handleEmettre(jeton: string, userId: string, body: Record<string,
 }
 
 Deno.serve(async (req) => {
+  if (!estOrigineAutorisee(req.headers.get('origin'))) {
+    return new Response('{"error":"origine non autorisée"}', { status: 403 })
+  }
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'POST uniquement' }, 405)
 

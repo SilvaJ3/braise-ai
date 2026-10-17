@@ -25,6 +25,7 @@ import { envoyerMail } from '../_shared/mailer.ts'
 import { construirePresentation, fautPresenter } from '../_shared/presentation-boutique.ts'
 import { accesDuCompte } from '../_shared/essai-rpc.ts'
 import { destinatairesDeCompte } from '../_shared/demo.ts'
+import { estOrigineAutorisee } from '../_shared/origines.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -556,6 +557,9 @@ async function handleRenvoyer(userId: string, body: Record<string, unknown>, dem
 }
 
 Deno.serve(async (req) => {
+  if (!estOrigineAutorisee(req.headers.get('origin'))) {
+    return new Response('{"error":"origine non autorisée"}', { status: 403 })
+  }
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'POST uniquement' }, 405)
 
