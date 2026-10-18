@@ -28,7 +28,7 @@
       ]
     },
     {
-      "source": "/boutique/:path*",
+      "source": "/boutique(.*)",
       "headers": [
         { "key": "Referrer-Policy", "value": "no-referrer" },
         {

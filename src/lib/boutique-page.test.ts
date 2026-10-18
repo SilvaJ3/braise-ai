@@ -20,10 +20,19 @@ const SURS = [
 // sans mettre à jour vercel.json casserait la page en silence (le navigateur refuse de l'exécuter).
 describe('page boutique : en-têtes de sécurité', () => {
   const vercel = JSON.parse(vercelBrut) as { headers: { source: string; headers: { key: string; value: string }[] }[] }
-  const csp = vercel.headers
-    .find((h) => h.source === '/boutique/:path*')
-    ?.headers.find((h) => h.key === 'Content-Security-Policy')?.value ?? ''
+  // La règle se désigne par son préfixe : `/boutique/:path*` ne couvrait pas `/boutique/`
+  // (adresse sans jeton), qui retombait alors sur la CSP de l'app et restait bloquée sur
+  // « Chargement… ». Voir le test de couverture plus bas.
+  const regleBoutique = vercel.headers.find((h) => h.source.startsWith('/boutique')) ?? { source: '', headers: [] }
+  const csp = regleBoutique.headers.find((h) => h.key === 'Content-Security-Policy')?.value ?? ''
   const scriptSrc = /script-src ([^;]*)/.exec(csp)?.[1] ?? ''
+
+  it('la CSP de la page boutique couvre /boutique/ autant que /boutique/<jeton>', () => {
+    const motif = new RegExp('^' + regleBoutique.source + '$')
+    expect(motif.test('/boutique/')).toBe(true)
+    expect(motif.test('/boutique/4f2a9c1e')).toBe(true)
+    expect(motif.test('/boutique')).toBe(true)
+  })
 
   it("l'empreinte du script en ligne est celle de la CSP", async () => {
     const scripts = page.match(/<script\b[^>]*>[\s\S]*?<\/script>/g) ?? []
