@@ -2,7 +2,7 @@ import { supabase } from './supabase'
 
 // Clé publique VAPID (non secrète par nature). La privée est un secret Supabase.
 const VAPID_PUBLIC =
-  'BLzRPJbag3rpK5ffOUdVkRfNZq3tua2RzadSjyNNb2u4iEUiCcbCiZnj3uPjOMFUKiUeSYGDSe1vkgWL7taGa7U'
+  'BISWRvLWcXDzNRO2B2tWcCaQ8WEv2jMO40YG55af6cx9O1UZy-ln5Jx_hgZCGmRR3qAzDgl_1elgOFLhFp4HGVk'
 
 function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
   const padding = '='.repeat((4 - (base64.length % 4)) % 4)

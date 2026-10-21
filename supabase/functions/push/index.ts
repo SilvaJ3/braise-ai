@@ -16,7 +16,7 @@ const CORS = {
 const APP_URL = 'https://artisan.braaise.io'
 const ORIGINES_APP = [APP_URL, 'https://braise-ai.vercel.app']
 const VAPID_PUBLIC =
-  'BLzRPJbag3rpK5ffOUdVkRfNZq3tua2RzadSjyNNb2u4iEUiCcbCiZnj3uPjOMFUKiUeSYGDSe1vkgWL7taGa7U'
+  'BISWRvLWcXDzNRO2B2tWcCaQ8WEv2jMO40YG55af6cx9O1UZy-ln5Jx_hgZCGmRR3qAzDgl_1elgOFLhFp4HGVk'
 const VAPID_PRIVATE = Deno.env.get('VAPID_PRIVATE_KEY')?.replace(/["'\s]/g, '') || undefined
 // Contact VAPID exigé par la spec (mailto). Paramétrable via secret pour ne pas figer une
 // adresse personnelle dans le code.
