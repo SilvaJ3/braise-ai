@@ -6,10 +6,13 @@ export default function SignaturePad({
   onChange,
   disabled,
   hauteur = 180,
+  valeur = null,
 }: {
   onChange: (jpegBase64: string | null) => void
   disabled?: boolean
   hauteur?: number
+  /** Signature déjà enregistrée (bon rechargé) : affichée sans appeler `onChange`. */
+  valeur?: string | null
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const dessine = useRef(false)
@@ -65,6 +68,29 @@ export default function SignaturePad({
       window.removeEventListener('orientationchange', ajuste)
     }
   }, [hauteur, prepare])
+
+  // Affiche une signature déjà enregistrée (bon rechargé) : on la dessine une fois, tant que le
+  // cadre est encore vide. Dès que l'utilisateur trace, c'est son tracé qui prime.
+  const affichee = useRef<string | null>(null)
+  useEffect(() => {
+    if (!valeur || affichee.current === valeur) return
+    affichee.current = valeur
+    const c = canvasRef.current
+    if (!c) return
+    const img = new Image()
+    img.onload = () => {
+      const c2 = canvasRef.current
+      const ctx2 = c2?.getContext('2d')
+      if (!c2 || !ctx2 || !videRef.current) return
+      const dpr = Math.min(window.devicePixelRatio || 1, 3)
+      const largeur = c2.clientWidth || 300
+      prepare(c2, dpr)
+      ctx2.drawImage(img, 0, 0, largeur, hauteur)
+      videRef.current = false
+      setVide(false)
+    }
+    img.src = `data:image/jpeg;base64,${valeur}`
+  }, [valeur, hauteur, prepare])
 
   const point = (r: DOMRect, e: { clientX: number; clientY: number }) => ({
     x: e.clientX - r.left,

@@ -316,9 +316,10 @@ async function handleApercu(userId: string, body: Record<string, unknown>): Prom
   if (typeof body.signataire_nom === 'string') doc.signataire_nom = body.signataire_nom.slice(0, 200)
   if (!doc.lignes.length) return json({ error: 'ajoute au moins un article' }, 400)
   try {
+    console.log('[depot] aperçu : rendu du PDF')
     return json({ pdf_base64: toBase64(renderDepotPdf(doc)), filename: pdfFilename(doc) })
   } catch (e) {
-    console.error('renderDepotPdf', e)
+    console.error('[depot] aperçu : renderDepotPdf', e)
     return json({ error: `génération du PDF impossible : ${String((e as Error).message ?? e).slice(0, 200)}` }, 500)
   }
 }
@@ -330,6 +331,7 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>, demo
   const loaded = await loadDepot(userId, String(body.depot_id ?? ''))
   if (!loaded) return json({ error: 'bon de dépôt introuvable' }, 404)
   const { row, doc } = loaded
+  console.log('[depot] bon chargé', row.id)
 
   // Signature : celle qui vient d'être tracée prime ; sinon on réutilise celle déjà figée
   // (réessai d'envoi après un échec, sans refaire signer la boutique).
@@ -354,6 +356,7 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>, demo
   // l'adresse d'une fiche est écrite librement par l'artisan, ce filtre ne prouve donc PAS qu'elle
   // appartient à la boutique — le plafond quotidien ci-dessous est le vrai frein au spam.
   const autorisees = await adressesAutorisees(userId, doc)
+  console.log('[depot] destinataires autorisés')
   const refuses = [...to, ...cc].filter((e) => !autorisees.has(e.trim().toLowerCase()))
   if (refuses.length) {
     return json(
@@ -377,6 +380,7 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>, demo
   else if (quotaOk === false) {
     return json({ error: "Tu as envoyé beaucoup de bons aujourd'hui. Réessaie demain, ou écris-nous si c'est normal." }, 429)
   }
+  console.log('[depot] quota consommé')
 
   // Compte de démonstration : les destinataires sont remplacés par l'adresse du compte, et le mail
   // le dit (`_shared/demo.ts`). Le contrôle ci-dessus, lui, a porté sur les adresses VISÉES : c'est
@@ -384,23 +388,13 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>, demo
   const envoi = destinatairesDeCompte(demo, doc.emetteur.email, to, cc)
 
   if (!doc.numero) doc.numero = await attribuerNumero(userId, doc.date_depot)
+  console.log('[depot] numéro attribué', doc.numero)
 
-  let pdf: Uint8Array
-  try {
-    pdf = renderDepotPdf(doc)
-  } catch (e) {
-    console.error('renderDepotPdf', e)
-    return json({ error: `génération du PDF impossible : ${String((e as Error).message ?? e).slice(0, 200)}` }, 500)
-  }
-
-  const path = `${userId}/${row.id}.pdf`
-  const { error: upErr } = await admin.storage
-    .from(BUCKET)
-    .upload(path, pdf, { contentType: 'application/pdf', upsert: true })
-  if (upErr) console.error('storage.upload', upErr.message)
-
-  // Le bon est figé dès maintenant : si le mail échoue, la signature et le numéro restent
-  // acquis et l'envoi peut être relancé sans refaire signer.
+  // La signature est figée DÈS MAINTENANT, avant le travail lourd (PDF, stockage, mail).
+  // Constat de JSB le 23/10/2026 : l'envoi a planté (timeout) alors que la boutique était déjà
+  // partie — une signature non enregistrée à ce stade est perdue pour de bon. On persiste
+  // d'abord, la lourde opération ensuite : un échec plus bas laisse le bon signé, numéroté et
+  // relançable sans refaire signer.
   await admin
     .from('depots')
     .update({
@@ -411,12 +405,29 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>, demo
       signature_image: doc.signature_image,
       photo_image: doc.photo_image,
       signed_at: row.signed_at ?? new Date().toISOString(),
-      pdf_path: upErr ? null : path,
       email_to: envoi.to,
       email_cc: envoi.cc,
       send_error: null,
     })
     .eq('id', row.id)
+  console.log('[depot] signature figée en base')
+
+  let pdf: Uint8Array
+  try {
+    pdf = renderDepotPdf(doc)
+  } catch (e) {
+    console.error('[depot] renderDepotPdf', e)
+    return json({ error: `génération du PDF impossible : ${String((e as Error).message ?? e).slice(0, 200)}` }, 500)
+  }
+  console.log('[depot] PDF rendu')
+
+  const path = `${userId}/${row.id}.pdf`
+  const { error: upErr } = await admin.storage
+    .from(BUCKET)
+    .upload(path, pdf, { contentType: 'application/pdf', upsert: true })
+  if (upErr) console.error('[depot] storage.upload', upErr.message)
+  else await admin.from('depots').update({ pdf_path: path }).eq('id', row.id)
+  console.log('[depot] PDF rangé dans Storage', upErr ? 'échec' : 'ok')
 
   // Le lien est lu (et créé) avant l'envoi du bon : c'est lui qui portera la présentation, et un
   // échec du mail du bon ne doit pas non plus faire perdre la création du lien.
@@ -429,6 +440,7 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>, demo
       ...(lien.url ? { lien: lien.url } : {}),
       ...(envoi.redirige.length ? { demo: envoi.redirige } : {}),
     })
+    console.log('[depot] envoi du mail…', envoi.to)
     await envoyerMail(
       { apiKey: RESEND_API_KEY, domain: MAIL_DOMAIN },
       {
@@ -443,9 +455,10 @@ async function handleEnvoyer(userId: string, body: Record<string, unknown>, demo
         attachments: [{ filename: pdfFilename(doc), base64: toBase64(pdf) }],
       },
     )
+    console.log('[depot] mail envoyé')
   } catch (e) {
     const message = String((e as Error).message ?? e).slice(0, 500)
-    console.error('envoyerMail', message)
+    console.error('[depot] envoyerMail', message)
     await admin.from('depots').update({ send_error: message }).eq('id', row.id)
     return json({ error: `Bon signé et enregistré, mais l'envoi du mail a échoué : ${message}`, numero: doc.numero, signe: true }, 502)
   }
@@ -578,6 +591,7 @@ Deno.serve(async (req) => {
 
     const body = ((await req.json().catch(() => null)) ?? {}) as Record<string, unknown>
     const mode = body.mode ?? 'apercu'
+    console.log('[depot] appel', mode, 'utilisateur', userData.user.id)
     if (mode === 'apercu') return await handleApercu(userData.user.id, body)
     if (mode === 'envoyer') return await handleEnvoyer(userData.user.id, body, acces.demo)
     if (mode === 'renvoyer') return await handleRenvoyer(userData.user.id, body, acces.demo)

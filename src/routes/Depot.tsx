@@ -75,6 +75,8 @@ export default function Depot() {
     setDate(d.date_depot)
     setNotes(d.notes ?? '')
     setSignataire(d.signataire_nom ?? '')
+    setSignature(d.signature_image ?? null)
+    setPhoto(d.photo_image ?? null)
     setDestinataires(d.email_to.join(', '))
     setCopie(d.email_cc.join(', '))
     setLignes(
@@ -115,7 +117,32 @@ export default function Depot() {
     boutique_email: boutique?.email ?? depot?.boutique_email ?? null,
     notes: notes || null,
     lignes: lignes.map(({ cle: _cle, libre: _libre, ...l }) => l),
+    signataire_nom: signataire || null,
+    signature_image: signature,
+    photo_image: photo,
   }
+
+  // Savepoint : la signature, la photo et le nom du signataire se sauvent dès qu'ils changent —
+  // on n'attend pas le clic « Envoyer ». Un plantage ou un timeout à l'envoi ne perd plus rien
+  // de ce qui ne se refait pas (la boutique peut déjà être partie).
+  const idSavepoint = useRef<string | undefined>(depotId)
+  useEffect(() => {
+    idSavepoint.current = depotId
+  }, [depotId])
+  useEffect(() => {
+    if (!signature && !photo && !signataire) return
+    const t = setTimeout(() => {
+      saveDepot({ ...saisie, id: idSavepoint.current })
+        .then((id) => {
+          idSavepoint.current = id
+          if (!depotId) navigate(`/depots/${id}`, { replace: true })
+        })
+        .catch(() => {
+          /* savepoint silencieux : un échec ne doit pas interrompre la saisie */
+        })
+    }, 800)
+    return () => clearTimeout(t)
+  }, [signature, photo, signataire])
 
   const doc = docDepuisSaisie(saisie, profil ?? { nom: '', adresse: '', telephone: '', tva: '', email: '', mention_signature: '' }, signature, signataire, photo)
   // Les adresses rejetées par parseEmails (faute de frappe) étaient écartées en silence : le bon
@@ -387,7 +414,7 @@ export default function Depot() {
           </a>
           .
         </p>
-        <SignaturePad onChange={setSignature} disabled={verrouille} />
+        <SignaturePad onChange={setSignature} disabled={verrouille} valeur={signature} />
       </div>
 
       <h2>Photo {doc.mode === 'achat_ferme' ? 'de la livraison' : 'du dépôt'} (optionnel)</h2>

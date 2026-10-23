@@ -145,6 +145,11 @@ export type DepotSaisie = {
   boutique_email: string | null
   notes: string | null
   lignes: Array<{ produit_id: string | null; designation: string; quantite: number; prix_unitaire: number }>
+  /** Savepoint : le bloc signature (nom, tracé, photo) — ce qui ne se refait pas une fois la
+   *  boutique partie. Champs absents = on ne touche pas aux valeurs déjà enregistrées. */
+  signataire_nom?: string | null
+  signature_image?: string | null
+  photo_image?: string | null
 }
 
 /** Crée ou met à jour le brouillon et remplace ses lignes. Renvoie l'id du bon. */
@@ -157,6 +162,9 @@ export async function saveDepot(saisie: DepotSaisie): Promise<string> {
     boutique_adresse: saisie.boutique_adresse?.trim() || null,
     boutique_email: saisie.boutique_email?.trim() || null,
     notes: saisie.notes?.trim() || null,
+    ...(saisie.signataire_nom !== undefined ? { signataire_nom: saisie.signataire_nom?.trim() || null } : {}),
+    ...(saisie.signature_image !== undefined ? { signature_image: saisie.signature_image } : {}),
+    ...(saisie.photo_image !== undefined ? { photo_image: saisie.photo_image } : {}),
   }
 
   let id = saisie.id
