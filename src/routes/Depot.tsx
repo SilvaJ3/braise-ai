@@ -52,6 +52,8 @@ export default function Depot() {
   const [apercu, setApercu] = useState<{ url: string; filename: string } | null>(null)
   const [busy, setBusy] = useState<'' | 'apercu' | 'envoi'>('')
   const [erreur, setErreur] = useState<string | null>(null)
+  /** Progression visible de l'envoi : quelle étape tourne, et si une a échoué. */
+  const [progression, setProgression] = useState<'rien' | 'signature' | 'envoi' | 'termine' | 'echec'>('rien')
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const charge = useRef(false)
   // true seulement si l'écran a été ouvert directement sur un bon existant (venu de la fiche
@@ -198,8 +200,11 @@ export default function Depot() {
   async function signerEtEnvoyer() {
     setBusy('envoi')
     setErreur(null)
+    setProgression('signature')
     try {
+      // Savepoint : la signature et le brouillon sont sauvés AVANT l'envoi (rien ne se perd).
       const id = await enregistrer()
+      setProgression('envoi')
       const r = await envoyer.mutateAsync({
         depot_id: id,
         signature_image: signature,
@@ -208,9 +213,11 @@ export default function Depot() {
         email_cc: copie,
         photo_image: photo,
       })
+      setProgression('termine')
       logEvent('depot_envoye', { numero: r.numero, destinataires: r.sent_to.length })
       await existant.refetch()
     } catch (e) {
+      setProgression('echec')
       setErreur((e as Error).message)
     } finally {
       setBusy('')
@@ -456,10 +463,24 @@ export default function Depot() {
         )}
       </div>
 
+      {progression !== 'rien' && progression !== 'termine' && (
+        <div className="card stack" style={{ marginTop: 12 }}>
+          <div className="row" style={{ justifyContent: 'flex-start', gap: 8 }}>
+            <span>{progression === 'signature' ? '⏳' : '✅'}</span>
+            <span>Signature enregistrée</span>
+          </div>
+          <div className="row" style={{ justifyContent: 'flex-start', gap: 8 }}>
+            <span>{progression === 'envoi' ? '⏳' : progression === 'echec' ? '❌' : '○'}</span>
+            <span>Génération du PDF et envoi du mail</span>
+          </div>
+        </div>
+      )}
+
       {erreur && (
-        <p className="muted" style={{ color: 'var(--accent)' }}>
-          {erreur}
-        </p>
+        <div className="banner">
+          <strong>Envoi en échec</strong>
+          <p style={{ margin: '6px 0 0' }}>{erreur}</p>
+        </div>
       )}
 
       {!verrouille && problemes.length > 0 && (
